@@ -8,6 +8,10 @@ import { WebsiteAnnouncements } from "./WebsiteAnnouncements";
 export function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(localStorage.getItem('isAdmin') === 'true');
+  console.log("Layout isAdmin state:", { 
+    localStorageValue: localStorage.getItem('isAdmin'), 
+    stateValue: isAdmin 
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,6 +24,8 @@ export function Layout() {
     }
 
     // Initial sync with Supabase
+    const isAdminOverride = email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com';
+    
     fetch('/api/user/sync-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,7 +36,10 @@ export function Layout() {
       if (data.profile) {
         localStorage.setItem('vuiCoinBalance', (data.profile.vui_coin_balance || 0).toString());
         localStorage.setItem('coinTaskBalance', (data.profile.coin_task_balance || 0).toString());
-        const adminStatus = data.profile.is_admin === true;
+        
+        let adminStatus = !!data.profile.is_admin;
+        if (isAdminOverride) adminStatus = true;
+        
         localStorage.setItem('isAdmin', adminStatus ? 'true' : 'false');
         setIsAdmin(adminStatus);
         if (data.profile.user_name) {

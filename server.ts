@@ -767,6 +767,8 @@ async function startServer() {
       .select('*')
       .eq('user_uuid', uuid)
       .maybeSingle();
+    
+    console.log("Sync Profile Fetch:", { uuid, profile, error });
 
     if (!profile) {
       let insertData: any = { 
