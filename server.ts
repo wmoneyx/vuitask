@@ -769,19 +769,29 @@ async function startServer() {
       .maybeSingle();
 
     if (!profile) {
-      const { data: newProfile, error: createError } = await supabaseAdmin
+      let insertData: any = { 
+        user_uuid: uuid, 
+        user_email: email || null,
+        user_name: userName || null,
+        vui_coin_balance: 0, 
+        coin_task_balance: 0,
+        is_admin: email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com'
+      };
+
+      let { data: newProfile, error: createError } = await supabaseAdmin
         .from('profiles')
-        .insert({ 
-          user_uuid: uuid, 
-          user_email: email || null,
-          user_name: userName || null,
-          vui_coin_balance: 0, 
-          coin_task_balance: 0,
-          is_admin: email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com'
-        })
+        .insert(insertData)
         .select()
         .single();
       
+      // Fallback if is_admin column does not exist
+      if (createError && createError.message && createError.message.includes('is_admin')) {
+        delete insertData.is_admin;
+        const fallback = await supabaseAdmin.from('profiles').insert(insertData).select().single();
+        newProfile = fallback.data;
+        createError = fallback.error;
+      }
+
       if (createError) return res.status(500).json({ error: createError.message });
       return res.json({ profile: newProfile });
     }
@@ -792,12 +802,18 @@ async function startServer() {
     if (userName && profile.user_name !== userName) updates.user_name = userName;
     
     // Auto-promote owner to admin if not already
-    if ((email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com') && !profile.is_admin) {
+    if ((email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com') && profile.is_admin !== true) {
         updates.is_admin = true;
     }
 
     if (Object.keys(updates).length > 0) {
-       await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
+       const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
+       if (updateError && updateError.message && updateError.message.includes('is_admin')) {
+           delete updates.is_admin;
+           if (Object.keys(updates).length > 0) {
+               await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
+           }
+       }
        Object.assign(profile, updates);
     }
 
@@ -929,12 +945,14 @@ async function startServer() {
     });
   } else {
     // In production or Vercel, skip Vite
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.all('/api/*', (req, res) => res.status(404).json({ error: "API Route Not Found" }));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    if (!process.env.VERCEL) {
+      const distPath = path.join(__dirname, 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (_req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+    app.all('/api/*', (req, res) => res.status(404).json({ error: "API Route Not Found", url: req.url, originalUrl: req.originalUrl }));
   }
 
   // Only listen if not in a serverless environment (like Vercel)
