@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Users, AlertTriangle, MoreVertical, Ban, DollarSign, Trash2, ShieldAlert, CheckCircle, Copy } from 'lucide-react';
+import { Search, Users, AlertTriangle, MoreVertical, Ban, DollarSign, Trash2, ShieldAlert, CheckCircle, Copy, ShieldCheck } from 'lucide-react';
 
 export function AdminMembers() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,17 +26,46 @@ export function AdminMembers() {
   }, []);
 
   const toggleBan = async (id: string, is_banned: boolean) => {
-     try {
-       await fetch('/api/admin/members/ban', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, is_banned })
-       });
-       fetchMembers(); // refresh
-     } catch(e) {
-       console.error(e);
-     }
-     setDropdownOpen(null);
+    try {
+      await fetch('/api/admin/members/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_banned })
+      });
+      fetchMembers(); // refresh
+    } catch(e) {
+      console.error(e);
+    }
+    setDropdownOpen(null);
+  };
+
+  const toggleAdmin = async (id: string, is_admin: boolean) => {
+    try {
+      await fetch('/api/admin/members/set-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_admin })
+      });
+      fetchMembers(); // refresh
+    } catch(e) {
+      console.error(e);
+    }
+    setDropdownOpen(null);
+  };
+
+  const deleteAccount = async (id: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa tài khoản này? Hành động này không thể hoàn tác.")) return;
+    try {
+      await fetch('/api/admin/members/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      fetchMembers(); // refresh
+    } catch(e) {
+      console.error(e);
+    }
+    setDropdownOpen(null);
   };
 
   const filteredMembers = members.filter(m => 
@@ -150,6 +179,10 @@ export function AdminMembers() {
                     
                     {dropdownOpen === user.id && (
                       <div className="absolute right-8 top-12 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                        <button onClick={() => toggleAdmin(user.id, !user.isAdmin)} className="w-full text-left px-4 py-2 text-sm font-bold hover:bg-blue-50 flex items-center gap-3 text-blue-600">
+                          <ShieldCheck size={16} />
+                          {user.isAdmin ? 'Gỡ quyền Admin' : 'Cấp quyền Admin'}
+                        </button>
                         <button onClick={() => toggleBan(user.id, user.status === 'active' ? true : false)} className="w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 text-slate-700">
                           {user.status === 'active' ? <Ban size={16} className="text-gray-400" /> : <CheckCircle size={16} className="text-green-500" />}
                           {user.status === 'active' ? 'Khóa tài khoản' : 'Mở tài khoản'}
@@ -163,7 +196,7 @@ export function AdminMembers() {
                           Đưa vào diện tình nghi
                         </button>
                         <div className="h-px bg-gray-100 my-1"></div>
-                        <button className="w-full text-left px-4 py-2 text-sm font-bold hover:bg-rose-50 flex items-center gap-3 text-rose-600">
+                        <button onClick={() => deleteAccount(user.id)} className="w-full text-left px-4 py-2 text-sm font-bold hover:bg-rose-50 flex items-center gap-3 text-rose-600">
                           <Trash2 size={16} />
                           Xóa tải khoản
                         </button>

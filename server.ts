@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -11,9 +10,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
-
   // API routes
+  app.use((req, res, next) => {
+    if (process.env.VERCEL && req.body && typeof req.body === 'object') {
+      return next();
+    }
+    express.json()(req, res, next);
+  });
+
   app.post("/api/tasks/generate-session", async (req, res) => {
     const { userId, taskId, taskName, reward, auto } = req.body;
     const sessionId = `ORDER_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
@@ -612,6 +616,7 @@ async function startServer() {
              ip: latestIp,
              joinDate: new Date(p.created_at).toLocaleDateString(),
              status: p.is_banned ? 'banned' : 'active',
+             isAdmin: p.is_admin || false,
              suspicious: false
           };
       });
@@ -630,6 +635,41 @@ async function startServer() {
          action_type: is_banned ? 'BAN_USER' : 'UNBAN_USER',
          target_id: id,
          description: `${logMsg} ${id}`
+      });
+
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/members/set-admin", checkAdmin, async (req, res) => {
+      const { id, is_admin } = req.body;
+      await supabaseAdmin.from('profiles').update({ is_admin }).eq('user_uuid', id);
+      
+      await supabaseAdmin.from('activity_logs').insert({
+         user_uuid: 'admin',
+         action_type: is_admin ? 'SET_ADMIN' : 'REVOKE_ADMIN',
+         target_id: id,
+         description: `${is_admin ? 'Set admin' : 'Revoke admin'} for ${id}`
+      });
+
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/members/delete", checkAdmin, async (req, res) => {
+      const { id } = req.body;
+      try {
+        // Try deleting from auth as well if possible
+        await supabaseAdmin.auth.admin.deleteUser(id);
+      } catch (err) {
+        console.error("Auth delete error", err);
+      }
+      
+      await supabaseAdmin.from('profiles').delete().eq('user_uuid', id);
+      
+      await supabaseAdmin.from('activity_logs').insert({
+         user_uuid: 'admin',
+         action_type: 'DELETE_USER',
+         target_id: id,
+         description: `Deleted user ${id}`
       });
 
       res.json({ success: true });
@@ -726,7 +766,7 @@ async function startServer() {
       .from('profiles')
       .select('*')
       .eq('user_uuid', uuid)
-      .single();
+      .maybeSingle();
 
     if (!profile) {
       const { data: newProfile, error: createError } = await supabaseAdmin
@@ -736,7 +776,8 @@ async function startServer() {
           user_email: email || null,
           user_name: userName || null,
           vui_coin_balance: 0, 
-          coin_task_balance: 0 
+          coin_task_balance: 0,
+          is_admin: email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com'
         })
         .select()
         .single();
@@ -749,6 +790,11 @@ async function startServer() {
     const updates: any = {};
     if (email && profile.user_email !== email) updates.user_email = email;
     if (userName && profile.user_name !== userName) updates.user_name = userName;
+    
+    // Auto-promote owner to admin if not already
+    if ((email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com') && !profile.is_admin) {
+        updates.is_admin = true;
+    }
 
     if (Object.keys(updates).length > 0) {
        await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
@@ -861,7 +907,8 @@ async function startServer() {
   // ===================================
 
   // Vite middleware
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -881,16 +928,24 @@ async function startServer() {
       }
     });
   } else {
+    // In production or Vercel, skip Vite
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
+    app.all('/api/*', (req, res) => res.status(404).json({ error: "API Route Not Found" }));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if not in a serverless environment (like Vercel)
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+export default appPromise;

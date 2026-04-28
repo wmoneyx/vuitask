@@ -28,7 +28,10 @@ const data = [
   { name: 'Th 2, ngày 27', users: 0, revenue: 0, withdrawn: 0 },
 ];
 
+import { useNavigate } from "react-router-dom";
+
 export function AdminPage() {
+  const navigate = useNavigate();
   const [time, setTime] = useState(new Date().toLocaleTimeString());
   const [activeTab, setActiveTab] = useState('Tổng quan');
   const [needsFullscreenPrompt, setNeedsFullscreenPrompt] = useState(false);
@@ -41,6 +44,12 @@ export function AdminPage() {
     pendingWithdrawals: 0,
     pendingTasks: 0
   });
+
+  useEffect(() => {
+    if (localStorage.getItem('isAdmin') !== 'true') {
+      navigate('/app', { replace: true });
+    }
+  }, [navigate]);
 
   const fetchStats = async () => {
     try {
