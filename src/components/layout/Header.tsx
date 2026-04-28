@@ -1,0 +1,197 @@
+import { useState, useRef, useEffect } from "react";
+import { Bell, Menu, X, CheckCircle2 } from "lucide-react";
+import confetti from 'canvas-confetti';
+import { Logo } from "@/components/ui/Logo";
+
+interface HeaderProps {
+  isSidebarOpen: boolean;
+  toggleSidebar: () => void;
+}
+
+const MOCK_NOTIFICATIONS: any[] = [];
+
+export function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
+  const userEmail = localStorage.getItem('userEmail') || 'user@gmail.com';
+  const isAdmin = userEmail === 'omnitask123@gmail.com';
+  const username = userEmail.split('@')[0];
+  
+  const [showMail, setShowMail] = useState(false);
+  const [activeTab, setActiveTab] = useState<'notifications' | 'chests'>('notifications');
+  const [notifications, setNotifications] = useState(() => JSON.parse(localStorage.getItem('notifications') || '[]'));
+  const [openedChests, setOpenedChests] = useState(() => JSON.parse(localStorage.getItem('openedChests') || '{"chest1": 0, "chest2": 0, "chest3": 0}'));
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Keep internal consistency if needed, but the user wants Bell icon
+  }, []);
+
+  useEffect(() => {
+    const handleNewNotification = () => {
+      setNotifications(JSON.parse(localStorage.getItem('notifications') || '[]'));
+    };
+    
+    window.addEventListener('newNotification', handleNewNotification);
+    return () => window.removeEventListener('newNotification', handleNewNotification);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowMail(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const unreadCount = notifications.filter((n: any) => !n.read).length;
+
+  const markAllAsRead = () => {
+    setNotifications(notifications.map((n: any) => ({...n, read: true})));
+    localStorage.setItem('notifications', JSON.stringify(notifications.map((n: any) => ({...n, read: true}))));
+  };
+  
+  const [showRewardPopup, setShowRewardPopup] = useState<{ isOpen: boolean; reward: number; chestType: number } | null>(null);
+  
+  const handleNotificationClick = (notif: any) => {
+    if (notif.type === 'reward_chest' && !notif.claimed) {
+      // Add balance
+      const currentBalance = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
+      const newBalance = currentBalance + notif.rewardAmount;
+      localStorage.setItem('vuiCoinBalance', newBalance.toString());
+      
+      // Mark as claimed
+      const newNotifs = notifications.map((n: any) => 
+        n.id === notif.id ? { ...n, claimed: true, read: true } : n
+      );
+      setNotifications(newNotifs);
+      localStorage.setItem('notifications', JSON.stringify(newNotifs));
+      
+      // Trigger update
+      window.dispatchEvent(new CustomEvent('balanceUpdated'));
+      
+      // Show Popup
+      setShowRewardPopup({ isOpen: true, reward: notif.rewardAmount, chestType: notif.chestType });
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+  };
+
+  return (
+    <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-6 sticky top-0 z-10 shrink-0 shadow-sm">
+      <div className="flex items-center gap-2 md:gap-4">
+        <button 
+          onClick={toggleSidebar}
+          className="p-2 text-gray-500 hover:bg-gray-50 rounded-lg lg:hidden"
+        >
+          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        <div className={isSidebarOpen ? "hidden lg:block" : "block"}>
+          <Logo />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6">
+        <div className="relative" ref={dropdownRef}>
+          <button 
+            onClick={() => {
+              setShowMail(!showMail);
+              setOpenedChests(JSON.parse(localStorage.getItem('openedChests') || '{"chest1": 0, "chest2": 0, "chest3": 0}'));
+            }}
+            title="Hòm thư"
+            className="relative text-gray-500 hover:text-gray-700 transition-colors p-2 rounded-lg hover:bg-gray-50"
+          >
+            <Bell size={20} strokeWidth={1.5} />
+            {unreadCount > 0 && <span className="absolute top-1 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+          </button>
+          
+          {showMail && (
+            <div className="absolute top-12 right-0 w-80 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+              <div className="flex border-b border-gray-100">
+                <button
+                  className={`flex-1 text-xs font-bold py-3 uppercase ${activeTab === 'notifications' ? 'bg-slate-50 text-slate-800' : 'text-gray-400 hover:bg-gray-50'}`}
+                  onClick={() => setActiveTab('notifications')}
+                >
+                  Thông Báo
+                </button>
+                <button
+                  className={`flex-1 text-xs font-bold py-3 uppercase ${activeTab === 'chests' ? 'bg-slate-50 text-slate-800' : 'text-gray-400 hover:bg-gray-50'}`}
+                  onClick={() => setActiveTab('chests')}
+                >
+                  Mở Hòm
+                </button>
+              </div>
+              
+              <div className="max-h-80 overflow-y-auto custom-scrollbar p-2">
+                {activeTab === 'notifications' ? (
+                  <>
+                    <div className="p-2 border-b border-gray-50 flex items-center justify-between">
+                      <h3 className="font-bold text-slate-800 text-sm">Thông báo</h3>
+                      {unreadCount > 0 && (
+                        <button onClick={markAllAsRead} className="text-xs font-bold text-primary hover:text-orange-600 transition-colors flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Đã đọc
+                        </button>
+                      )}
+                    </div>
+                    {notifications.map((notif: any) => (
+                      <div key={notif.id} onClick={() => handleNotificationClick(notif)} className={`p-3 rounded-xl mb-1 hover:bg-gray-50 transition-colors ${!notif.claimed ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'} ${!notif.read ? 'bg-orange-50/30' : ''}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-sm ${!notif.read ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>{notif.title}</span>
+                          <span className="text-[10px] text-gray-400 font-mono">{notif.time}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 line-clamp-2">{notif.content}</p>
+                        {notif.claimed && <div className="text-[10px] font-bold text-emerald-600 mt-1 uppercase">Đã nhận</div>}
+                      </div>
+                    ))}
+                    {notifications.length === 0 && (
+                      <div className="p-4 text-center text-xs text-gray-400">Không có thông báo nào</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-2">
+                    <h3 className="font-bold text-slate-800 text-sm mb-2">Hòm đã mở</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Object.entries(openedChests).map(([key, value]) => (
+                        <div key={key} className="bg-slate-50 p-2 rounded-xl text-center">
+                          <div className="text-xs text-gray-500 uppercase">{key}</div>
+                          <div className="font-bold text-slate-900">{String(value)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Reward Popup */}
+        {showRewardPopup?.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-300">
+              <h2 className="text-2xl font-black text-slate-900 mb-2">Chúc mừng!</h2>
+              <p className="text-sm text-gray-500 mb-6">Bạn đã mở Hòm Bí Ẩn {showRewardPopup.chestType} và nhận được:</p>
+              <div className="text-4xl font-black text-emerald-500 mb-8">{showRewardPopup.reward.toLocaleString()} VuiCoin</div>
+              <button onClick={() => setShowRewardPopup(null)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800">Đã hiểu</button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-2 text-capitalize">
+              {isAdmin ? "Vui Task" : username} {isAdmin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+            </div>
+            <div className="text-xs text-gray-500">{userEmail}</div>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase">
+            {username.charAt(0)}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

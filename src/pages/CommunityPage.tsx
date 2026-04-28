@@ -1,0 +1,182 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { GenericPage } from "@/components/layout/GenericPage";
+import { MessageCircle, CheckCircle, Activity, Heart, ThumbsUp, Send } from "lucide-react";
+import { AnimatedDiv } from "@/components/ui/AnimatedText";
+
+export function CommunityPage() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const fetchMessages = async () => {
+    try {
+      const res = await fetch('/api/community/messages');
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(data.messages);
+      }
+    } catch(err) {}
+  };
+
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleReact = async (messageId: string, emoji: string) => {
+    const localUUID = localStorage.getItem('omni_uuid') || crypto.randomUUID();
+    let localName = localStorage.getItem('omni_username');
+    if (!localName) {
+        localName = `User${Math.floor(Math.random()*10000)}`;
+        localStorage.setItem('omni_username', localName);
+    }
+    await fetch('/api/community/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId, emoji, uuid: localUUID, name: localName })
+    });
+    fetchMessages();
+  };
+
+  const getReactionTitle = (reactions: any[]) => {
+      if (!reactions || reactions.length === 0) return "";
+      return reactions.map((r: any) => r.name).join(", ");
+  }
+
+  return (
+    <GenericPage title="Cộng Đồng" showHistory={false}>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-180px)] w-full">
+        {/* Header */}
+        <div className="p-5 border-b border-gray-100 bg-white flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0 border border-blue-100">
+                    <MessageCircle size={24} />
+                </div>
+                <div>
+                    <h2 className="font-bold text-slate-800 text-lg tracking-tight">Chat Toàn Cầu</h2>
+                    <div className="text-xs text-blue-500 font-bold flex items-center gap-1.5">
+                       <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                       Trực tuyến • Hoạt động
+                    </div>
+                </div>
+            </div>
+            <div className="hidden sm:block text-xs bg-slate-900 text-white px-4 py-2 rounded-xl font-bold uppercase tracking-wider">
+                Chỉ Admin mới có thể Gửi
+            </div>
+        </div>
+
+        {/* Chat List */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 bg-gray-50/30" ref={scrollRef}>
+           {messages.length === 0 && (
+             <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4 opacity-50">
+                <MessageCircle size={48} strokeWidth={1} />
+                <p className="italic text-sm">Chưa có tin nhắn nào trong kênh này</p>
+             </div>
+           )}
+           {messages.map(msg => (
+               <div key={msg.id} className="flex gap-4 group">
+                   {/* Avatar */}
+                   <img src={msg.user_avatar || msg.user.avatar} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
+                   
+                   <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`font-bold text-sm tracking-tight ${msg.is_admin || msg.user.isAdmin ? 'text-blue-600' : 'text-slate-700'}`}>
+                              {msg.user_name || msg.user.name}
+                          </span>
+                          {(msg.is_admin || msg.user.isAdmin) && <CheckCircle size={14} className="text-blue-500 fill-blue-50" />}
+                          <span className="text-[10px] text-gray-400 font-bold font-mono ml-auto sm:ml-0">
+                             {new Date(msg.timestamp).toLocaleTimeString('vi-VN')}
+                          </span>
+                      </div>
+
+                      {/* Reply badge (nếu có) */}
+                      {msg.replyToId && (
+                         <div className="text-xs bg-gray-100 text-gray-500 p-2 rounded-xl mb-2 flex items-center gap-2 border-l-2 border-blue-400">
+                             <Activity size={12}/> Đã trả lời 1 yêu cầu rút tiền
+                         </div>
+                      )}
+
+                      {/* Content Box */}
+                      {msg.type === 'withdrawal' ? (
+                          <div className={`p-4 rounded-2xl rounded-tl-none border shadow-sm w-fit max-w-[90%] sm:max-w-[70%] ${msg.status === 'Đã thanh toán' ? 'bg-emerald-50 border-emerald-100' : 'bg-orange-50 border-orange-100'}`}>
+                             <div className="font-bold text-slate-800 text-sm mb-1">Yêu cầu rút thưởng: <span className="text-lg text-rose-500">{msg.amount?.toLocaleString()}đ</span></div>
+                             <div className={`text-[10px] font-black px-2.5 py-1 rounded-lg inline-block uppercase tracking-wider
+                                 ${msg.status === 'Đã thanh toán' ? 'bg-emerald-200 text-emerald-900' : 'bg-orange-200 text-orange-900'}
+                             `}>
+                                TRẠNG THÁI: {msg.status}
+                             </div>
+                          </div>
+                      ) : (
+                          <div className={`p-4 rounded-2xl rounded-tl-none w-fit text-sm shadow-sm leading-relaxed border ${msg.is_admin || msg.user.isAdmin ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-800 border-gray-100'}`}>
+                             {msg.content}
+                          </div>
+                      )}
+
+                      {/* Reactions */}
+                      <div className="flex items-center gap-2 mt-3">
+                          <button onClick={() => handleReact(msg.id, '❤️')} title={getReactionTitle(msg.reactions['❤️'])} className="flex items-center gap-1.5 bg-white border border-gray-100 px-3 py-1 rounded-full hover:bg-gray-50 transition-all shadow-sm active:scale-95 group/react">
+                              <span className="text-xs group-hover/react:scale-125 transition-transform">❤️</span>
+                              <span className="text-xs font-black text-gray-500">{msg.reactions['❤️']?.length || 0}</span>
+                          </button>
+                          <button onClick={() => handleReact(msg.id, '👍')} title={getReactionTitle(msg.reactions['👍'])} className="flex items-center gap-1.5 bg-white border border-gray-100 px-3 py-1 rounded-full hover:bg-gray-50 transition-all shadow-sm active:scale-95 group/react">
+                              <span className="text-xs group-hover/react:scale-125 transition-transform">👍</span>
+                              <span className="text-xs font-black text-gray-500">{msg.reactions['👍']?.length || 0}</span>
+                          </button>
+                          <button onClick={() => handleReact(msg.id, '🔥')} title={getReactionTitle(msg.reactions['🔥'])} className="flex items-center gap-1.5 bg-white border border-gray-100 px-3 py-1 rounded-full hover:bg-gray-50 transition-all shadow-sm active:scale-95 group/react">
+                              <span className="text-xs group-hover/react:scale-125 transition-transform">🔥</span>
+                              <span className="text-xs font-black text-gray-500">{msg.reactions['🔥']?.length || 0}</span>
+                          </button>
+                      </div>
+                   </div>
+               </div>
+           ))}
+        </div>
+
+        {/* Chat Input */}
+        <div className="p-6 border-t border-gray-100 bg-white flex items-center gap-4">
+           <div className="flex-1 relative">
+               <input 
+                 type="text" 
+                 placeholder="Nhập tin nhắn (Gửi với tư cách Admin)..." 
+                 className="w-full bg-gray-50 border border-transparent rounded-2xl px-6 py-4 text-sm focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all font-medium" 
+                 onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                       const val = e.currentTarget.value.trim();
+                       e.currentTarget.value = '';
+                       await fetch('/api/community/admin-message', {
+                          method: 'POST',
+                          headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({ content: val })
+                       });
+                       fetchMessages();
+                    }
+                 }}
+               />
+           </div>
+           <button onClick={() => {
+               const input = document.querySelector('input[placeholder="Nhập tin nhắn (Gửi với tư cách Admin)..."]') as HTMLInputElement;
+               if (input && input.value.trim()) {
+                   const val = input.value.trim();
+                   input.value = '';
+                   fetch('/api/community/admin-message', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify({ content: val })
+                   }).then(() => {
+                       fetchMessages();
+                   });
+               }
+           }} className="w-14 h-14 bg-blue-600 text-white hover:bg-blue-700 active:scale-95 rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 shrink-0">
+              <Send size={20} />
+           </button>
+        </div>
+      </div>
+    </GenericPage>
+  );
+}
