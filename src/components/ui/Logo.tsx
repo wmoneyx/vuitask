@@ -1,5 +1,4 @@
 import { motion } from "motion/react";
-import { AnimatedText } from "./AnimatedText";
 
 interface LogoProps {
   showText?: boolean;
@@ -7,52 +6,53 @@ interface LogoProps {
 
 export function Logo({ showText = true }: LogoProps) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative w-8 h-8 flex items-center justify-center">
-        {/* Rotating Ellipse */}
+    <div className="flex items-center gap-3">
+      <div className="relative w-10 h-10 flex items-center justify-center">
+        {/* Rotating Geometric Ellipses */}
         <motion.svg
-          width="32"
-          height="32"
-          viewBox="0 0 32 32"
+          width="40"
+          height="40"
+          viewBox="0 0 40 40"
           className="absolute inset-0"
           animate={{ rotate: 360 }}
           transition={{
-            duration: 8,
+            duration: 10,
             ease: "linear",
             repeat: Infinity,
           }}
         >
           <ellipse
-            cx="16"
-            cy="16"
-            rx="14"
-            ry="6"
+            cx="20"
+            cy="20"
+            rx="18"
+            ry="7"
             fill="none"
-            stroke="#1e293b"
-            strokeWidth="2"
-            transform="rotate(-45 16 16)"
+            stroke="currentColor"
+            className="text-slate-900"
+            strokeWidth="3"
+            transform="rotate(-45 20 20)"
           />
           <ellipse
-            cx="16"
-            cy="16"
-            rx="14"
-            ry="6"
+            cx="20"
+            cy="20"
+            rx="18"
+            ry="7"
             fill="none"
-            stroke="#FF8C00"
-            strokeWidth="2"
-            transform="rotate(45 16 16)"
+            stroke="currentColor"
+            className="text-orange-500"
+            strokeWidth="3"
+            transform="rotate(45 20 20)"
           />
         </motion.svg>
         
-        {/* Animated the letter V generating constantly */}
+        {/* Animated letter V */}
         <motion.div
-           className="text-primary font-bold text-lg relative z-10 font-sans"
+           className="text-slate-900 font-extrabold text-xl relative z-10 font-sans"
            animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.7, 1, 0.7],
+            scale: [1, 1.1, 1],
            }}
            transition={{
-            duration: 2,
+            duration: 3,
             repeat: Infinity,
             ease: "easeInOut"
            }}
@@ -62,13 +62,13 @@ export function Logo({ showText = true }: LogoProps) {
       </div>
       {showText && (
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.1 }}
-          className="font-bold text-xl uppercase tracking-tighter flex"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+          className="font-bold text-2xl uppercase tracking-tighter flex"
         >
           <span className="text-slate-900">Vui</span>
-          <span className="text-gray-500 font-light ml-1">Task</span>
+          <span className="text-orange-500 ml-1">Task</span>
         </motion.div>
       )}
     </div>
