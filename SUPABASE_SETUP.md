@@ -19,12 +19,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- In case the table already exists, make user_uuid the primary key and remove id
+-- Note: In case the table already exists, migrate to user_uuid as PK if needed
 -- ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_pkey;
 -- ALTER TABLE public.profiles ADD PRIMARY KEY (user_uuid);
 -- ALTER TABLE public.profiles DROP COLUMN IF EXISTS id;
 
--- 2. Tasks Registry (Master list of tasks)
+-- 2. Tasks Registry
 CREATE TABLE IF NOT EXISTS public.tasks (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -38,8 +38,6 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS tutorial_url TEXT;
-
 -- 3. Tasks History Table
 CREATE TABLE IF NOT EXISTS public.tasks_history (
   id TEXT PRIMARY KEY,
@@ -48,14 +46,14 @@ CREATE TABLE IF NOT EXISTS public.tasks_history (
   url TEXT,
   reward BIGINT NOT NULL,
   status TEXT NOT NULL, -- 'Hoàn thành', 'Chờ duyệt', 'Từ chối'
-  status_v1 TEXT, -- 'Đang duyệt', 'Đã duyệt', 'Từ chối'
-  status_v2 TEXT, -- 'Đang duyệt', 'Đã duyệt', 'Từ chối'
+  status_v1 TEXT,
+  status_v2 TEXT,
   ip TEXT,
   timestamp BIGINT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Sessions Table (Temporary operation sessions)
+-- 4. Sessions Table
 CREATE TABLE IF NOT EXISTS public.sessions (
   id TEXT PRIMARY KEY,
   user_uuid TEXT NOT NULL,
@@ -69,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Community Messages Table (Chat & Logs)
+-- 5. Community Messages Table
 CREATE TABLE IF NOT EXISTS public.community_messages (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL, -- 'withdrawal', 'message', 'reply', 'task_review'
@@ -127,7 +125,7 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Initial Data for Tasks (Optional)
+-- Initial Data for Tasks
 INSERT INTO public.tasks (id, name, type, reward, auto, api_url, max_views, tutorial_url) VALUES
 ('layma', 'LAYMA', 'shortlink', 600, true, 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=', 2, NULL),
 ('link4m', 'LINK4M', 'shortlink', 300, true, 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=', 2, NULL),
@@ -152,7 +150,7 @@ ON CONFLICT (id) DO UPDATE SET
   tutorial_url = EXCLUDED.tutorial_url,
   max_views = EXCLUDED.max_views;
 
--- 10. System Settings Table (Maintenance mode, etc.)
+-- 10. System Settings Table
 CREATE TABLE IF NOT EXISTS public.system_settings (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,
@@ -174,12 +172,12 @@ CREATE TABLE IF NOT EXISTS public.mod_games (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 12. Activity Logs Table (System/Admin actions history)
+-- 12. Activity Logs Table
 CREATE TABLE IF NOT EXISTS public.activity_logs (
   id BIGSERIAL PRIMARY KEY,
-  user_uuid TEXT NOT NULL, -- User/Admin who performed the action
-  action_type TEXT NOT NULL, -- e.g., 'APPROVE_TASK', 'REJECT_WITHDRAWAL', 'UPDATE_SETTINGS'
-  target_id TEXT, -- ID of the affected record
+  user_uuid TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  target_id TEXT,
   description TEXT NOT NULL,
   ip_address TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -190,7 +188,7 @@ CREATE TABLE IF NOT EXISTS public.bug_reports (
   id BIGSERIAL PRIMARY KEY,
   user_uuid TEXT NOT NULL,
   description TEXT NOT NULL,
-  status TEXT DEFAULT 'pending', -- 'pending', 'investigating', 'resolved'
+  status TEXT DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -207,9 +205,9 @@ CREATE TABLE IF NOT EXISTS public.user_ips (
 -- 15. Referrals Table
 CREATE TABLE IF NOT EXISTS public.referrals (
   id BIGSERIAL PRIMARY KEY,
-  referrer_uuid TEXT NOT NULL, -- The user who invited
-  referred_uuid TEXT NOT NULL, -- The user who joined
-  status TEXT DEFAULT 'pending', -- pending, rewarded
+  referrer_uuid TEXT NOT NULL,
+  referred_uuid TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
   reward BIGINT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(referred_uuid)
@@ -224,9 +222,6 @@ CREATE TABLE IF NOT EXISTS public.gift_code_redeems (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(user_uuid, code)
 );
-
--- Security: Set a specific user as Admin (REPLACE WITH YOUR ACTUAL UUID)
--- UPDATE public.profiles SET is_admin = true WHERE user_uuid = 'YOUR_UUID_HERE';
 
 -- 17. Security RPC functions
 CREATE OR REPLACE FUNCTION decrement_vui_coin(user_id text, amount numeric)
@@ -267,8 +262,4 @@ BEGIN
   WHERE user_uuid = user_id;
 END;
 $$;
-
--- Note: Ensure user_email column exists within profiles
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS user_email TEXT;
 ```
-
