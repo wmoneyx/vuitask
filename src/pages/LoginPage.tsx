@@ -49,6 +49,10 @@ export function LoginPage() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userEmail', email);
         localStorage.setItem('userUUID', data.user.id);
+        const fullName = data.user.user_metadata?.full_name;
+        if (fullName) {
+          localStorage.setItem('userName', fullName);
+        }
         navigate('/app');
       }
     } catch (e) {

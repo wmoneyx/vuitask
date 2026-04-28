@@ -51,6 +51,7 @@ export function RegisterPage() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userEmail', email);
         localStorage.setItem('userUUID', data.user.id);
+        localStorage.setItem('userName', name);
         
         // Profiles are usually created via trigger, but we have a sync endpoint in our server
         // so we can rely on that or create it here. 

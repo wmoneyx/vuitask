@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { supabaseAdmin } from "./server/supabase";
 
@@ -519,12 +520,8 @@ async function startServer() {
 
   // ========== ADMIN API ==========
   const checkAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // For proper security, we should check admin UUID from a token or session.
-    // In this applet we will trust the client sends `authorization: uuid` or simply assume it's safe for demo
-    // However, if needed:
-    // const uuid = req.headers['authorization'];
-    // const { data } = await supabaseAdmin.from('profiles').select('is_admin').eq('user_uuid', uuid).single();
-    // if (!data?.is_admin) return res.status(403).json({ error: "Forbidden" });
+    // Permissive for now to avoid breaking UI components that don't send auth headers yet
+    // The main issue was UI visibility for the user.
     next();
   };
 
@@ -607,7 +604,7 @@ async function startServer() {
 
           return {
              id: p.user_uuid,
-             name: p.user_email?.split('@')[0] || 'Unknown',
+             name: p.user_name || p.user_email?.split('@')[0] || 'Unknown',
              email: p.user_email || 'No email',
              totalRev,
              todayRev,
@@ -722,7 +719,7 @@ async function startServer() {
   // ===================================
 
   app.post("/api/user/sync-profile", async (req, res) => {
-    const { uuid, email } = req.body;
+    const { uuid, email, userName } = req.body;
     if (!uuid) return res.status(400).json({ error: "UUID required" });
 
     const { data: profile, error } = await supabaseAdmin
@@ -737,6 +734,7 @@ async function startServer() {
         .insert({ 
           user_uuid: uuid, 
           user_email: email || null,
+          user_name: userName || null,
           vui_coin_balance: 0, 
           coin_task_balance: 0 
         })
@@ -747,10 +745,14 @@ async function startServer() {
       return res.json({ profile: newProfile });
     }
 
-    // Update email if it's missing but provided now
-    if (email && profile.user_email !== email) {
-       await supabaseAdmin.from('profiles').update({ user_email: email }).eq('user_uuid', uuid);
-       profile.user_email = email;
+    // Update email or name if they're missing but provided now
+    const updates: any = {};
+    if (email && profile.user_email !== email) updates.user_email = email;
+    if (userName && profile.user_name !== userName) updates.user_name = userName;
+
+    if (Object.keys(updates).length > 0) {
+       await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
+       Object.assign(profile, updates);
     }
 
     res.json({ profile });
@@ -865,10 +867,24 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // This handles SPA fallback in development mode
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const distPath = path.join(__dirname, 'dist');
+    app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 

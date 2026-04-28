@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck } from "lucide-react";
 import { SIDEBAR_MENUS, SUPPORT_MENUS } from "@/constants";
 import { Logo } from "@/components/ui/Logo";
@@ -11,10 +11,22 @@ interface SidebarProps {
   toggle: () => void;
   onOpen: () => void;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ isOpen, toggle, onOpen, onClose }: SidebarProps) {
-  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+export function Sidebar({ isOpen, toggle, onOpen, onClose, isAdmin = false }: SidebarProps) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('userUUID');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('vuiCoinBalance');
+    localStorage.removeItem('coinTaskBalance');
+    localStorage.removeItem('isAdmin');
+    navigate('/');
+  };
 
   return (
     <>
@@ -197,10 +209,7 @@ export function Sidebar({ isOpen, toggle, onOpen, onClose }: SidebarProps) {
         </div>
         <div className="p-4 border-t border-gray-100">
           <button 
-             onClick={() => {
-                localStorage.removeItem('isLoggedIn');
-                window.location.href = '/';
-             }}
+             onClick={handleLogout}
              className={cn(
                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors w-full",
                !isOpen && "justify-center"

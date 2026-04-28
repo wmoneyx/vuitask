@@ -1,25 +1,29 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Menu, X, CheckCircle2 } from "lucide-react";
+import { Bell, Menu, X, CheckCircle2, LogOut, User } from "lucide-react";
 import confetti from 'canvas-confetti';
 import { Logo } from "@/components/ui/Logo";
+import { useNavigate, Link } from "react-router-dom";
 
 interface HeaderProps {
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
+  isAdmin?: boolean;
 }
 
 const MOCK_NOTIFICATIONS: any[] = [];
 
-export function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
+export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: HeaderProps) {
   const userEmail = localStorage.getItem('userEmail') || 'user@gmail.com';
-  const isAdmin = userEmail === 'omnitask123@gmail.com';
-  const username = userEmail.split('@')[0];
+  const username = localStorage.getItem('userName') || userEmail.split('@')[0];
   
   const [showMail, setShowMail] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'notifications' | 'chests'>('notifications');
   const [notifications, setNotifications] = useState(() => JSON.parse(localStorage.getItem('notifications') || '[]'));
   const [openedChests, setOpenedChests] = useState(() => JSON.parse(localStorage.getItem('openedChests') || '{"chest1": 0, "chest2": 0, "chest3": 0}'));
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Keep internal consistency if needed, but the user wants Bell icon
@@ -38,6 +42,9 @@ export function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowMail(false);
+      }
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setShowAccountMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -78,6 +85,17 @@ export function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
         origin: { y: 0.6 }
       });
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('userUUID');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('vuiCoinBalance');
+    localStorage.removeItem('coinTaskBalance');
+    localStorage.removeItem('notifications');
+    localStorage.removeItem('openedChests');
+    localStorage.removeItem('checkedInDays');
+    navigate('/login');
   };
 
   return (
@@ -180,16 +198,41 @@ export function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-2 text-capitalize">
-              {isAdmin ? "Vui Task" : username} {isAdmin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+        <div className="relative" ref={accountDropdownRef}>
+          <button 
+            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            className="flex items-center gap-3 hover:bg-gray-50 p-1 rounded-xl transition-colors"
+          >
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-2 text-capitalize">
+                {isAdmin ? "Vui Task" : username} {isAdmin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+              </div>
+              <div className="text-xs text-gray-500">{userEmail}</div>
             </div>
-            <div className="text-xs text-gray-500">{userEmail}</div>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase">
-            {username.charAt(0)}
-          </div>
+            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase">
+              {username.charAt(0)}
+            </div>
+          </button>
+
+          {showAccountMenu && (
+            <div className="absolute top-12 right-0 w-48 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 py-1">
+              <Link 
+                to="/profile" 
+                onClick={() => setShowAccountMenu(false)}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <User size={16} />
+                <span>Trang cá nhân</span>
+              </Link>
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut size={16} />
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

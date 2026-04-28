@@ -8,9 +8,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Profiles Table (Users)
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_uuid TEXT UNIQUE NOT NULL,
+  user_uuid TEXT PRIMARY KEY,
   user_email TEXT,
+  user_name TEXT,
   vui_coin_balance BIGINT DEFAULT 0,
   coin_task_balance BIGINT DEFAULT 0,
   last_attendance DATE,
@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   is_banned BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- In case the table already exists, make user_uuid the primary key and remove id
+-- ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_pkey;
+-- ALTER TABLE public.profiles ADD PRIMARY KEY (user_uuid);
+-- ALTER TABLE public.profiles DROP COLUMN IF EXISTS id;
 
 -- 2. Tasks Registry (Master list of tasks)
 CREATE TABLE IF NOT EXISTS public.tasks (

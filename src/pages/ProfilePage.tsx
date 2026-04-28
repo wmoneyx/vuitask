@@ -18,19 +18,24 @@ export function ProfilePage() {
   useEffect(() => {
      const uuid = localStorage.getItem('userUUID');
      const storedEmail = localStorage.getItem('userEmail');
+     const storedName = localStorage.getItem('userName');
      if (uuid) {
-        setUsername(uuid);
+        setUsername(storedName || uuid);
         setEmail(storedEmail || 'Chưa thiết lập');
         setAvatarUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`);
         
         fetch(`/api/user/sync-profile`, {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ uuid, email: storedEmail })
+           body: JSON.stringify({ uuid, email: storedEmail, userName: storedName })
         }).then(res => res.json()).then(data => {
             if (data.profile) {
                 setVuiBalance(data.profile.vui_coin_balance);
                 setTaskBalance(data.profile.coin_task_balance);
+                if (data.profile.user_name) {
+                  setUsername(data.profile.user_name);
+                  localStorage.setItem('userName', data.profile.user_name);
+                }
                 if (data.profile.is_banned) setStatus("BAN");
             }
         });
