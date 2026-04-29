@@ -24,7 +24,7 @@ async function startServer() {
     
     const { error } = await supabaseAdmin.from('sessions').insert({
       id: sessionId,
-      user_uuid: userId || 'anonymous',
+      user_uuid: userId || '00000000-0000-0000-0000-000000000000',
       task_id: taskId,
       task_name: taskName,
       reward,
