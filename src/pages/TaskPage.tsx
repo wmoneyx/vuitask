@@ -274,50 +274,50 @@ export function TaskPage() {
           <button onClick={fetchHistory} className="text-xs font-bold text-blue-600 uppercase hover:underline">Tải lại</button>
         </div>
         <div className="overflow-x-auto custom-scrollbar max-h-96">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="w-full text-left border-collapse min-w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 z-10">
-              <tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                <th className="p-4">Thời gian</th>
-                <th className="p-4">Loại Task</th>
-                <th className="p-4">URL Task đã làm</th>
-                <th className="p-4 text-center">Thưởng</th>
-                <th className="p-4 text-center">Trạng thái</th>
-                <th className="p-4 text-center">Duyệt V1</th>
-                <th className="p-4 text-center">Duyệt V2</th>
+              <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                <th className="p-2">Thời gian</th>
+                <th className="p-2">Loại Task</th>
+                <th className="p-2">URL Task đã làm</th>
+                <th className="p-2 text-center">Thưởng</th>
+                <th className="p-2 text-center">Trạng thái</th>
+                <th className="p-2 text-center">Duyệt V1</th>
+                <th className="p-2 text-center">Duyệt V2</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
                {history.length === 0 ? (
                  <tr>
-                   <td colSpan={7} className="p-8 text-center text-gray-400 text-sm italic">Chưa có dữ liệu lịch sử làm nhiệm vụ.</td>
+                   <td colSpan={7} className="p-4 text-center text-gray-400 text-sm italic">Chưa có dữ liệu lịch sử làm nhiệm vụ.</td>
                  </tr>
                ) : (
                  history.map((record, idx) => (
                    <tr key={idx} className="hover:bg-gray-50">
-                     <td className="p-4 text-xs font-mono text-gray-400">{new Date(record.timestamp).toLocaleString('vi-VN')}</td>
-                     <td className="p-4 font-bold text-slate-700">{record.taskName}</td>
-                     <td className="p-4 text-sm font-mono text-blue-500 hover:underline truncate max-w-[250px]">
+                     <td className="p-2 text-xs font-mono text-gray-400">{new Date(record.timestamp).toLocaleString('vi-VN')}</td>
+                     <td className="p-2 font-bold text-slate-700">{record.taskName}</td>
+                     <td className="p-2 text-sm font-mono text-blue-500 hover:underline truncate max-w-[250px]">
                         <a href={record.url} target="_blank" rel="noreferrer">{record.url}</a>
                      </td>
-                     <td className="p-4 text-center font-bold text-emerald-500">+{record.reward}</td>
-                     <td className="p-4 text-center">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded uppercase bg-opacity-20
+                     <td className="p-2 text-center font-bold text-emerald-500">+{record.reward}</td>
+                     <td className="p-2 text-center">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-opacity-20
                            ${record.status === 'Hoàn thành' ? 'bg-emerald-500 text-emerald-700' : 
                              record.status === 'Từ chối' ? 'bg-rose-500 text-rose-700' : 'bg-orange-500 text-orange-700'}`
                            }>
                           {record.status}
                         </span>
                      </td>
-                     <td className="p-4 text-center">
+                     <td className="p-2 text-center">
                         {record.statusV1 ? (
-                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${record.statusV1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${record.statusV1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
                               {record.statusV1}
                            </span>
                         ) : <span className="text-gray-300">-</span>}
                      </td>
-                     <td className="p-4 text-center">
+                     <td className="p-2 text-center">
                         {record.statusV2 ? (
-                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${record.statusV2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${record.statusV2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
                               {record.statusV2}
                            </span>
                         ) : <span className="text-gray-300">-</span>}

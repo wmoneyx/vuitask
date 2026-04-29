@@ -11,9 +11,10 @@ export function WebsiteAnnouncements() {
     const fetchAnnouncements = async () => {
       try {
         const res = await fetch('/api/notifications');
+        if (!res.ok) return; // Ignore non-200 responses
         const data = await res.json();
         
-        if (data.notifications && data.notifications.length > 0) {
+        if (data && data.notifications && data.notifications.length > 0) {
            const readIds = JSON.parse(localStorage.getItem('read_announcements') || '[]');
            const unread = data.notifications.filter((n: any) => !readIds.includes(n.id));
            if (unread.length > 0) {

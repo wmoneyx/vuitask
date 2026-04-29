@@ -77,57 +77,57 @@ export function AdminTasks() {
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[800px]">
+          <table className="w-full text-left border-collapse min-w-full">
              <thead>
-              <tr className="bg-slate-50 border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                <th className="p-4 rounded-tl-2xl w-24">ID</th>
-                <th className="p-4">Nhiệm vụ</th>
-                <th className="p-4">Người làm</th>
-                <th className="p-4">URL</th>
-                <th className="p-4 text-center">Thưởng</th>
-                <th className="p-4 text-center">Duyệt V1</th>
-                <th className="p-4 text-center">Duyệt V2</th>
-                <th className="p-4 text-center">IP</th>
-                <th className="p-4 text-center rounded-tr-2xl">Hành động</th>
+              <tr className="bg-slate-50 border-b border-gray-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                <th className="p-2 rounded-tl-2xl w-24">ID</th>
+                <th className="p-2">Nhiệm vụ</th>
+                <th className="p-2">Người làm</th>
+                <th className="p-2">URL</th>
+                <th className="p-2 text-center">Thưởng</th>
+                <th className="p-2 text-center">Duyệt V1</th>
+                <th className="p-2 text-center">Duyệt V2</th>
+                <th className="p-2 text-center">IP</th>
+                <th className="p-2 text-center rounded-tr-2xl">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 italic text-sm">
                {loading && (
-                 <tr><td colSpan={9} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" /></td></tr>
+                 <tr><td colSpan={9} className="p-4 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" /></td></tr>
                )}
-               {!loading && activeTab === 'pending' && pending.map((task, idx) => (
-                 <tr key={idx} className="hover:bg-gray-50">
-                    <td className="p-4 font-mono text-xs">{task.id.slice(-6)}</td>
-                    <td className="p-4 font-bold">{task.taskName}</td>
-                    <td className="p-4 text-xs">{task.userId.slice(0, 8)}...</td>
-                    <td className="p-4">
-                       <a href={task.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
-                          LINK <ExternalLink size={12}/>
-                       </a>
-                    </td>
-                    <td className="p-4 text-center font-bold text-emerald-600">+{task.reward}</td>
-                    <td className="p-4 text-center">
-                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.statusV1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
-                          24 GIỜ
-                       </span>
-                    </td>
-                    <td className="p-4 text-center">
-                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.statusV2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
-                          10 NGÀY
-                       </span>
-                    </td>
-                    <td className="p-4 text-center text-xs">{task.ip}</td>
-                    <td className="p-4">
-                       <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => handleDecision(task.userId, task.id, 'approve')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={18}/></button>
-                          <button onClick={() => handleDecision(task.userId, task.id, 'reject')} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={18}/></button>
-                       </div>
-                    </td>
-                 </tr>
-               ))}
+                {!loading && activeTab === 'pending' && pending.map((task, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                     <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
+                     <td className="p-2 font-bold">{task.taskName}</td>
+                     <td className="p-2 text-xs">{task.user_uuid?.slice(0, 8) || 'unknown'}...</td>
+                     <td className="p-2">
+                        <a href={task.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
+                           LINK <ExternalLink size={12}/>
+                        </a>
+                     </td>
+                     <td className="p-2 text-center font-bold text-emerald-600">+{task.reward}</td>
+                     <td className="p-2 text-center">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.statusV1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                           24 GIỜ
+                        </span>
+                     </td>
+                     <td className="p-2 text-center">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.statusV2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                           10 NGÀY
+                        </span>
+                     </td>
+                     <td className="p-2 text-center text-xs">{task.ip}</td>
+                     <td className="p-2">
+                        <div className="flex items-center justify-center gap-1.5">
+                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'approve')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
+                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'reject')} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
+                        </div>
+                     </td>
+                  </tr>
+                ))}
                {!loading && activeTab === 'pending' && pending.length === 0 && (
                  <tr>
-                    <td colSpan={9} className="p-8 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt.</td>
+                    <td colSpan={9} className="p-4 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt.</td>
                  </tr>
                )}
             </tbody>

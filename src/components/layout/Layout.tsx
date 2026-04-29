@@ -15,9 +15,19 @@ export function Layout() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const uuid = localStorage.getItem('userUUID');
+    let uuid = localStorage.getItem('userUUID');
     const email = localStorage.getItem('userEmail');
     const userName = localStorage.getItem('userName');
+    
+    // Clear legacy/bad data that causes Supabase congestion
+    if (uuid === 'anonymous' || (uuid && uuid.length < 10 && uuid !== 'admin')) {
+       console.log("Cleaning up invalid localStorage session...");
+       localStorage.removeItem('userUUID');
+       localStorage.removeItem('isAdmin');
+       localStorage.removeItem('vuiCoinBalance');
+       uuid = null;
+    }
+
     if (!uuid) {
       navigate('/login');
       return;
@@ -31,9 +41,16 @@ export function Layout() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uuid, email, userName })
     })
-    .then(res => res.json())
+    .then(async res => {
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Sync Profile Failed (404/500):", text);
+        return null;
+      }
+      return res.json();
+    })
     .then(data => {
-      if (data.profile) {
+      if (data && data.profile) {
         localStorage.setItem('vuiCoinBalance', (data.profile.vui_coin_balance || 0).toString());
         localStorage.setItem('coinTaskBalance', (data.profile.coin_task_balance || 0).toString());
         

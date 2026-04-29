@@ -102,74 +102,74 @@ export function AdminMembers() {
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                <th className="p-4 rounded-tl-2xl">
+                <th className="p-2 rounded-tl-2xl w-10">
                   <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500" />
                 </th>
-                <th className="p-4">Tên & Email</th>
-                <th className="p-4 text-right">Doanh thu tất cả</th>
-                <th className="p-4 text-right">Doanh thu hôm nay</th>
-                <th className="p-4 text-center">Đã duyệt</th>
-                <th className="p-4">IP Mạng</th>
-                <th className="p-4">Ngày tham gia</th>
-                <th className="p-4">Trạng thái</th>
-                <th className="p-4 text-center rounded-tr-2xl">Cài đặt</th>
+                <th className="p-2">Tên & Email</th>
+                <th className="p-2 text-right">Doanh thu tất cả</th>
+                <th className="p-2 text-right">Doanh thu hôm nay</th>
+                <th className="p-2 text-center">Đã duyệt</th>
+                <th className="p-2">IP Mạng</th>
+                <th className="p-2">Ngày tham gia</th>
+                <th className="p-2">Trạng thái</th>
+                <th className="p-2 text-center rounded-tr-2xl">Cài đặt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={9} className="p-8 text-center text-gray-400">Đang tải...</td></tr>
+                <tr><td colSpan={9} className="p-4 text-center text-gray-400">Đang tải...</td></tr>
               ) : filteredMembers.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="p-4">
+                  <td className="p-2 text-center">
                     <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500" />
                   </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                  <td className="p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0 text-sm">
                         {user.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900 flex items-center gap-2">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
                           {user.name}
                           {user.suspicious && <ShieldAlert size={14} className="text-rose-500" />}
                         </div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
+                        <div className="text-[11px] text-gray-500">{user.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 text-right font-bold text-slate-900 whitespace-nowrap">
+                  <td className="p-2 text-right font-bold text-slate-900 whitespace-nowrap text-sm">
                     {user.totalRev.toLocaleString()}đ
                   </td>
-                  <td className="p-4 text-right font-bold text-green-600 whitespace-nowrap">
+                  <td className="p-2 text-right font-bold text-green-600 whitespace-nowrap text-sm">
                     +{user.todayRev.toLocaleString()}đ
                   </td>
-                  <td className="p-4 text-center font-bold text-slate-700">
+                  <td className="p-2 text-center font-bold text-slate-700 text-sm">
                     {user.unapprovedRef}
                   </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">{user.ip}</span>
+                  <td className="p-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{user.ip}</span>
                       <button className="text-gray-400 hover:text-blue-500 transition-colors"><Copy size={12} /></button>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-gray-600">
+                  <td className="p-2 text-xs text-gray-600">
                     {user.joinDate}
                   </td>
-                  <td className="p-4">
+                  <td className="p-2">
                     {user.status === 'active' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Hoạt động
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Bị khóa
                       </span>
                     )}
                   </td>
-                  <td className="p-4 text-center relative">
+                  <td className="p-2 text-center relative">
                     <button 
                       onClick={() => setDropdownOpen(dropdownOpen === user.id ? null : user.id)}
                       className="p-2 text-gray-400 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-colors"

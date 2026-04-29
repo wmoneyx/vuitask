@@ -12,6 +12,15 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Clear stale data on mount
+  React.useEffect(() => {
+     localStorage.removeItem('userUUID');
+     localStorage.removeItem('isAdmin');
+     localStorage.removeItem('isLoggedIn');
+     localStorage.removeItem('vuiCoinBalance');
+     localStorage.removeItem('coinTaskBalance');
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);

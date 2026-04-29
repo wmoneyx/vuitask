@@ -127,37 +127,37 @@ export function AdminNotifications() {
       {activeTab === 'history' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[800px]">
+            <table className="w-full text-left border-collapse min-w-full">
               <thead>
-                <tr className="bg-slate-50 border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                  <th className="p-4 rounded-tl-2xl w-16 text-center">ID</th>
-                  <th className="p-4 w-1/4">Thông báo</th>
-                  <th className="p-4">Nội dung</th>
-                  <th className="p-4 w-32">Ngày gửi</th>
-                  <th className="p-4 text-center rounded-tr-2xl w-24">Hành động</th>
+                <tr className="bg-slate-50 border-b border-gray-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                  <th className="p-2 rounded-tl-2xl w-16 text-center">ID</th>
+                  <th className="p-2 w-1/4">Thông báo</th>
+                  <th className="p-2">Nội dung</th>
+                  <th className="p-2 w-32">Ngày gửi</th>
+                  <th className="p-2 text-center rounded-tr-2xl w-24">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {history.map((notif: any) => (
                   <tr key={notif.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-4 text-center font-mono text-sm text-gray-500">#{notif.id.split('_')[1]}</td>
-                    <td className="p-4">
-                      <div className="font-bold text-slate-800 line-clamp-1">{notif.title}</div>
-                      <div className="text-[10px] font-bold mt-1 uppercase tracking-wider text-blue-500">
+                    <td className="p-2 text-center font-mono text-xs text-gray-500">#{notif.id.split('_')[1]}</td>
+                    <td className="p-2">
+                      <div className="font-bold text-slate-800 text-sm line-clamp-1">{notif.title}</div>
+                      <div className="text-[9px] font-bold mt-0.5 uppercase tracking-wider text-blue-500">
                          {notif.type === 'system' ? 'Hệ thống' : notif.type === 'event' ? 'Sự kiện' : 'Cảnh báo'}
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-gray-600 line-clamp-2 max-w-sm">
+                    <td className="p-2 text-xs text-gray-600 line-clamp-2 max-w-sm">
                       {notif.content}
                     </td>
-                    <td className="p-4 text-sm text-gray-500">{new Date(notif.timestamp).toLocaleString('vi-VN')}</td>
-                    <td className="p-4">
-                       <div className="flex justify-center gap-2">
-                         <button className="p-2 text-gray-400 hover:bg-gray-100 hover:text-slate-800 rounded-lg transition-colors tooltip" title="Chỉnh sửa">
-                            <Edit size={16} />
+                    <td className="p-2 text-xs text-gray-500">{new Date(notif.timestamp).toLocaleString('vi-VN')}</td>
+                    <td className="p-2">
+                       <div className="flex justify-center gap-1.5">
+                         <button className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-slate-800 rounded-lg transition-colors tooltip" title="Chỉnh sửa">
+                            <Edit size={14} />
                          </button>
-                         <button className="p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors tooltip" title="Xóa">
-                            <Trash2 size={16} />
+                         <button className="p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors tooltip" title="Xóa">
+                            <Trash2 size={14} />
                          </button>
                        </div>
                     </td>
@@ -165,7 +165,7 @@ export function AdminNotifications() {
                 ))}
                 {history.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400 font-medium">
+                    <td colSpan={5} className="p-4 text-center text-gray-400 font-medium">
                       Chưa có thông báo nào.
                     </td>
                   </tr>

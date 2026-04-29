@@ -342,19 +342,26 @@ async function startServer() {
     const { data: history, error } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
-      .eq('user_uuid', uuid || 'anonymous')
+      .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000')
       .order('timestamp', { ascending: false });
     
+    if (error) {
+       console.error("Fetch History Error:", error);
+    }
     res.json({ history: history || [] });
   });
 
   app.get("/api/user/balance", async (req, res) => {
     const uuid = req.query.uuid as string;
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('vui_coin_balance')
-      .eq('user_uuid', uuid || 'anonymous')
+      .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000')
       .single();
+    
+    if (error && error.code !== 'PGRST116') {
+       console.error("Fetch Balance Error:", error);
+    }
       
     res.json({ balance: profile?.vui_coin_balance || 0 });
   });
@@ -364,7 +371,7 @@ async function startServer() {
     await supabaseAdmin
       .from('profiles')
       .update({ vui_coin_balance: 0 })
-      .eq('user_uuid', uuid || 'anonymous');
+      .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000');
       
     res.json({ success: true });
   });
@@ -575,7 +582,7 @@ async function startServer() {
          pendingTasks,
        });
      } catch (e: any) {
-       res.status(500).json({ error: e.message });
+       res.status(500).json({ error: e.message || "Internal Server Error" });
      }
   });
 
@@ -768,7 +775,9 @@ async function startServer() {
       .eq('user_uuid', uuid)
       .maybeSingle();
     
-    console.log("Sync Profile Fetch:", { uuid, profile, error });
+    if (error) {
+      console.error("Sync Profile Fetch Error:", { uuid, error });
+    }
 
     if (!profile) {
       let insertData: any = { 
@@ -794,7 +803,10 @@ async function startServer() {
         createError = fallback.error;
       }
 
-      if (createError) return res.status(500).json({ error: createError.message });
+      if (createError) {
+        console.error("Profile Creation Failed:", createError);
+        return res.status(500).json({ error: createError.message || "Failed to create profile" });
+      }
       return res.json({ profile: newProfile });
     }
 
@@ -924,6 +936,10 @@ async function startServer() {
 
   // ===================================
 
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: "API Route Not Found", url: req.url });
+  });
+
   // Vite middleware
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     const { createServer: createViteServer } = await import("vite");
@@ -954,8 +970,9 @@ async function startServer() {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
-    app.all('/api/*', (req, res) => res.status(404).json({ error: "API Route Not Found", url: req.url, originalUrl: req.originalUrl }));
   }
+
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
 
   // Only listen if not in a serverless environment (like Vercel)
   if (!process.env.VERCEL) {
