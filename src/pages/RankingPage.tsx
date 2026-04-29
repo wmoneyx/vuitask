@@ -7,22 +7,25 @@ import confetti from 'canvas-confetti';
 
 export function RankingPage() {
     const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, avatar: string}>>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchLeaderboard();
     }, []);
 
     const fetchLeaderboard = async () => {
+        setLoading(true);
         const data = await safeFetch('/api/user/leaderboard');
         if (data && data.leaderboard) {
             const fetched = data.leaderboard.map((item: any) => ({
                 id: item.user_uuid,
                 username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
                 score: item.monthly_balance || 0,
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
+                avatar: item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
             }));
             setRanks(fetched);
         }
+        setLoading(false);
     };
 
     useEffect(() => {
@@ -52,7 +55,12 @@ export function RankingPage() {
                 </div>
             </div>
 
-            {ranks.length > 0 ? (
+            {loading ? (
+                <div className="text-center p-20 bg-white rounded-3xl border border-dashed border-gray-100 flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Đang tải bảng xếp hạng...</p>
+                </div>
+            ) : ranks.length > 0 ? (
               <AnimatedDiv delay={0.2} className="relative flex justify-center items-end gap-2 mb-10 pt-16 pb-0 px-4 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-700">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950"></div>
                   <div className="absolute bottom-0 w-full h-8 bg-black/40 blur-xl"></div>
@@ -91,7 +99,7 @@ export function RankingPage() {
                    )}
               </AnimatedDiv>
             ) : (
-                <div className="text-center p-10 bg-white rounded-3xl text-gray-500 font-bold">Đang tải biểu đồ xếp hạng...</div>
+                <div className="text-center p-20 bg-white rounded-3xl border-2 border-dashed border-gray-100 text-gray-400 font-bold uppercase tracking-widest text-xs">Chưa có dữ liệu xếp hạng</div>
             )}
             
             {rest.length > 0 && (

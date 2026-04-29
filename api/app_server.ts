@@ -844,7 +844,7 @@ async function startServer() {
   // ===================================
 
   app.post("/api/user/sync-profile", async (req, res) => {
-    const { uuid, email, userName } = req.body;
+    const { uuid, email, userName, avatarUrl } = req.body;
     if (!uuid) return res.status(400).json({ error: "UUID required" });
 
     const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
@@ -879,6 +879,7 @@ async function startServer() {
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
+        avatar_url: avatarUrl || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,
@@ -918,10 +919,11 @@ async function startServer() {
         }
     }
 
-    // Update email or name if they're missing but provided now
+    // Update email, name or avatar if changed
     const updates: any = {};
     if (email && profile.user_email !== email) updates.user_email = email;
     if (userName && profile.user_name !== userName) updates.user_name = userName;
+    if (avatarUrl && profile.avatar_url !== avatarUrl) updates.avatar_url = avatarUrl;
 
     // Resets: Daily (0:00 VN) and Monthly
     const lastResetDay = profile.last_reset_day;
@@ -1055,7 +1057,7 @@ async function startServer() {
 
   // Leaderboard API
   app.get("/api/user/leaderboard", async (req, res) => {
-     const { data: profiles } = await supabaseAdmin.from('profiles').select('user_uuid, user_email, monthly_balance').order('monthly_balance', { ascending: false }).limit(20);
+     const { data: profiles } = await supabaseAdmin.from('profiles').select('user_uuid, user_email, user_name, avatar_url, monthly_balance').order('monthly_balance', { ascending: false }).limit(20);
      res.json({ leaderboard: profiles || [] });
   });
 

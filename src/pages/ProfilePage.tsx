@@ -15,20 +15,28 @@ export function ProfilePage() {
   
   const [vuiBalance, setVuiBalance] = useState(0);
   const [taskBalance, setTaskBalance] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
      const uuid = localStorage.getItem('userUUID');
      const storedEmail = localStorage.getItem('userEmail');
      const storedName = localStorage.getItem('userName');
+     const storedAvatar = localStorage.getItem('userAvatar');
+     
      if (uuid) {
         setUsername(storedName || uuid);
         setEmail(storedEmail || 'Chưa thiết lập');
-        setAvatarUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`);
+        setAvatarUrl(storedAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`);
         
         safeFetch(`/api/user/sync-profile`, {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ uuid, email: storedEmail, userName: storedName })
+           body: JSON.stringify({ 
+              uuid, 
+              email: storedEmail, 
+              userName: storedName,
+              avatarUrl: storedAvatar
+           })
         }).then(data => {
             if (data && data.profile) {
                 setVuiBalance(data.profile.vui_coin_balance || 0);
@@ -37,11 +45,33 @@ export function ProfilePage() {
                   setUsername(data.profile.user_name);
                   localStorage.setItem('userName', data.profile.user_name);
                 }
+                if (data.profile.avatar_url) {
+                  setAvatarUrl(data.profile.avatar_url);
+                  localStorage.setItem('userAvatar', data.profile.avatar_url);
+                }
                 if (data.profile.is_banned) setStatus("BAN");
             }
         });
      }
   }, []);
+
+  const saveProfile = async () => {
+    const uuid = localStorage.getItem('userUUID');
+    if (!uuid) return;
+    
+    setIsSaving(true);
+    const data = await safeFetch(`/api/user/sync-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uuid, userName: username, avatarUrl: avatarUrl })
+    });
+    
+    if (data && data.profile) {
+        localStorage.setItem('userName', username);
+        localStorage.setItem('userAvatar', avatarUrl);
+    }
+    setIsSaving(false);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -77,14 +107,29 @@ export function ProfilePage() {
           </label>
         </div>
         <div className="flex-1 text-center md:text-left overflow-hidden">
-          <h3 className="text-xl font-black text-slate-900 truncate" title={username}>{username || "Người dùng"}</h3>
-          <p className="text-gray-500">{email || "Chưa thiết lập email"}</p>
           <input 
-            type="text" 
-            placeholder="Nhập URL ảnh đại diện..." 
-            className="mt-3 bg-gray-50 rounded-xl px-4 py-2 w-full max-w-sm text-sm"
-            onChange={(e) => setAvatarUrl(e.target.value)}
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="text-xl font-black text-slate-900 bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 outline-none w-full mb-1"
           />
+          <p className="text-gray-500 mb-3">{email || "Chưa thiết lập email"}</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input 
+              type="text" 
+              value={avatarUrl}
+              placeholder="URL ảnh đại diện..." 
+              className="bg-gray-50 rounded-xl px-4 py-2 flex-1 text-sm border border-gray-100"
+              onChange={(e) => setAvatarUrl(e.target.value)}
+            />
+            <button 
+                onClick={saveProfile}
+                disabled={isSaving}
+                className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:bg-slate-800 disabled:opacity-50"
+            >
+                {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
+            </button>
+          </div>
         </div>
       </AnimatedDiv>
 
