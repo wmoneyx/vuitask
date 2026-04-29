@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { supabaseAdmin } from "./server/supabase";
+import { supabaseAdmin } from "./server_lib/supabase.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -967,5 +967,4 @@ async function startServer() {
   return app;
 }
 
-const appPromise = startServer();
-export default appPromise;
+export default startServer();

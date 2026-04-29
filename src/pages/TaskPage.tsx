@@ -6,7 +6,7 @@ import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
 
 const TASKS = [
-  { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 600, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
+  { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 400, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
   { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
   { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: true, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
   { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 463, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
