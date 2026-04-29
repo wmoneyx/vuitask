@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { supabaseAdmin } from "./server_lib/supabase.js";
+import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -953,7 +953,7 @@ async function startServer() {
     app.use('*', async (req, res, next) => {
       const url = req.originalUrl;
       try {
-        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        let template = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e: any) {
@@ -964,7 +964,7 @@ async function startServer() {
   } else {
     // In production or Vercel, skip Vite
     if (!process.env.VERCEL) {
-      const distPath = path.join(__dirname, 'dist');
+      const distPath = path.join(__dirname, '../dist');
       app.use(express.static(distPath));
       app.get('*', (_req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
