@@ -31,7 +31,6 @@ export function Layout() {
     }
 
     // Initial sync with Supabase
-    const isAdminOverride = email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com';
     
     safeFetch('/api/user/sync-profile', {
       method: 'POST',
@@ -43,7 +42,7 @@ export function Layout() {
         localStorage.setItem('vuiCoinBalance', (data.profile.vui_coin_balance || 0).toString());
         localStorage.setItem('coinTaskBalance', (data.profile.coin_task_balance || 0).toString());
         
-        const adminStatus = !!(data.profile.is_admin || isAdminOverride);
+        const adminStatus = !!(data.profile.is_admin);
         localStorage.setItem('isAdmin', adminStatus ? 'true' : 'false');
         if (isAdmin !== adminStatus) {
            setIsAdmin(adminStatus);

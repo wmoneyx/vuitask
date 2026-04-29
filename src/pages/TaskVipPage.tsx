@@ -86,7 +86,7 @@ export function TaskVipPage() {
              </div>
              <h3 className="text-xl font-bold text-slate-800 mb-2">Review Map</h3>
              <p className="text-sm font-bold text-emerald-600 mb-4 bg-emerald-50 px-4 py-2 rounded-full">+1,200 VuiCoin / lượt</p>
-             <p className="text-sm text-gray-500 mb-6 font-bold">Duyệt thủ công 2 lượt. Thời gian 24H (V1), 10 Ngày (V2)</p>
+             <p className="text-sm text-gray-500 mb-6 font-bold">Duyệt thủ công 10 lượt / 30 phút. Thời gian 24H (V1), 10 Ngày (V2)</p>
              <div className="w-full flex gap-2">
                  <a href="https://youtube.com/shorts/MMwsAjJ9aYU?si=JSBTiReY3-HF8Bne" target="_blank" rel="noopener noreferrer" className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl font-bold transition-all text-[11px] flex justify-center items-center gap-1 uppercase">XEM HƯỚNG DẪN <ExternalLink size={14}/></a>
                  <button disabled={doingTask === 'map'} onClick={() => startTask('map')} className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black shadow-lg shadow-emerald-500/30 transition-all uppercase flex justify-center items-center gap-2">
@@ -100,7 +100,7 @@ export function TaskVipPage() {
              </div>
              <h3 className="text-xl font-bold text-slate-800 mb-2">Review Trip</h3>
              <p className="text-sm font-bold text-indigo-600 mb-4 bg-indigo-50 px-4 py-2 rounded-full">+2,900 VuiCoin / lượt</p>
-             <p className="text-sm text-gray-500 mb-6 font-bold">Duyệt thủ công 2 lượt. Thời gian 24H (V1), 10 Ngày (V2)</p>
+             <p className="text-sm text-gray-500 mb-6 font-bold">Duyệt thủ công 10 lượt / 30 phút. Thời gian 24H (V1), 10 Ngày (V2)</p>
              <div className="w-full flex gap-2">
                  <a href="https://youtu.be/9VuCcRuSkZM?si=ASuEXoba4fJ31E9Q" target="_blank" rel="noopener noreferrer" className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl font-bold transition-all text-[11px] flex justify-center items-center gap-1 uppercase">XEM HƯỚNG DẪN <ExternalLink size={14}/></a>
                  <button disabled={doingTask === 'trip'} onClick={() => startTask('trip')} className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 transition-all uppercase flex justify-center items-center gap-2">

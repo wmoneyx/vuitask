@@ -780,13 +780,16 @@ async function startServer() {
     }
 
     if (!profile) {
+      const { count } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+      const isFirstUser = count === 0;
+
       let insertData: any = { 
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
-        is_admin: email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com'
+        is_admin: isFirstUser
       };
 
       let { data: newProfile, error: createError } = await supabaseAdmin
@@ -814,11 +817,6 @@ async function startServer() {
     const updates: any = {};
     if (email && profile.user_email !== email) updates.user_email = email;
     if (userName && profile.user_name !== userName) updates.user_name = userName;
-    
-    // Auto-promote owner to admin if not already
-    if ((email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com') && profile.is_admin !== true) {
-        updates.is_admin = true;
-    }
 
     if (Object.keys(updates).length > 0) {
        const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
