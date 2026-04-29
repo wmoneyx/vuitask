@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { History, Activity, User, Monitor, DollarSign } from 'lucide-react';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminHistory() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLogs = async () => {
-     try {
-       const res = await fetch('/api/admin/history');
-       const data = await res.json();
-       if (data.logs) setLogs(data.logs);
-     } catch(e) {
-       console.error(e);
-     }
+     const data = await safeFetch('/api/admin/history');
+     if (data && data.logs) setLogs(data.logs);
      setLoading(false);
   };
 

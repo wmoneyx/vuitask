@@ -2,26 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GenericPage } from "@/components/layout/GenericPage";
 import { MessageCircle, CheckCircle, Activity, Heart, ThumbsUp, Send } from "lucide-react";
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
+import { safeFetch } from "@/lib/utils";
 
 export function CommunityPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const fetchMessages = async () => {
-    try {
-      const res = await fetch('/api/community/messages');
-      const data = await res.json();
-      if (data.messages) {
+    const fetchMessages = async () => {
+      const data = await safeFetch('/api/community/messages');
+      if (data && data.messages) {
         setMessages(data.messages);
       }
-    } catch(err) {}
-  };
+    };
 
-  useEffect(() => {
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    useEffect(() => {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 15000); // Poll every 15s instead of 3s to reduce server load
+      return () => clearInterval(interval);
+    }, []);
 
   useEffect(() => {
     if (scrollRef.current) {

@@ -4,14 +4,11 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { AnimatedDiv } from "../ui/AnimatedText";
 import { WebsiteAnnouncements } from "./WebsiteAnnouncements";
+import { safeFetch } from "@/lib/utils";
 
 export function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(localStorage.getItem('isAdmin') === 'true');
-  console.log("Layout isAdmin state:", { 
-    localStorageValue: localStorage.getItem('isAdmin'), 
-    stateValue: isAdmin 
-  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,36 +33,27 @@ export function Layout() {
     // Initial sync with Supabase
     const isAdminOverride = email === 'omnitask123@gmail.com' || email === 'vuza4912@gmail.com';
     
-    fetch('/api/user/sync-profile', {
+    safeFetch('/api/user/sync-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uuid, email, userName })
-    })
-    .then(async res => {
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("Sync Profile Failed (404/500):", text);
-        return null;
-      }
-      return res.json();
     })
     .then(data => {
       if (data && data.profile) {
         localStorage.setItem('vuiCoinBalance', (data.profile.vui_coin_balance || 0).toString());
         localStorage.setItem('coinTaskBalance', (data.profile.coin_task_balance || 0).toString());
         
-        let adminStatus = !!data.profile.is_admin;
-        if (isAdminOverride) adminStatus = true;
-        
+        const adminStatus = !!(data.profile.is_admin || isAdminOverride);
         localStorage.setItem('isAdmin', adminStatus ? 'true' : 'false');
-        setIsAdmin(adminStatus);
+        if (isAdmin !== adminStatus) {
+           setIsAdmin(adminStatus);
+        }
         if (data.profile.user_name) {
           localStorage.setItem('userName', data.profile.user_name);
         }
         window.dispatchEvent(new CustomEvent('balanceUpdated'));
       }
-    })
-    .catch(console.error);
+    });
   }, [navigate]);
 
   return (

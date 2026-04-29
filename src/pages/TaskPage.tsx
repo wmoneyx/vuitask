@@ -4,6 +4,7 @@ import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { motion, AnimatePresence } from 'motion/react';
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
+import { safeFetch } from "@/lib/utils";
 
 const TASKS = [
   { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 400, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
@@ -36,34 +37,26 @@ export function TaskPage() {
   }, []);
 
   const fetchHistory = async () => {
-    try {
-      const res = await fetch(`/api/tasks/history?uuid=${localUUID}`);
-      const data = await res.json();
-      if(data.history) setHistory(data.history);
+    const data = await safeFetch(`/api/tasks/history?uuid=${localUUID}`);
+    if (data && data.history) setHistory(data.history);
 
-      // Đồng bộ số dư
-      const balanceRes = await fetch(`/api/user/balance?uuid=${localUUID}`);
-      const balanceData = await balanceRes.json();
-      if(balanceData.balance !== undefined) {
-         // Cộng dồn vào ví hiện tại hoặc thay thế toàn bộ (ở đây lấy mốc backend)
-         const localBalance = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
-         // Để đơn giản, ta sẽ cộng thêm phần đã lưu ở backend vào local.
-         // Nhưng vì backend reset khi restart server, nên cách tốt nhất là backend quản lý hoàn toàn hoặc sync
-         localStorage.setItem('vuiCoinBalance', (localBalance + balanceData.balance).toString());
-         
-         // Đã cộng xong, clear balance trên backend để tránh cộng lần 2 (hacky sync)
-         fetch(`/api/user/clear-sync-balance?uuid=${localUUID}`);
+    // Đồng bộ số dư
+    const balanceData = await safeFetch(`/api/user/balance?uuid=${localUUID}`);
+    if (balanceData && balanceData.balance !== undefined) {
+       // Cộng dồn vào ví hiện tại hoặc thay thế toàn bộ (ở đây lấy mốc backend)
+       const localBalance = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
+       localStorage.setItem('vuiCoinBalance', (localBalance + balanceData.balance).toString());
+       
+       // Đã cộng xong, clear balance trên backend để tránh cộng lần 2 (hacky sync)
+       safeFetch(`/api/user/clear-sync-balance?uuid=${localUUID}`);
 
-         if (balanceData.balance > 0) {
-            showNotification({ 
-              title: 'Cộng tiền!', 
-              message: `Bạn đã nhận được ${balanceData.balance} VuiCoin từ nhiệm vụ.`, 
-              type: 'success' 
-            });
-         }
-      }
-    } catch(err) {
-      console.error(err);
+       if (balanceData.balance > 0) {
+          showNotification({ 
+            title: 'Cộng tiền!', 
+            message: `Bạn đã nhận được ${balanceData.balance} VuiCoin từ nhiệm vụ.`, 
+            type: 'success' 
+          });
+       }
     }
   }
 
@@ -85,7 +78,7 @@ export function TaskPage() {
     
     try {
       // 1. TẠO SESSION ID TỪ BACKEND
-      const sessionRes = await fetch('/api/tasks/generate-session', {
+      const sessionData = await safeFetch('/api/tasks/generate-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -96,8 +89,9 @@ export function TaskPage() {
               auto: task.auto
           })
       });
-      const sessionData = await sessionRes.json();
-      const sessionId = sessionData.sessionId;
+      
+      const sessionId = sessionData?.sessionId;
+      if (!sessionId) throw new Error("Không thể tạo phiên nhiệm vụ. Thử lại sau!");
 
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${localUUID}`;
@@ -185,7 +179,7 @@ export function TaskPage() {
 
       if (isSuccess && link) {
         // Cập nhật session URL trên server
-        fetch('/api/tasks/update-session-url', {
+        safeFetch('/api/tasks/update-session-url', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ sessionId, shortUrl: link })

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Users, AlertTriangle, MoreVertical, Ban, DollarSign, Trash2, ShieldAlert, CheckCircle, Copy, ShieldCheck } from 'lucide-react';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminMembers() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,14 +10,9 @@ export function AdminMembers() {
 
   const fetchMembers = async () => {
      setLoading(true);
-     try {
-       const res = await fetch('/api/admin/members');
-       const data = await res.json();
-       if (data.members) {
-          setMembers(data.members);
-       }
-     } catch (e) {
-       console.error(e);
+     const data = await safeFetch('/api/admin/members');
+     if (data && data.members) {
+        setMembers(data.members);
      }
      setLoading(false);
   };
@@ -26,45 +22,33 @@ export function AdminMembers() {
   }, []);
 
   const toggleBan = async (id: string, is_banned: boolean) => {
-    try {
-      await fetch('/api/admin/members/ban', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_banned })
-      });
-      fetchMembers(); // refresh
-    } catch(e) {
-      console.error(e);
-    }
+    await safeFetch('/api/admin/members/ban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_banned })
+    });
+    fetchMembers(); // refresh
     setDropdownOpen(null);
   };
 
   const toggleAdmin = async (id: string, is_admin: boolean) => {
-    try {
-      await fetch('/api/admin/members/set-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_admin })
-      });
-      fetchMembers(); // refresh
-    } catch(e) {
-      console.error(e);
-    }
+    await safeFetch('/api/admin/members/set-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_admin })
+    });
+    fetchMembers(); // refresh
     setDropdownOpen(null);
   };
 
   const deleteAccount = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa tài khoản này? Hành động này không thể hoàn tác.")) return;
-    try {
-      await fetch('/api/admin/members/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
-      fetchMembers(); // refresh
-    } catch(e) {
-      console.error(e);
-    }
+    await safeFetch('/api/admin/members/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchMembers(); // refresh
     setDropdownOpen(null);
   };
 

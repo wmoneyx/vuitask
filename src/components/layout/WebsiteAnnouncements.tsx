@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Bell, X } from 'lucide-react';
+import { safeFetch } from '@/lib/utils';
 
 export function WebsiteAnnouncements() {
   const location = useLocation();
@@ -9,27 +10,23 @@ export function WebsiteAnnouncements() {
   // Fetch announcements periodically
   useEffect(() => {
     const fetchAnnouncements = async () => {
-      try {
-        const res = await fetch('/api/notifications');
-        if (!res.ok) return; // Ignore non-200 responses
-        const data = await res.json();
-        
-        if (data && data.notifications && data.notifications.length > 0) {
-           const readIds = JSON.parse(localStorage.getItem('read_announcements') || '[]');
-           const unread = data.notifications.filter((n: any) => !readIds.includes(n.id));
-           if (unread.length > 0) {
-               setAnnouncements(prev => {
-                   // only add new ones not already in state
-                   const newItems = unread.filter((u: any) => !prev.find(p => p.id === u.id));
-                   return [...prev, ...newItems];
-               });
-           }
-        }
-      } catch (e) {}
+      const data = await safeFetch('/api/notifications');
+      
+      if (data && data.notifications && data.notifications.length > 0) {
+         const readIds = JSON.parse(localStorage.getItem('read_announcements') || '[]');
+         const unread = data.notifications.filter((n: any) => !readIds.includes(n.id));
+         if (unread.length > 0) {
+             setAnnouncements(prev => {
+                 // only add new ones not already in state
+                 const newItems = unread.filter((u: any) => !prev.find(p => p.id === u.id));
+                 return [...prev, ...newItems];
+             });
+         }
+      }
     };
 
     fetchAnnouncements();
-    const interval = setInterval(fetchAnnouncements, 10000); // Check every 10s
+    const interval = setInterval(fetchAnnouncements, 30000); // Check every 30s instead of 10s
     return () => clearInterval(interval);
   }, []);
 

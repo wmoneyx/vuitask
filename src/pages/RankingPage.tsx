@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Trophy, Medal, Star } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
+import { safeFetch } from '@/lib/utils';
 import confetti from 'canvas-confetti';
 
 export function RankingPage() {
@@ -12,19 +13,16 @@ export function RankingPage() {
     }, []);
 
     const fetchLeaderboard = async () => {
-        try {
-            const res = await fetch('/api/user/leaderboard');
-            const data = await res.json();
-            if (data.leaderboard) {
-                const fetched = data.leaderboard.map((item: any) => ({
-                    id: item.user_uuid,
-                    username: item.user_email?.split('@')[0] || 'Unknown',
-                    score: item.vui_coin_balance || 0,
-                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
-                }));
-                setRanks(fetched);
-            }
-        } catch(e) {}
+        const data = await safeFetch('/api/user/leaderboard');
+        if (data && data.leaderboard) {
+            const fetched = data.leaderboard.map((item: any) => ({
+                id: item.user_uuid,
+                username: item.user_email?.split('@')[0] || 'Unknown',
+                score: item.vui_coin_balance || 0,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
+            }));
+            setRanks(fetched);
+        }
     };
 
     useEffect(() => {

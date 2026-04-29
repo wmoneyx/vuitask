@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2 } from 'lucide-react';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminSystem() {
   const [isMaintenance, setIsMaintenance] = useState(false);
@@ -13,16 +14,14 @@ export function AdminSystem() {
   const [modUrl, setModUrl] = useState('');
 
   const fetchSystem = async () => {
-     try {
-        const res = await fetch('/api/admin/system');
-        const data = await res.json();
-        
+     const data = await safeFetch('/api/admin/system');
+     if (data) {
         if (data.settings) {
            const val = data.settings.find((s: any) => s.key === 'maintenance_mode');
            if (val) setIsMaintenance(val.value.enabled);
         }
         if (data.mods) setMods(data.mods);
-     } catch (e) { console.error(e); }
+     }
      setLoading(false);
   };
 
@@ -33,28 +32,24 @@ export function AdminSystem() {
   const handleMaintenanceToggle = async () => {
       const nextState = !isMaintenance;
       setIsMaintenance(nextState);
-      try {
-         await fetch('/api/admin/system', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ key: 'maintenance_mode', value: { enabled: nextState } })
-         });
-      } catch (e) {}
+      safeFetch('/api/admin/system', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({ key: 'maintenance_mode', value: { enabled: nextState } })
+      });
   };
 
   const handleCreateMod = async () => {
       if (!modName || !modPrice || !modLink) return;
-      try {
-         const res = await fetch('/api/admin/system/mods', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name: modName, price: Number(modPrice), link: modLink, image_url: modUrl })
-         });
-         if (res.ok) {
-            setModName(''); setModPrice(''); setModLink(''); setModUrl('');
-            fetchSystem();
-         }
-      } catch(e) {}
+      const data = await safeFetch('/api/admin/system/mods', {
+         method: 'POST',
+         headers: {'Content-Type': 'application/json'},
+         body: JSON.stringify({ name: modName, price: Number(modPrice), link: modLink, image_url: modUrl })
+      });
+      if (data) {
+         setModName(''); setModPrice(''); setModLink(''); setModUrl('');
+         fetchSystem();
+      }
   };
 
   return (

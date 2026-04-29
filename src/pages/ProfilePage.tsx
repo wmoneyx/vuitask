@@ -3,6 +3,7 @@ import { User, Camera, AlertTriangle } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { CoinTask } from "@/components/ui/CoinTask";
+import { safeFetch } from '@/lib/utils';
 
 export function ProfilePage() {
   const [username, setUsername] = useState("");
@@ -24,14 +25,14 @@ export function ProfilePage() {
         setEmail(storedEmail || 'Chưa thiết lập');
         setAvatarUrl(`https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`);
         
-        fetch(`/api/user/sync-profile`, {
+        safeFetch(`/api/user/sync-profile`, {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ uuid, email: storedEmail, userName: storedName })
-        }).then(res => res.json()).then(data => {
-            if (data.profile) {
-                setVuiBalance(data.profile.vui_coin_balance);
-                setTaskBalance(data.profile.coin_task_balance);
+        }).then(data => {
+            if (data && data.profile) {
+                setVuiBalance(data.profile.vui_coin_balance || 0);
+                setTaskBalance(data.profile.coin_task_balance || 0);
                 if (data.profile.user_name) {
                   setUsername(data.profile.user_name);
                   localStorage.setItem('userName', data.profile.user_name);

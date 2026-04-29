@@ -12,6 +12,13 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const resetAllData = () => {
+    if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu phiên cũ? Hành động này sẽ yêu cầu bạn đăng nhập lại.")) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   // Clear stale data on mount
   React.useEffect(() => {
      localStorage.removeItem('userUUID');
@@ -168,6 +175,17 @@ export function LoginPage() {
               
               <div className="mt-6 text-center text-sm font-medium text-slate-600">
                  Chưa có tài khoản? <Link to="/register" className="font-bold text-slate-900 hover:text-primary transition-colors">Đăng ký ngay</Link>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-100">
+                 <p className="text-center text-xs text-gray-500 mb-4">Trang web gặp lỗi treo hoặc nghẽn mạng?</p>
+                 <button 
+                    type="button" 
+                    onClick={resetAllData}
+                    className="w-full py-2.5 px-4 border-2 border-dashed border-gray-200 text-gray-400 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-[10px] uppercase tracking-widest"
+                 >
+                    Xóa Cache & Reset Phiên
+                 </button>
               </div>
             </form>
           </div>

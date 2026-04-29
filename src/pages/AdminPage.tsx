@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { safeFetch } from '@/lib/utils';
 
 // Imports
 import { AdminMembers } from '../components/admin/AdminMembers';
@@ -52,14 +53,9 @@ export function AdminPage() {
   }, [navigate]);
 
   const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/admin/stats');
-      const data = await res.json();
-      if (data) {
-         setStatsData(data);
-      }
-    } catch(e) {
-      console.error(e);
+    const data = await safeFetch('/api/admin/stats');
+    if (data) {
+       setStatsData(data);
     }
   };
 

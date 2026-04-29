@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Send, Trash2, Edit } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminNotifications() {
   const { showNotification } = useNotification();
@@ -14,10 +15,9 @@ export function AdminNotifications() {
 
   useEffect(() => {
     if (activeTab === 'history') {
-      fetch('/api/notifications')
-        .then(res => res.json())
+      safeFetch('/api/notifications')
         .then(data => {
-            if (data.notifications) {
+            if (data && data.notifications) {
                 setHistory(data.notifications.reverse());
             }
         });
@@ -30,7 +30,7 @@ export function AdminNotifications() {
       return;
     }
     
-    await fetch('/api/admin/notifications', {
+    await safeFetch('/api/admin/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, type, target })

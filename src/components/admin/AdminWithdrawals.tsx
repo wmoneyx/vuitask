@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Copy, CheckCircle, XCircle, Gamepad2, Send } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminWithdrawals() {
   const { showNotification } = useNotification();
@@ -9,16 +10,13 @@ export function AdminWithdrawals() {
 
   useEffect(() => {
     fetchWithdrawals();
-    const interval = setInterval(fetchWithdrawals, 3000);
+    const interval = setInterval(fetchWithdrawals, 10000); // Poll every 10s instead of 3s
     return () => clearInterval(interval);
   }, []);
 
   const fetchWithdrawals = async () => {
-    try {
-      const res = await fetch('/api/admin/withdrawals');
-      const data = await res.json();
-      if (data.withdrawals) setWithdrawals(data.withdrawals);
-    } catch(err) {}
+    const data = await safeFetch('/api/admin/withdrawals');
+    if (data && data.withdrawals) setWithdrawals(data.withdrawals);
   };
 
   const pending = withdrawals.filter(w => w.status === 'Đang chờ duyệt');
@@ -28,12 +26,12 @@ export function AdminWithdrawals() {
 
   const handleApprove = async (id: string, amount: number) => {
     const confirmMessage = `Số tiền ${amount.toLocaleString()}đ đã được thanh toán thành công tới bạn!`;
-    const res = await fetch('/api/community/admin-reply', {
+    const data = await safeFetch('/api/community/admin-reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ withdrawalId: id, content: confirmMessage })
     });
-    if (res.ok) {
+    if (data) {
         fetchWithdrawals();
         showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
     }

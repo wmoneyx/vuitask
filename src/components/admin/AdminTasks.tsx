@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, ArrowRight, ExternalLink, Loader2 } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
+import { safeFetch } from '@/lib/utils';
 
 export function AdminTasks() {
   const { showNotification } = useNotification();
@@ -14,33 +15,28 @@ export function AdminTasks() {
 
   const fetchPending = async () => {
     setLoading(true);
-    try {
-      const res = await fetch('/api/admin/pending-tasks');
-      const data = await res.json();
+    const data = await safeFetch('/api/admin/pending-tasks');
+    if (data) {
       setPending(data.pending || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const handleDecision = async (userId: string, taskId: string, decision: 'approve' | 'reject') => {
-    try {
-      const res = await fetch('/api/admin/approve-task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, taskId, decision })
+    const data = await safeFetch('/api/admin/approve-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, taskId, decision })
+    });
+    
+    if (data) {
+      setPending(prev => prev.filter(p => p.id !== taskId));
+      showNotification({ 
+        title: decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
+        message: `Nhiệm vụ #${taskId.slice(-6)} đã được xử lý.`, 
+        type: decision === 'approve' ? 'success' : 'info' 
       });
-      if (res.ok) {
-        setPending(prev => prev.filter(p => p.id !== taskId));
-        showNotification({ 
-          title: decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
-          message: `Nhiệm vụ #${taskId.slice(-6)} đã được xử lý.`, 
-          type: decision === 'approve' ? 'success' : 'info' 
-        });
-      }
-    } catch (e) {
+    } else {
       showNotification({ title: 'Lỗi', message: "Lỗi xử lý duyệt nhiệm vụ", type: 'error' });
     }
   };
