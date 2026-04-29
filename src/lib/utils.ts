@@ -7,6 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 
 export async function safeFetch(url: string, options?: RequestInit) {
   try {
+    // Fail-safe: if url somehow contains the old netlify domain, strip it out
+    if (url.includes('vuitask.netlify.app')) {
+       url = url.replace(/https?:\/\/vuitask\.netlify\.app/g, '');
+    }
+
     const res = await fetch(url, options);
     if (!res.ok) {
         if (res.status === 404) {
