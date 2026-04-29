@@ -4,8 +4,9 @@ import {
   Shield, Users, Database, Settings, Activity, 
   RotateCw, HardDrive, LayoutGrid, CreditCard, 
   CheckSquare, History, Bell, LifeBuoy, TrendingUp,
-  UserCheck, Smartphone, Maximize2
+  UserCheck, Smartphone, Maximize2, X, Loader2, ShieldAlert
 } from "lucide-react";
+import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import { motion } from "motion/react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { safeFetch } from '@/lib/utils';
@@ -43,8 +44,47 @@ export function AdminPage() {
     todayRevenue: 0,
     totalWithdrawn: 0,
     pendingWithdrawals: 0,
-    pendingTasks: 0
+    pendingTasks: 0,
+    onlineUsers: 0,
+    duplicateIps: 0,
+    chartData: [],
+    recentActions: [] as any[]
   });
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+
+  const [showOnlineModal, setShowOnlineModal] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [loadingOnline, setLoadingOnline] = useState(false);
+
+  const fetchDuplicates = async () => {
+    setLoadingDuplicates(true);
+    const data = await safeFetch('/api/admin/duplicate-ips');
+    if (data && data.duplicates) {
+      setDuplicates(data.duplicates);
+    }
+    setLoadingDuplicates(false);
+  };
+
+  const fetchOnlineUsers = async () => {
+    setLoadingOnline(true);
+    const data = await safeFetch('/api/admin/online-users');
+    if (data && data.users) {
+      setOnlineUsers(data.users);
+    }
+    setLoadingOnline(false);
+  };
+
+  const openDuplicateModal = () => {
+    setShowDuplicateModal(true);
+    fetchDuplicates();
+  };
+
+  const openOnlineModal = () => {
+    setShowOnlineModal(true);
+    fetchOnlineUsers();
+  };
 
   useEffect(() => {
     if (localStorage.getItem('isAdmin') !== 'true') {
@@ -55,7 +95,11 @@ export function AdminPage() {
   const fetchStats = async () => {
     const data = await safeFetch('/api/admin/stats');
     if (data) {
-       setStatsData(data);
+       setStatsData({
+         ...data,
+         chartData: data.chartData || [],
+         recentActions: data.recentActions || []
+       });
     }
   };
 
@@ -131,8 +175,8 @@ export function AdminPage() {
     { label: "ĐÃ RÚT", value: `$${statsData.totalWithdrawn.toLocaleString()}`, icon: CreditCard, color: "text-purple-500", bg: "bg-purple-50" },
     { label: "YÊU CẦU RÚT", value: statsData.pendingWithdrawals.toLocaleString(), icon: History, color: "text-orange-500", bg: "bg-orange-50" },
     { label: "YÊU CẦU DUYỆT", value: statsData.pendingTasks.toLocaleString(), icon: UserCheck, color: "text-indigo-500", bg: "bg-indigo-50" },
-    { label: "IP TRÙNG LẶP", icon: Smartphone, value: "0", color: "text-yellow-500", bg: "bg-yellow-50" },
-    { label: "NGƯỜI DÙNG ONLINE", value: "0", icon: Activity, color: "text-red-500", bg: "bg-red-50" },
+    { label: "IP TRÙNG LẶP", icon: Smartphone, value: statsData.duplicateIps.toLocaleString(), color: "text-yellow-500", bg: "bg-yellow-50" },
+    { label: "NGƯỜI DÙNG ONLINE", value: statsData.onlineUsers.toLocaleString(), icon: Activity, color: "text-red-500", bg: "bg-red-50" },
   ];
 
   if (needsFullscreenPrompt) {
@@ -221,7 +265,8 @@ export function AdminPage() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.05 }}
-                    className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4"
+                    onClick={stat.label === "IP TRÙNG LẶP" ? openDuplicateModal : stat.label === "NGƯỜI DÙNG ONLINE" ? openOnlineModal : undefined}
+                    className={`bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 ${[ "IP TRÙNG LẶP", "NGƯỜI DÙNG ONLINE" ].includes(stat.label) ? "cursor-pointer" : ""}`}
                   >
                     <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color}`}>
                       <Icon size={24} />
@@ -264,7 +309,7 @@ export function AdminPage() {
                 </div>
                 <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data}>
+                    <LineChart data={statsData.chartData.length > 0 ? statsData.chartData : data}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis 
                         dataKey="name" 
@@ -326,9 +371,24 @@ export function AdminPage() {
               <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col">
                 <h3 className="font-bold text-slate-900 text-lg mb-6">Hành động mới nhất</h3>
                 <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">                  
-                  <div className="text-center py-10 opacity-30">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Không còn dữ liệu</div>
-                  </div>
+                  {statsData.recentActions.length === 0 ? (
+                    <div className="text-center py-10 opacity-30">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Không còn dữ liệu</div>
+                    </div>
+                  ) : (
+                    statsData.recentActions.map((action, idx) => (
+                      <div key={idx} className="flex gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${action.type === 'user' ? 'bg-blue-100 text-blue-500' : action.type === 'task' ? 'bg-green-100 text-green-500' : 'bg-orange-100 text-orange-500'}`}>
+                          {action.type === 'user' ? <Users size={18} /> : action.type === 'task' ? <CheckSquare size={18} /> : <CreditCard size={18} />}
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-slate-900">{action.title}</div>
+                          <div className="text-xs text-slate-500 line-clamp-2">{action.desc}</div>
+                          <div className="text-[10px] text-slate-400 mt-1">{new Date(action.timestamp).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -343,6 +403,169 @@ export function AdminPage() {
         {activeTab === 'Thông báo' && <AdminNotifications />}
         {activeTab === 'Hỗ trợ' && <AdminSupport />}
       </div>
+      {/* Duplicate IP Modal */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <AnimatedDiv className="bg-white rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center text-yellow-600">
+                  <Smartphone size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Danh sách IP trùng lặp</h3>
+                  <p className="text-xs text-slate-500 font-bold">Phát hiện các tài khoản sử dụng chung địa chỉ IP</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowDuplicateModal(false)}
+                className="w-10 h-10 rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center text-slate-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {loadingDuplicates ? (
+                <div className="h-64 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="animate-spin text-primary" size={40} />
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Đang tải dữ liệu...</p>
+                </div>
+              ) : duplicates.length === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-slate-300">
+                   <ShieldAlert size={64} className="mb-4 opacity-20" />
+                   <p className="font-black text-sm uppercase tracking-widest">Không phát hiện IP trùng lặp</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {duplicates.map((group, gIdx) => (
+                    <div key={gIdx} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                      <div className="bg-slate-800 p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <code className="text-yellow-400 font-mono font-bold text-sm">{group.ip}</code>
+                          <span className="text-[10px] bg-yellow-400/20 text-yellow-400 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">
+                            {group.users.length} Tài khoản
+                          </span>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className="bg-slate-50 border-b border-slate-100">
+                            <tr className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                              <th className="px-4 py-3">UUID</th>
+                              <th className="px-4 py-3">Tên / Email</th>
+                              <th className="px-4 py-3">Lần cuối</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {group.users.map((u: any, uIdx: number) => (
+                              <tr key={uIdx} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-4 py-3 font-mono text-[11px] text-slate-500">{u.user_uuid.slice(0, 8)}...</td>
+                                <td className="px-4 py-3">
+                                  <div className="font-bold text-slate-800">{u.name || 'N/A'}</div>
+                                  <div className="text-[11px] text-slate-500 font-medium">{u.email}</div>
+                                </td>
+                                <td className="px-4 py-3 text-[11px] text-slate-400 font-bold">
+                                  {new Date(u.last_seen).toLocaleString('vi-VN')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+               <button 
+                onClick={() => setShowDuplicateModal(false)}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+               >
+                 Đóng
+               </button>
+            </div>
+          </AnimatedDiv>
+        </div>
+      )}
+      {/* Online Users Modal */}
+      {showOnlineModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <AnimatedDiv className="bg-white rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600">
+                  <Activity size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Người dùng đang hoạt động</h3>
+                  <p className="text-xs text-slate-500 font-bold">Hoạt động trong 5 phút qua</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowOnlineModal(false)}
+                className="w-10 h-10 rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center text-slate-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
+              {loadingOnline ? (
+                <div className="h-64 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="animate-spin text-primary" size={40} />
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Đang tải...</p>
+                </div>
+              ) : onlineUsers.length === 0 ? (
+                <div className="h-64 flex flex-col items-center justify-center text-slate-300">
+                   <Activity size={64} className="mb-4 opacity-20" />
+                   <p className="font-black text-sm uppercase tracking-widest">Hiện không có người dùng nào</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
+                    <tr className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                      <th className="px-6 py-4">Tên / Email</th>
+                      <th className="px-6 py-4">Địa chỉ IP</th>
+                      <th className="px-6 py-4">Lần cuối</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {onlineUsers.map((user, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800">{user.name}</div>
+                          <div className="text-[11px] text-slate-500 font-medium">{user.email}</div>
+                          <div className="text-[9px] font-mono text-gray-300 mt-0.5">{user.uuid}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <code className="text-[11px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono">
+                            {user.ip}
+                          </code>
+                        </td>
+                        <td className="px-6 py-4 text-[11px] text-emerald-500 font-bold">
+                          {new Date(user.lastSeen).toLocaleTimeString('vi-VN')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+               <button 
+                onClick={() => setShowOnlineModal(false)}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+               >
+                 Đóng
+               </button>
+            </div>
+          </AnimatedDiv>
+        </div>
+      )}
     </GenericPage>
   );
 }

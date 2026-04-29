@@ -1,11 +1,41 @@
-import { Eye, Wallet, BellRing } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Eye, Wallet, BellRing, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
-
-const CHART_DATA: any[] = [];
+import { safeFetch } from "@/lib/utils";
 
 export function Dashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const uuid = localStorage.getItem('userUUID');
+      if (!uuid) return;
+      
+      const [statsData, notifyData] = await Promise.all([
+         safeFetch(`/api/user/dashboard-stats?uuid=${uuid}`),
+         safeFetch('/api/notifications')
+      ]);
+
+      if (statsData) setStats(statsData);
+      if (notifyData && notifyData.notifications) setNotifications(notifyData.notifications);
+      
+      setLoading(false);
+    };
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">
@@ -18,9 +48,9 @@ export function Dashboard() {
              <Eye size={28} strokeWidth={1.5} />
           </div>
           <div>
-            <div className="text-sm text-gray-500 font-medium mb-1">Tổng Số View</div>
+            <div className="text-sm text-gray-500 font-medium mb-1">Tổng Lượt Làm</div>
             <div className="text-2xl font-bold text-slate-800">
-               0 <span className="text-sm font-medium text-gray-400">/ ∞</span>
+               {stats?.totalViews || 0} <span className="text-sm font-medium text-gray-400">/ ∞</span>
             </div>
           </div>
         </AnimatedDiv>
@@ -31,7 +61,10 @@ export function Dashboard() {
           </div>
           <div>
             <div className="text-sm text-gray-500 font-medium mb-1">Số Dư Hôm Nay</div>
-            <div className="text-2xl font-bold text-purple-600 flex items-center gap-1.5"><VuiCoin size={24} strokeWidth={2.5} /> 0.0</div>
+            <div className="text-2xl font-bold text-purple-600 flex items-center gap-1.5">
+              <VuiCoin size={24} strokeWidth={2.5} /> 
+              {(stats?.todayBalance || 0).toLocaleString()}
+            </div>
           </div>
         </AnimatedDiv>
 
@@ -41,7 +74,10 @@ export function Dashboard() {
           </div>
           <div>
             <div className="text-sm text-gray-500 font-medium mb-1">Số Dư Ví</div>
-            <div className="text-2xl font-bold text-amber-500 flex items-center gap-1.5"><VuiCoin size={24} strokeWidth={2.5} /> 0.0</div>
+            <div className="text-2xl font-bold text-amber-500 flex items-center gap-1.5">
+              <VuiCoin size={24} strokeWidth={2.5} /> 
+              {(stats?.totalBalance || 0).toLocaleString()}
+            </div>
           </div>
         </AnimatedDiv>
       </div>
@@ -50,9 +86,9 @@ export function Dashboard() {
          <AnimatedDiv delay={0.4} className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">Biểu đồ Thu nhập</h3>
             <div className="h-72 w-full">
-              {CHART_DATA.length > 0 ? (
+              {stats?.chartData?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={CHART_DATA} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                  <BarChart data={stats.chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
@@ -75,8 +111,25 @@ export function Dashboard() {
               <BellRing size={20} className="text-primary" />
               Thông Báo Từ Web
             </h3>
-            <div className="flex-1 flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-100 rounded-xl text-center">
-              <p className="text-gray-400 italic text-sm">Chưa có thông báo nào</p>
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mt-4 space-y-4">
+              {notifications.length > 0 ? (
+                notifications.map((n, i) => (
+                  <div key={i} className="p-4 rounded-xl border border-gray-50 bg-gray-50/30 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                       <div className={`w-2 h-2 rounded-full ${n.type === 'warning' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                       <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {new Date(n.timestamp).toLocaleDateString('vi-VN')}
+                       </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">{n.title}</h4>
+                    <p className="text-xs text-gray-500 leading-relaxed font-medium">{n.content}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-100 rounded-xl text-center">
+                  <p className="text-gray-400 italic text-sm">Chưa có thông báo nào</p>
+                </div>
+              )}
             </div>
          </AnimatedDiv>
       </div>

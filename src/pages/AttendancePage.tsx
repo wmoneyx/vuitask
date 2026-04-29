@@ -156,11 +156,13 @@ export function AttendancePage() {
       rewardAmount: reward,
       chestType: type,
       time: 'Vừa xong',
-      read: false
+      read: false,
+      isLocalReward: true,
+      timestamp: Date.now()
     };
 
-    const existingNotifs = JSON.parse(localStorage.getItem('notifications') || '[]');
-    localStorage.setItem('notifications', JSON.stringify([...existingNotifs, notification]));
+    const existingNotifs = JSON.parse(localStorage.getItem('local_rewards') || '[]');
+    localStorage.setItem('local_rewards', JSON.stringify([notification, ...existingNotifs]));
     window.dispatchEvent(new CustomEvent('newNotification'));
     
     showNotification({ title: 'Phần thưởng', message: `Đã gửi Hòm Bí Ẩn ${type} vào hộp thông báo!`, type: 'success' });

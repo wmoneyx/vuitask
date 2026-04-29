@@ -6,6 +6,23 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, today_balance, today_turns, monthly_balance').eq('user_uuid', userId).single();
+    if (!profile) return;
+    
+    const updates: any = {
+        vui_coin_balance: Number(profile.vui_coin_balance || 0) + Number(amount),
+    };
+    
+    if (isTask) {
+        updates.today_balance = Number(profile.today_balance || 0) + Number(amount);
+        updates.monthly_balance = Number(profile.monthly_balance || 0) + Number(amount);
+        updates.today_turns = Number(profile.today_turns || 0) + 1;
+    }
+    
+    await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', userId);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -324,14 +341,7 @@ async function startServer() {
 
     // Give reward if auto
     if (session.auto) {
-        // We'll use an atomic update in a real SQL but for simplicity here we fetch/update
-        const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
-        const currentBalance = profile?.vui_coin_balance || 0;
-        
-        await supabaseAdmin.from('profiles').upsert({ 
-          user_uuid: uuid, 
-          vui_coin_balance: Number(currentBalance) + Number(session.reward) 
-        }, { onConflict: 'user_uuid' });
+        await updateUserStats(uuid, session.reward, true);
     }
 
     res.json({ status: "success", history: historyEntry });
@@ -542,19 +552,42 @@ async function startServer() {
        today.setHours(0, 0, 0, 0);
 
        const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-       const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, created_at');
-       const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status').eq('type', 'withdrawal');
+       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at');
+       const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, created_at, task_id');
+       const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, created_at');
+
+       // Chart data: past 7 days
+       const chartData: any[] = [];
+       for (let i = 6; i >= 0; i--) {
+         const d = new Date();
+         d.setDate(d.getDate() - i);
+         d.setHours(0, 0, 0, 0);
+         const endOfDay = new Date(d);
+         endOfDay.setHours(23, 59, 59, 999);
+         
+         chartData.push({
+           name: d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit' }),
+           start: d.getTime(),
+           end: endOfDay.getTime(),
+           users: 0,
+           revenue: 0,
+           withdrawn: 0
+         });
+       }
 
        let totalRev = 0;
        let todayRev = 0;
        let pendingTasks = 0;
 
        (tasks || []).forEach(t => {
+          const tTime = new Date(t.created_at).getTime();
           if (t.status === 'Hoàn thành') {
              totalRev += Number(t.reward || 0);
              if (new Date(t.created_at) >= today) {
                 todayRev += Number(t.reward || 0);
              }
+             const day = chartData.find(d => tTime >= d.start && tTime <= d.end);
+             if (day) day.revenue += Number(t.reward || 0);
           } else if (t.status === 'Chờ duyệt') {
              pendingTasks++;
           }
@@ -564,13 +597,54 @@ async function startServer() {
        let pendingWithdrawals = 0;
 
        (withdrawals || []).forEach(w => {
+           const wTime = new Date(w.created_at).getTime();
            if (w.status === 'Đã thanh toán') {
-              // try to parse amount from content e.g. 'amount: 50000\nmethod: MOMO'
               const match = w.content?.match(/amount:\s*(\d+)/i);
-              if (match) totalWithdrawn += Number(match[1]);
+              if (match) {
+                 const amt = Number(match[1]);
+                 totalWithdrawn += amt;
+                 const day = chartData.find(d => wTime >= d.start && wTime <= d.end);
+                 if (day) day.withdrawn += amt;
+              }
            } else if (w.status === 'Đang chờ duyệt') {
               pendingWithdrawals++;
            }
+       });
+
+       (allUsers || []).forEach(u => {
+           const uTime = new Date(u.created_at).getTime();
+           const day = chartData.find(d => uTime >= d.start && uTime <= d.end);
+           if (day) day.users++;
+       });
+
+       // Recent actions
+       const recentActions = [];
+       (allUsers || []).slice(-10).forEach(u => recentActions.push({ timestamp: new Date(u.created_at).getTime(), type: 'user', title: 'Người dùng mới', desc: 'Có tài khoản mới đăng ký' }));
+       (tasks || []).slice(-10).forEach(t => recentActions.push({ timestamp: new Date(t.created_at).getTime(), type: 'task', title: 'Nhiệm vụ', desc: `Vừa làm nhiệm vụ ${t.task_id || ''}` }));
+       (withdrawals || []).slice(-10).forEach(w => recentActions.push({ timestamp: new Date(w.created_at).getTime(), type: 'withdraw', title: 'Rút tiền', desc: `Có đơn rút tiền mới: ${w.status}` }));
+       
+       recentActions.sort((a,b) => b.timestamp - a.timestamp);
+       const topRecent = recentActions.slice(0, 10);
+
+       // Online Users (last 5 mins)
+       const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+       const { data: recentIps } = await supabaseAdmin
+         .from('user_ips')
+         .select('user_uuid')
+         .gte('last_seen', fiveMinsAgo);
+       
+       const uniqueOnlineUsers = new Set((recentIps || []).map(i => i.user_uuid)).size;
+
+       // Duplicate IPs
+       const { data: allIps } = await supabaseAdmin.from('user_ips').select('ip_address, user_uuid');
+       const ipGroups: Record<string, Set<string>> = {};
+       (allIps || []).forEach(item => {
+         if (!ipGroups[item.ip_address]) ipGroups[item.ip_address] = new Set();
+         ipGroups[item.ip_address].add(item.user_uuid);
+       });
+       let duplicateIpsCount = 0;
+       Object.values(ipGroups).forEach(usersSet => {
+         if (usersSet.size > 1) duplicateIpsCount++;
        });
 
        res.json({
@@ -580,6 +654,10 @@ async function startServer() {
          totalWithdrawn,
          pendingWithdrawals,
          pendingTasks,
+         onlineUsers: uniqueOnlineUsers,
+         duplicateIps: duplicateIpsCount,
+         chartData,
+         recentActions: topRecent
        });
      } catch (e: any) {
        res.status(500).json({ error: e.message || "Internal Server Error" });
@@ -752,7 +830,7 @@ async function startServer() {
           // Update balance
           const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', userId).single();
           const balance = profile?.vui_coin_balance || 0;
-          await supabaseAdmin.from('profiles').upsert({ user_uuid: userId, vui_coin_balance: Number(balance) + Number(task.reward) }, { onConflict: 'user_uuid' });
+          await updateUserStats(userId, task.reward, true);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -769,6 +847,9 @@ async function startServer() {
     const { uuid, email, userName } = req.body;
     if (!uuid) return res.status(400).json({ error: "UUID required" });
 
+    const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+    const thisMonthVN = todayVN.substring(0, 7) + "-01";
+
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('*')
@@ -783,12 +864,27 @@ async function startServer() {
       const { count } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
       const isFirstUser = count === 0;
 
+      // IP Duplicate Check
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+      if (ip !== 'unknown' && ip !== '127.0.0.1' && ip !== '::1') {
+        const { data: existingIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip).limit(1);
+        if (existingIps && existingIps.length > 0) {
+           return res.status(403).json({ 
+             error: "IP này đã được sử dụng bởi một tài khoản khác. Vui lòng không tạo nhiều tài khoản trên cùng một mạng/thiết bị." 
+           });
+        }
+      }
+
       let insertData: any = { 
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
+        today_balance: 0,
+        today_turns: 0,
+        last_reset_day: todayVN,
+        last_reset_month: todayVN.substring(0, 7) + "-01",
         is_admin: isFirstUser
       };
 
@@ -813,10 +909,34 @@ async function startServer() {
       return res.json({ profile: newProfile });
     }
 
+    // Always check IP for existing profiles too
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    if (ip !== 'unknown' && ip !== '127.0.0.1' && ip !== '::1') {
+        const { data: otherUserIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip).neq('user_uuid', uuid).limit(1);
+        if (otherUserIps && otherUserIps.length > 0) {
+            return res.status(403).json({ error: "IP này đang được sử dụng bởi một tài khoản khác!" });
+        }
+    }
+
     // Update email or name if they're missing but provided now
     const updates: any = {};
     if (email && profile.user_email !== email) updates.user_email = email;
     if (userName && profile.user_name !== userName) updates.user_name = userName;
+
+    // Resets: Daily (0:00 VN) and Monthly
+    const lastResetDay = profile.last_reset_day;
+    const lastResetMonth = profile.last_reset_month;
+
+    if (lastResetDay !== todayVN) {
+        updates.today_balance = 0;
+        updates.today_turns = 0;
+        updates.last_reset_day = todayVN;
+    }
+
+    if (lastResetMonth !== thisMonthVN) {
+        updates.last_reset_month = thisMonthVN;
+        updates.monthly_balance = 0; // Reset monthly ranking score
+    }
 
     if (Object.keys(updates).length > 0) {
        const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', uuid);
@@ -855,6 +975,57 @@ async function startServer() {
      res.json({ success: true, reward, newBalance: Number(currentBalance) + Number(reward) });
   });
 
+  app.get("/api/user/dashboard-stats", async (req, res) => {
+    const { uuid } = req.query;
+    if (!uuid) return res.status(400).json({ error: "UUID required" });
+
+    try {
+      const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('user_uuid', uuid).single();
+      const { data: tasksHistory } = await supabaseAdmin
+        .from('tasks_history')
+        .select('*')
+        .eq('user_uuid', uuid)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())
+        .order('created_at', { ascending: true });
+
+      // Calculate chart data (last 7 days)
+      const chartDataMap: any = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(new Date().getTime() + 7 * 3600 * 1000); // VN base
+        d.setDate(d.getDate() - i);
+        const dayKey = d.toISOString().split('T')[0];
+        chartDataMap[dayKey] = {
+           name: d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit' }),
+           view: 0,
+           vui: 0
+        };
+      }
+
+      (tasksHistory || []).forEach(t => {
+        const dayKey = new Date(new Date(t.created_at).getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+        if (chartDataMap[dayKey]) {
+           chartDataMap[dayKey].view += 1;
+           if (t.status === 'Hoàn thành') {
+             chartDataMap[dayKey].vui += Number(t.reward || 0);
+           }
+        }
+      });
+
+      const chartData = Object.values(chartDataMap);
+
+      const { count: totalViews } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', uuid);
+
+      res.json({
+        totalViews: totalViews || 0,
+        todayBalance: profile?.today_balance || 0,
+        totalBalance: profile?.vui_coin_balance || 0,
+        chartData
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Gift Code API
   app.post("/api/user/redeem-code", async (req, res) => {
      const { uuid, code } = req.body;
@@ -877,18 +1048,98 @@ async function startServer() {
      // Give reward
      const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
      const currentBalance = profile?.vui_coin_balance || 0;
-     await supabaseAdmin.from('profiles').update({ vui_coin_balance: Number(currentBalance) + Number(giftcode.reward) }).eq('user_uuid', uuid);
+     await updateUserStats(uuid, giftcode.reward, false);
 
      res.json({ success: true, reward: giftcode.reward });
   });
 
   // Leaderboard API
   app.get("/api/user/leaderboard", async (req, res) => {
-     const { data: profiles } = await supabaseAdmin.from('profiles').select('user_uuid, user_email, vui_coin_balance').order('vui_coin_balance', { ascending: false }).limit(20);
+     const { data: profiles } = await supabaseAdmin.from('profiles').select('user_uuid, user_email, monthly_balance').order('monthly_balance', { ascending: false }).limit(20);
      res.json({ leaderboard: profiles || [] });
   });
 
   // User IPs API
+  app.post("/api/user/heartbeat", async (req, res) => {
+    const { uuid } = req.body;
+    if (!uuid) return res.status(400).json({ error: "UUID required" });
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
+    
+    await supabaseAdmin.from('user_ips').upsert({
+         user_uuid: uuid,
+         ip_address: ip,
+         last_seen: new Date().toISOString()
+    }, { onConflict: 'user_uuid, ip_address' });
+    
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/duplicate-ips", async (req, res) => {
+    // Get all user IPs and group them
+    const { data: allIps } = await supabaseAdmin.from('user_ips').select('ip_address, user_uuid, last_seen');
+    const { data: allProfiles } = await supabaseAdmin.from('profiles').select('user_uuid, user_email, user_name');
+    
+    const profileMap = (allProfiles || []).reduce((acc: any, p) => {
+      acc[p.user_uuid] = p;
+      return acc;
+    }, {});
+
+    const ipGroups: Record<string, any[]> = {};
+    (allIps || []).forEach(item => {
+      if (!ipGroups[item.ip_address]) ipGroups[item.ip_address] = [];
+      const profile = profileMap[item.user_uuid];
+      ipGroups[item.ip_address].push({
+        ...item,
+        email: profile?.user_email || 'No Email',
+        name: profile?.user_name || `User ${item.user_uuid.slice(0, 8)}`
+      });
+    });
+
+    const duplicates = Object.keys(ipGroups)
+      .filter(ip => new Set(ipGroups[ip].map(u => u.user_uuid)).size > 1)
+      .map(ip => ({
+        ip,
+        users: ipGroups[ip]
+      }));
+
+    res.json({ duplicates });
+  });
+
+  app.get("/api/admin/online-users", async (req, res) => {
+    const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: onlineIps } = await supabaseAdmin
+      .from('user_ips')
+      .select('user_uuid, ip_address, last_seen')
+      .gte('last_seen', fiveMinsAgo);
+    
+    if (!onlineIps || onlineIps.length === 0) return res.json({ users: [] });
+
+    const uniqueUuids = Array.from(new Set(onlineIps.map(i => i.user_uuid)));
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('user_uuid, user_email, user_name')
+      .in('user_uuid', uniqueUuids);
+
+    const profileMap = (profiles || []).reduce((acc: any, p) => {
+      acc[p.user_uuid] = p;
+      return acc;
+    }, {});
+
+    const onlineUsers = uniqueUuids.map(uuid => {
+      const profile = profileMap[uuid];
+      const ipInfo = onlineIps.find(i => i.user_uuid === uuid);
+      return {
+        uuid,
+        name: profile?.user_name || `User ${uuid.slice(0, 8)}`,
+        email: profile?.user_email || 'No Email',
+        lastSeen: ipInfo?.last_seen,
+        ip: ipInfo?.ip_address
+      };
+    });
+
+    res.json({ users: onlineUsers });
+  });
+
   app.post("/api/user/log-ip", async (req, res) => {
      const { uuid } = req.body;
      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';

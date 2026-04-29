@@ -3,6 +3,7 @@ import { Bell, Menu, X, CheckCircle2, LogOut, User } from "lucide-react";
 import confetti from 'canvas-confetti';
 import { Logo } from "@/components/ui/Logo";
 import { useNavigate, Link } from "react-router-dom";
+import { safeFetch } from "@/lib/utils";
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -19,7 +20,15 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
   const [showMail, setShowMail] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'notifications' | 'chests'>('notifications');
-  const [notifications, setNotifications] = useState(() => JSON.parse(localStorage.getItem('notifications') || '[]'));
+  const [notifications, setNotifications] = useState(() => {
+     // Migration
+     const old = JSON.parse(localStorage.getItem('notifications') || '[]');
+     if (old.length > 0) {
+        localStorage.setItem('local_rewards', JSON.stringify(old.map((n:any) => ({...n, isLocalReward: true}))));
+        localStorage.removeItem('notifications');
+     }
+     return JSON.parse(localStorage.getItem('local_rewards') || '[]');
+  });
   const [openedChests, setOpenedChests] = useState(() => JSON.parse(localStorage.getItem('openedChests') || '{"chest1": 0, "chest2": 0, "chest3": 0}'));
   const dropdownRef = useRef<HTMLDivElement>(null);
   const accountDropdownRef = useRef<HTMLDivElement>(null);
@@ -27,11 +36,40 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
 
   useEffect(() => {
     // Keep internal consistency if needed, but the user wants Bell icon
+    const fetchNotifications = async () => {
+      try {
+        const data = await safeFetch('/api/notifications');
+        if (data && data.notifications) {
+           const formattedNotifs = data.notifications.map((n: any) => ({
+             id: n.id,
+             title: n.title,
+             content: n.content,
+             type: n.type,
+             time: new Date(n.timestamp).toLocaleTimeString(),
+             read: JSON.parse(localStorage.getItem('read_announcements') || '[]').includes(n.id)
+           }));
+           // Filter for personal ones if needed? Actually site_notifications are global. 
+           // If we mix them with local rewards, we can merge them.
+           const localNotifs = JSON.parse(localStorage.getItem('local_rewards') || '[]');
+           setNotifications([...formattedNotifs, ...localNotifs].sort((a,b) => b.timestamp - a.timestamp));
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     const handleNewNotification = () => {
-      setNotifications(JSON.parse(localStorage.getItem('notifications') || '[]'));
+      // Used by rewards
+      const localNotifs = JSON.parse(localStorage.getItem('local_rewards') || '[]');
+      setNotifications(prev => {
+         const siteNotifs = prev.filter((n: any) => !n.isLocalReward);
+         return [...siteNotifs, ...localNotifs].sort((a,b) => b.timestamp - a.timestamp);
+      });
     };
     
     window.addEventListener('newNotification', handleNewNotification);
@@ -54,8 +92,17 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   const markAllAsRead = () => {
-    setNotifications(notifications.map((n: any) => ({...n, read: true})));
-    localStorage.setItem('notifications', JSON.stringify(notifications.map((n: any) => ({...n, read: true}))));
+    const updated = notifications.map((n: any) => ({...n, read: true}));
+    setNotifications(updated);
+    
+    // Save to read_announcements
+    const siteNotifs = updated.filter((n: any) => !n.isLocalReward).map((n: any) => n.id);
+    const existingRead = JSON.parse(localStorage.getItem('read_announcements') || '[]');
+    localStorage.setItem('read_announcements', JSON.stringify([...new Set([...existingRead, ...siteNotifs])]));
+    
+    // Local rewards
+    const localNotifs = updated.filter((n: any) => n.isLocalReward);
+    localStorage.setItem('local_rewards', JSON.stringify(localNotifs));
   };
   
   const [showRewardPopup, setShowRewardPopup] = useState<{ isOpen: boolean; reward: number; chestType: number } | null>(null);
@@ -72,7 +119,9 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
         n.id === notif.id ? { ...n, claimed: true, read: true } : n
       );
       setNotifications(newNotifs);
-      localStorage.setItem('notifications', JSON.stringify(newNotifs));
+      
+      const localNotifs = newNotifs.filter((n: any) => n.isLocalReward);
+      localStorage.setItem('local_rewards', JSON.stringify(localNotifs));
       
       // Trigger update
       window.dispatchEvent(new CustomEvent('balanceUpdated'));

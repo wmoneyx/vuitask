@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { safeFetch } from "@/lib/utils";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { GenericPage } from "./components/layout/GenericPage";
@@ -29,6 +31,31 @@ import { VerifyTaskPrePage } from "./pages/VerifyTaskPrePage";
 import { CommunityPage } from "./pages/CommunityPage";
 
 export default function App() {
+  useEffect(() => {
+    // Global User Check
+    const uuid = localStorage.getItem('userUUID') || localStorage.getItem('omni_uuid');
+    if (uuid) {
+      // Log IP on load
+      safeFetch('/api/user/log-ip', { 
+        method: 'POST', 
+        body: JSON.stringify({ uuid }) 
+      });
+
+      // Heartbeat every 2 minutes
+      const heartbeat = () => {
+        fetch('/api/user/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uuid })
+        }).catch(() => {});
+      };
+      
+      heartbeat();
+      const interval = setInterval(heartbeat, 120000);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>

@@ -13,11 +13,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   user_name TEXT,
   vui_coin_balance BIGINT DEFAULT 0,
   coin_task_balance BIGINT DEFAULT 0,
+  today_balance BIGINT DEFAULT 0,
+  today_turns INT DEFAULT 0,
+  monthly_balance BIGINT DEFAULT 0,
   last_attendance DATE,
+  last_reset_day DATE DEFAULT CURRENT_DATE,
+  last_reset_month DATE DEFAULT CURRENT_DATE,
   is_admin BOOLEAN DEFAULT false,
   is_banned BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration for existing users (Run if columns are missing):
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_balance BIGINT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_turns INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS monthly_balance BIGINT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_reset_day DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_reset_month DATE DEFAULT CURRENT_DATE;
 
 -- Note: In case the table already exists, migrate to user_uuid as PK if needed
 -- ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_pkey;

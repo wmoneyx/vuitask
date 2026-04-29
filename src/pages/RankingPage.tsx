@@ -17,8 +17,8 @@ export function RankingPage() {
         if (data && data.leaderboard) {
             const fetched = data.leaderboard.map((item: any) => ({
                 id: item.user_uuid,
-                username: item.user_email?.split('@')[0] || 'Unknown',
-                score: item.vui_coin_balance || 0,
+                username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
+                score: item.monthly_balance || 0,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
             }));
             setRanks(fetched);
@@ -40,11 +40,16 @@ export function RankingPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-3 text-slate-800 mb-6">
-                <Trophy className="text-yellow-500" size={28} />
-                <h2 className="text-2xl font-bold uppercase tracking-tight">
-                    <AnimatedText delay={0.1}>Xếp Hạng</AnimatedText>
-                </h2>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3 text-slate-800">
+                    <Trophy className="text-yellow-500" size={28} />
+                    <h2 className="text-2xl font-bold uppercase tracking-tight">
+                        <AnimatedText delay={0.1}>Xếp Hạng</AnimatedText>
+                    </h2>
+                </div>
+                <div className="px-4 py-1.5 bg-slate-100 rounded-full text-xs font-bold text-slate-500 uppercase tracking-wider border border-slate-200">
+                    Tháng này
+                </div>
             </div>
 
             {ranks.length > 0 ? (

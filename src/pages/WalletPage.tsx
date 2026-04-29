@@ -53,7 +53,7 @@ export function WalletPage() {
     
     // Đẩy đơn rút lên cộng đồng
     const localUUID = localStorage.getItem('userUUID') || crypto.randomUUID();
-    let username = localStorage.getItem('userEmail')?.split('@')[0] || 'User';
+    let username = localStorage.getItem('userName') || localStorage.getItem('userEmail')?.split('@')[0] || 'User';
 
     await fetch('/api/community/withdraw', {
         method: 'POST',

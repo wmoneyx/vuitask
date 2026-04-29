@@ -1,14 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { GenericPage } from '../components/layout/GenericPage';
-import { Mail, Info, ChevronRight, CheckCircle2, ShieldAlert, Timer } from 'lucide-react';
+import { Mail, Info, ChevronRight, CheckCircle2, ShieldAlert, Timer, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotification } from '../context/NotificationContext';
+import { safeFetch } from '@/lib/utils';
+import { AnimatedDiv } from '@/components/ui/AnimatedText';
 
 export function TaskPrePage() {
   const { showNotification } = useNotification();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [canSubmit, setCanSubmit] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const localUUID = localStorage.getItem('omni_uuid');
+
+  const fetchHistory = async () => {
+    if (!localUUID) return;
+    const data = await safeFetch(`/api/tasks/history?uuid=${localUUID}`);
+    if (data && data.history) {
+        // Filter for Pre tasks
+        const preHistory = data.history.filter((h: any) => h.task_id === 'GMAIL_PRE');
+        setHistory(preHistory);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   useEffect(() => {
     let timer: any;
@@ -58,7 +76,7 @@ export function TaskPrePage() {
   };
 
   return (
-    <GenericPage title="Nhiệm Vụ Pre">
+    <GenericPage title="Nhiệm Vụ Pre" showHistory={false}>
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6">
@@ -194,6 +212,60 @@ export function TaskPrePage() {
           </div>
         )}
       </AnimatePresence>
+
+      <AnimatedDiv delay={0.4} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
+        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
+          <h3 className="font-bold text-slate-800 uppercase tracking-tight text-sm italic">Lịch sử làm nhiệm vụ Pre</h3>
+          <button onClick={fetchHistory} className="text-red-500 hover:text-red-600 transition-colors">
+            <RefreshCw size={16} />
+          </button>
+        </div>
+        <div className="overflow-x-auto custom-scrollbar max-h-96">
+          <table className="w-full text-left border-collapse min-w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 z-10">
+              <tr className="border-b border-gray-100 text-[10px] uppercase tracking-widest text-slate-500 font-black">
+                <th className="p-4">Thời gian</th>
+                <th className="p-4">Tên</th>
+                <th className="p-4">Email / Mật khẩu</th>
+                <th className="p-4 text-center">Thưởng</th>
+                <th className="p-4 text-center">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+               {history.length === 0 ? (
+                 <tr>
+                   <td colSpan={5} className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest opacity-40 italic">Chưa có dữ liệu nhiệm vụ Pre.</td>
+                 </tr>
+               ) : (
+                 history.map((record, idx) => (
+                   <tr key={idx} className="hover:bg-red-50/10 transition-colors">
+                     <td className="p-4 text-[11px] font-bold text-gray-400 font-mono">
+                        {new Date(record.timestamp).toLocaleString('vi-VN')}
+                     </td>
+                     <td className="p-4 font-black text-slate-800 text-xs">
+                        {record.taskName}
+                     </td>
+                     <td className="p-4 space-y-1">
+                        <div className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block">{record.url}</div>
+                        <div className="text-[10px] font-bold text-slate-400 block px-2">PW: Zhy99!!!</div>
+                     </td>
+                     <td className="p-4 text-center font-black text-emerald-500">
+                        +{record.reward.toLocaleString()}
+                     </td>
+                     <td className="p-4 text-center">
+                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter
+                           ${record.status === 'Hoàn thành' ? 'bg-emerald-100 text-emerald-700' : 
+                             record.status === 'Từ chối' ? 'bg-rose-100 text-rose-700' : 'bg-orange-100 text-orange-700'}`}>
+                           {record.status}
+                        </span>
+                     </td>
+                   </tr>
+                 ))
+               )}
+            </tbody>
+          </table>
+        </div>
+      </AnimatedDiv>
     </GenericPage>
   );
 }
