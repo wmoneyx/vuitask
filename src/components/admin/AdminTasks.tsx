@@ -91,10 +91,10 @@ export function AdminTasks() {
                {loading && (
                  <tr><td colSpan={9} className="p-4 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" /></td></tr>
                )}
-                {!loading && activeTab === 'pending' && pending.map((task, idx) => (
+                 {!loading && activeTab === 'pending' && pending.map((task, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
-                     <td className="p-2 font-bold">{task.taskName}</td>
+                     <td className="p-2 font-bold">{task.task_name}</td>
                      <td className="p-2 text-xs">{task.user_uuid?.slice(0, 8) || 'unknown'}...</td>
                      <td className="p-2">
                         <a href={task.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
@@ -103,12 +103,12 @@ export function AdminTasks() {
                      </td>
                      <td className="p-2 text-center font-bold text-emerald-600">+{task.reward}</td>
                      <td className="p-2 text-center">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.statusV1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.status_v1 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
                            24 GIỜ
                         </span>
                      </td>
                      <td className="p-2 text-center">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.statusV2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${task.status_v2 === 'Đã duyệt' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'}`}>
                            10 NGÀY
                         </span>
                      </td>

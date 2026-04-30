@@ -162,7 +162,7 @@ export function TaskVipPage() {
                         {new Date(record.timestamp).toLocaleString('vi-VN')}
                      </td>
                      <td className="p-4 font-black text-slate-700 text-xs">
-                        {record.taskName}
+                        {record.task_name}
                      </td>
                      <td className="p-4 text-center font-black text-emerald-500">
                         +{record.reward.toLocaleString()}

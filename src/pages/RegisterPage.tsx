@@ -10,7 +10,12 @@ export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [referral, setReferral] = useState(() => sessionStorage.getItem('referralCode') || '');
+  const [referral, setReferral] = useState(() => {
+    const fromSession = sessionStorage.getItem('referralCode');
+    if (fromSession) return fromSession;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('ref') || '';
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

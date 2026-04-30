@@ -9,8 +9,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, today_balance, today_turns, monthly_balance').eq('user_uuid', userId).single();
-    if (!profile) return;
+    console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
+    
+    // 1. Find the profile column and existing data
+    let profile: any = null;
+    let pkCol = 'user_uuid';
+    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance';
+    
+    const { data: res1 } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
+    if (res1) {
+        profile = res1;
+        pkCol = 'user_uuid';
+    } else {
+        const { data: res2 } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).maybeSingle();
+        if (res2) {
+            profile = res2;
+            pkCol = 'id';
+        }
+    }
+
+    if (!profile) {
+        console.error(`[updateUserStats] Profile not found for userId: ${userId}`);
+        return;
+    }
     
     const updates: any = {
         vui_coin_balance: Number(profile.vui_coin_balance || 0) + Number(amount),
@@ -22,7 +43,36 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         updates.today_turns = Number(profile.today_turns || 0) + 1;
     }
     
-    await supabaseAdmin.from('profiles').update(updates).eq('user_uuid', userId);
+    const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq(pkCol, userId);
+    if (updateError) {
+        console.error(`[updateUserStats] Failed to update profile:`, updateError);
+        // Fallback: try field by field if total update fails due to schema
+        for (const [key, val] of Object.entries(updates)) {
+            await supabaseAdmin.from('profiles').update({ [key]: val }).eq(pkCol, userId);
+        }
+    } else {
+        console.log(`[updateUserStats] Successfully updated balance for ${userId}. New balance: ${updates.vui_coin_balance}`);
+        
+        // CHECK REFERRAL MILESTONE (100,000 VuiCoin)
+        if (updates.vui_coin_balance >= 100000) {
+            const { data: pendingReferrals } = await supabaseAdmin
+                .from('referrals')
+                .select('*')
+                .eq('referred_uuid', userId)
+                .eq('status', 'pending');
+            
+            if (pendingReferrals && pendingReferrals.length > 0) {
+                for (const ref of pendingReferrals) {
+                    console.log(`[ReferralMilestone] Awarding ${ref.reward_vui} to ${ref.referrer_uuid} because ${userId} reached 100k`);
+                    
+                    // Mark completed
+                    await supabaseAdmin.from('referrals').update({ status: 'completed' }).eq('id', ref.id);
+                    // Award referrer
+                    await updateUserStats(ref.referrer_uuid, ref.reward_vui, false);
+                }
+            }
+        }
+    }
 }
 
 async function startServer() {
@@ -233,6 +283,7 @@ async function startServer() {
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
+        task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
         reward: session.reward,
@@ -279,6 +330,7 @@ async function startServer() {
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
+        task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
         reward: session.reward,
@@ -331,6 +383,7 @@ async function startServer() {
     const historyEntry = {
         id: sessionId,
         user_uuid: uuid,
+        task_id: session.task_id,
         task_name: session.task_name,
         url: session.short_url || 'unknown',
         reward: session.reward,
@@ -813,7 +866,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/approve-task", async (req, res) => {
-    const { userId, taskId, decision } = req.body; // decision: 'approve' | 'reject'
+    const { taskId, decision } = req.body; // decision: 'approve' | 'reject'
     
     const { data: task } = await supabaseAdmin
       .from('tasks_history')
@@ -829,10 +882,8 @@ async function startServer() {
             .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
             .eq('id', taskId);
 
-          // Update balance
-          const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', userId).single();
-          const balance = profile?.vui_coin_balance || 0;
-          await updateUserStats(userId, task.reward, true);
+          // Update balance using user_uuid from task record
+          await updateUserStats(task.user_uuid, task.reward, true);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -1058,7 +1109,7 @@ async function startServer() {
                   referrer_uuid: referrer.user_uuid,
                   referred_uuid: uuid,
                   timestamp: Date.now(),
-                  reward_vui: 0, // No reward until they earn 1 VuiCoin
+                  reward_vui: 10000, 
                   status: 'pending'
               });
           }
@@ -1135,14 +1186,27 @@ async function startServer() {
      
      await supabaseAdmin.from('attendance_logs').insert({ user_uuid: uuid, day_count: day, reward, timestamp: today });
      // Update profile last_attendance and coin_task_balance
-     const { data: profile } = await supabaseAdmin.from('profiles').select('coin_task_balance').eq('user_uuid', uuid).single();
-     const currentBalance = profile?.coin_task_balance || 0;
+     let pkCol = 'user_uuid';
+     const { data: profile1 } = await supabaseAdmin.from('profiles').select('coin_task_balance, user_uuid').eq('user_uuid', uuid).maybeSingle();
+     let currentBalance = 0;
+     if (profile1) {
+         currentBalance = profile1.coin_task_balance || 0;
+         pkCol = 'user_uuid';
+     } else {
+         const { data: profile2 } = await supabaseAdmin.from('profiles').select('coin_task_balance, id').eq('id', uuid).maybeSingle();
+         if (profile2) {
+             currentBalance = profile2.coin_task_balance || 0;
+             pkCol = 'id';
+         }
+     }
+
+     const newBalance = Number(currentBalance) + Number(reward);
      await supabaseAdmin.from('profiles').update({ 
          last_attendance: today,
-         coin_task_balance: Number(currentBalance) + Number(reward)
-     }).eq('user_uuid', uuid);
+         coin_task_balance: newBalance
+     }).eq(pkCol, uuid);
      
-     res.json({ success: true, reward, newBalance: Number(currentBalance) + Number(reward) });
+     res.json({ success: true, reward, newBalance });
   });
 
   app.get("/api/user/dashboard-stats", async (req, res) => {

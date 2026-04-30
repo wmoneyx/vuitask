@@ -246,7 +246,7 @@ export function TaskPrePage() {
                         {new Date(record.timestamp).toLocaleString('vi-VN')}
                      </td>
                      <td className="p-4 font-black text-slate-800 text-xs">
-                        {record.taskName}
+                        {record.task_name}
                      </td>
                      <td className="p-4 space-y-1">
                         <div className="text-xs font-black text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block">{record.url}</div>

@@ -9,16 +9,15 @@ import { safeFetch } from "@/lib/utils";
 const TASKS = [
   { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 400, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
   { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
-  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: true, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
-  { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 463, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
-  { id: 'utl2', name: 'UTL 2 STEP', maxViews: 999, reward: 449, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
-  { id: 'utl1', name: 'UTL 1 STEP', maxViews: 999, reward: 385, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
+  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
+  { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 459, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
+  { id: 'utl2', name: 'UTL 2 STEP', maxViews: 999, reward: 432, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
+  { id: 'utl1', name: 'UTL 1 STEP', maxViews: 999, reward: 368, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'traffic68', name: 'TRAFFIC 68', maxViews: 4, reward: 449, auto: true, apiUrl: 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'linkngon', name: 'LINK NGON', maxViews: 2, reward: 250, auto: true, apiUrl: 'https://linkngon.top/api?api=iDqggiRIz7r9280v8NsD8jZS&url=' },
-  { id: 'linktop', name: 'LINKTOP', maxViews: 2, reward: 150, auto: true, apiUrl: 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=' },
-  { id: 'traffictop', name: 'TRAFFICTOP', maxViews: 999, reward: 200, auto: true, apiUrl: 'https://traffictop.net/api?api=OrKX4KckO50XBo29N0cCVBUW&url=' },
+  { id: 'linkngon', name: 'LINK NGON', maxViews: 2, reward: 250, auto: false, apiUrl: 'https://linkngon.top/api?api=iDqggiRIz7r9280v8NsD8jZS&url=' },
+  { id: 'linktop', name: 'LINKTOP', maxViews: 2, reward: 150, auto: false, apiUrl: 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=' },
 ];
 
 import { useUser } from '@/UserContext';
@@ -46,6 +45,15 @@ export function TaskPage() {
     await refreshProfile();
   }
 
+  const getTodayTaskCount = (taskId: string) => {
+    const today = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+    return history.filter(h => {
+        const hId = (h.task_id || '').toLowerCase();
+        const hDate = new Date(new Date(h.timestamp).getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+        return hId === taskId.toLowerCase() && hDate === today && h.status !== 'Từ chối';
+    }).length;
+  };
+
   const handleOpenLink = () => {
     if (currentTaskUrl) {
       window.open(currentTaskUrl, "_blank");
@@ -62,11 +70,22 @@ export function TaskPage() {
   const handleDoTask = async (task: any) => {
     if (!uuid) return;
     
-    // Check daily turn limit
-    if ((profile?.today_turns || 0) >= 10) {
+    // Check per-task limit
+    const taskCount = getTodayTaskCount(task.id);
+    if (taskCount >= task.maxViews) {
+      showNotification({ 
+        title: 'Hết lượt', 
+        message: `Bạn đã hết lượt làm nhiệm vụ ${task.name} hôm nay.`, 
+        type: 'warning' 
+      });
+      return;
+    }
+
+    // Check global daily turn limit
+    if ((profile?.today_turns || 0) >= 2207) { 
       showNotification({ 
         title: 'Giới hạn hằng ngày', 
-        message: 'Bạn đã đạt giới hạn 10 lượt làm nhiệm vụ mỗi ngày. Hãy quay lại vào ngày mai!', 
+        message: 'Bạn đã đạt giới hạn 2207 lượt làm nhiệm vụ mỗi ngày. Hãy quay lại vào ngày mai!', 
         type: 'warning' 
       });
       return;
@@ -206,6 +225,32 @@ export function TaskPage() {
         </h1>
       </div>
 
+      <AnimatedDiv delay={0.1} className="bg-[#8b5cf6] rounded-[2rem] p-6 text-white shadow-xl shadow-purple-200 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <Activity size={80} />
+        </div>
+        <div className="relative z-10">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] mb-2 opacity-80">Tiến độ hằng ngày</div>
+          <div className="flex items-end gap-2 mb-4">
+            <span className="text-4xl font-black">{profile?.today_turns || 0}</span>
+            <span className="text-xl font-bold opacity-60 mb-1">/ 2207 nhiệm vụ</span>
+          </div>
+          <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(((profile?.today_turns || 0) / 2207) * 100, 100)}%` }}
+              className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+            />
+          </div>
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-wider opacity-70">
+            { (profile?.today_turns || 0) >= 2207 
+                ? "Bạn đã hoàn thành mục tiêu ngày hôm nay. Hãy quay lại vào ngày mai!" 
+                : `Còn ${2207 - (profile?.today_turns || 0)} nhiệm vụ nữa để hoàn thành mục tiêu ngày.`
+            }
+          </p>
+        </div>
+      </AnimatedDiv>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {TASKS.map((task, index) => (
           <AnimatedDiv key={task.id} delay={0.1 + index * 0.05} className="bg-white rounded-[2rem] p-6 sm:p-8 border border-gray-100 shadow-sm relative hover:shadow-md transition-shadow">
@@ -232,12 +277,12 @@ export function TaskPage() {
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Giới hạn lượt làm</div>
-                <div className="font-bold text-slate-800 text-lg">{(profile?.today_turns || 0)} / 10</div>
+                <div className="font-bold text-slate-800 text-lg">{getTodayTaskCount(task.id)} / {task.maxViews}</div>
               </div>
               <div className="bg-orange-50/50 rounded-2xl p-4 border border-orange-100/50">
                 <div className="text-[10px] font-bold text-orange-500/70 uppercase tracking-wider mb-1">Duyệt thưởng</div>
                 <div className="font-bold text-orange-600 text-lg uppercase">
-                  {['linkngon', 'linktop', 'traffictop', 'bbmkts'].includes(task.id.toLowerCase()) ? 'Thủ công' : 'Tự động'}
+                  {task.auto ? 'Tự động' : 'Thủ công'}
                 </div>
               </div>
             </div>
@@ -286,7 +331,7 @@ export function TaskPage() {
                  history.filter((h: any) => !h.task_id || (!h.task_id.startsWith('vip_') && h.task_id !== 'GMAIL_PRE')).map((record, idx) => (
                    <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-4 text-center text-xs font-mono text-gray-400">{new Date(record.timestamp).toLocaleString('vi-VN')}</td>
-                     <td className="p-4 text-center font-bold text-slate-700">{record.taskName}</td>
+                     <td className="p-4 text-center font-bold text-slate-700">{record.task_name}</td>
                      <td className="p-4 text-center font-bold text-emerald-500">+{record.reward.toLocaleString()}</td>
                      <td className="p-4 text-center">
                         <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase bg-opacity-20
