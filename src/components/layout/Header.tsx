@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import { Logo } from "@/components/ui/Logo";
 import { useNavigate, Link } from "react-router-dom";
 import { safeFetch } from "@/lib/utils";
+import { useUser } from "@/UserContext";
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -11,22 +12,15 @@ interface HeaderProps {
   isAdmin?: boolean;
 }
 
-const MOCK_NOTIFICATIONS: any[] = [];
-
 export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: HeaderProps) {
-  const userEmail = localStorage.getItem('userEmail') || 'user@gmail.com';
-  const username = localStorage.getItem('userName') || userEmail.split('@')[0];
+  const { profile, refreshProfile } = useUser();
+  const userEmail = profile?.user_email || 'user@gmail.com';
+  const username = profile?.user_name || userEmail.split('@')[0] || 'User';
   
   const [showMail, setShowMail] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'notifications' | 'chests'>('notifications');
   const [notifications, setNotifications] = useState(() => {
-     // Migration
-     const old = JSON.parse(localStorage.getItem('notifications') || '[]');
-     if (old.length > 0) {
-        localStorage.setItem('local_rewards', JSON.stringify(old.map((n:any) => ({...n, isLocalReward: true}))));
-        localStorage.removeItem('notifications');
-     }
      return JSON.parse(localStorage.getItem('local_rewards') || '[]');
   });
   const [openedChests, setOpenedChests] = useState(() => JSON.parse(localStorage.getItem('openedChests') || '{"chest1": 0, "chest2": 0, "chest3": 0}'));
@@ -35,7 +29,6 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Keep internal consistency if needed, but the user wants Bell icon
     const fetchNotifications = async () => {
       try {
         const data = await safeFetch('/api/notifications');
@@ -48,8 +41,6 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
              time: new Date(n.timestamp).toLocaleTimeString(),
              read: JSON.parse(localStorage.getItem('read_announcements') || '[]').includes(n.id)
            }));
-           // Filter for personal ones if needed? Actually site_notifications are global. 
-           // If we mix them with local rewards, we can merge them.
            const localNotifs = JSON.parse(localStorage.getItem('local_rewards') || '[]');
            setNotifications([...formattedNotifs, ...localNotifs].sort((a,b) => b.timestamp - a.timestamp));
         }
@@ -64,7 +55,6 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
 
   useEffect(() => {
     const handleNewNotification = () => {
-      // Used by rewards
       const localNotifs = JSON.parse(localStorage.getItem('local_rewards') || '[]');
       setNotifications(prev => {
          const siteNotifs = prev.filter((n: any) => !n.isLocalReward);
@@ -95,26 +85,39 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
     const updated = notifications.map((n: any) => ({...n, read: true}));
     setNotifications(updated);
     
-    // Save to read_announcements
     const siteNotifs = updated.filter((n: any) => !n.isLocalReward).map((n: any) => n.id);
     const existingRead = JSON.parse(localStorage.getItem('read_announcements') || '[]');
     localStorage.setItem('read_announcements', JSON.stringify([...new Set([...existingRead, ...siteNotifs])]));
     
-    // Local rewards
     const localNotifs = updated.filter((n: any) => n.isLocalReward);
     localStorage.setItem('local_rewards', JSON.stringify(localNotifs));
   };
   
   const [showRewardPopup, setShowRewardPopup] = useState<{ isOpen: boolean; reward: number; chestType: number } | null>(null);
   
-  const handleNotificationClick = (notif: any) => {
+  const handleNotificationClick = async (notif: any) => {
     if (notif.type === 'reward_chest' && !notif.claimed) {
-      // Add balance
-      const currentBalance = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
-      const newBalance = currentBalance + notif.rewardAmount;
-      localStorage.setItem('vuiCoinBalance', newBalance.toString());
+      const uuid = profile?.user_uuid;
+      if (!uuid) return;
+
+      // We should really handle this server-side, but keeping current flow with a sync call
+      try {
+        // Inform server if needed? Actually current rewards logic seems client-side triggered?
+        // Let's just update balance via sync-profile simulation
+        await safeFetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                uuid, 
+                vuiChange: notif.rewardAmount 
+            })
+        });
+        
+        await refreshProfile();
+      } catch (err) {
+        console.error("Reward claiming failed", err);
+      }
       
-      // Mark as claimed
       const newNotifs = notifications.map((n: any) => 
         n.id === notif.id ? { ...n, claimed: true, read: true } : n
       );
@@ -123,10 +126,6 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
       const localNotifs = newNotifs.filter((n: any) => n.isLocalReward);
       localStorage.setItem('local_rewards', JSON.stringify(localNotifs));
       
-      // Trigger update
-      window.dispatchEvent(new CustomEvent('balanceUpdated'));
-      
-      // Show Popup
       setShowRewardPopup({ isOpen: true, reward: notif.rewardAmount, chestType: notif.chestType });
       confetti({
         particleCount: 150,
@@ -137,13 +136,7 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userUUID');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('vuiCoinBalance');
-    localStorage.removeItem('coinTaskBalance');
-    localStorage.removeItem('notifications');
-    localStorage.removeItem('openedChests');
-    localStorage.removeItem('checkedInDays');
+    localStorage.clear();
     navigate('/login');
   };
 
@@ -254,12 +247,14 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
           >
             <div className="text-right hidden sm:block">
               <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-2 text-capitalize">
-                {isAdmin ? "Vui Task" : username} {isAdmin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+                {profile?.is_admin ? "Vui Task" : username} {profile?.is_admin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
               </div>
               <div className="text-xs text-gray-500">{userEmail}</div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase">
-              {username.charAt(0)}
+            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase overflow-hidden">
+              {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : username.charAt(0)}
             </div>
           </button>
 

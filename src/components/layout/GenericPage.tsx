@@ -1,15 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { STATUS_COLORS } from "@/constants";
+import { useUser } from "@/UserContext";
+import { safeFetch } from "@/lib/utils";
 
 interface GenericPageProps {
   title: string;
   children?: React.ReactNode;
   showHistory?: boolean;
+  historyType?: 'normal' | 'vip' | 'pre';
 }
 
-export function GenericPage({ title, children, showHistory = true }: GenericPageProps) {
-  const histories: any[] = [];
+export function GenericPage({ title, children, showHistory = true, historyType = 'normal' }: GenericPageProps) {
+  const { profile } = useUser();
+  const [histories, setHistories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!profile?.user_uuid || !showHistory) return;
+      setLoading(true);
+      try {
+        const data = await safeFetch(`/api/user/history?uuid=${profile.user_uuid}&type=${historyType}`);
+        if (data && data.history) {
+          setHistories(data.history.map((h: any) => ({
+            time: new Date(h.timestamp).toLocaleString('vi-VN'),
+            detail: h.task_name,
+            reward: `+${h.reward}`,
+            status: h.status || 'completed',
+            statusLabel: h.status === 'completed' ? 'Hoàn thành' : 'Đang xử lý',
+            statusColor: h.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'
+          })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch history:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, [profile?.user_uuid, showHistory, historyType]);
 
   return (
     <div className="space-y-6 max-w-full">
@@ -41,7 +71,13 @@ export function GenericPage({ title, children, showHistory = true }: GenericPage
                      </tr>
                   </thead>
                   <tbody>
-                     {histories.length > 0 ? (
+                     {loading ? (
+                        <tr>
+                           <td colSpan={4} className="p-8 text-center">
+                              <div className="w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                           </td>
+                        </tr>
+                     ) : histories.length > 0 ? (
                         histories.map((record, i) => (
                             <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors text-xs">
                                <td className="p-2 text-gray-600">{record.time}</td>

@@ -31,9 +31,11 @@ const data = [
 ];
 
 import { useNavigate } from "react-router-dom";
+import { useUser } from '../UserContext';
 
 export function AdminPage() {
   const navigate = useNavigate();
+  const { profile, loading: profileLoading } = useUser();
   const [time, setTime] = useState(new Date().toLocaleTimeString());
   const [activeTab, setActiveTab] = useState('Tổng quan');
   const [needsFullscreenPrompt, setNeedsFullscreenPrompt] = useState(false);
@@ -87,10 +89,10 @@ export function AdminPage() {
   };
 
   useEffect(() => {
-    if (localStorage.getItem('isAdmin') !== 'true') {
+    if (!profileLoading && (!profile || !profile.is_admin)) {
       navigate('/app', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, profile, profileLoading]);
 
   const fetchStats = async () => {
     const data = await safeFetch('/api/admin/stats');

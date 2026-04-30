@@ -62,13 +62,29 @@ export function LoginPage() {
       }
 
       if (data.user) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', email);
         localStorage.setItem('userUUID', data.user.id);
-        const fullName = data.user.user_metadata?.full_name;
-        if (fullName) {
-          localStorage.setItem('userName', fullName);
+        
+        // Sync profile immediately - Bearer token will be picked up by UserContext 
+        // but we can pass it here as well for immediate effect
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+
+          await fetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ 
+              uuid: data.user.id, 
+              email: email
+            })
+          });
+        } catch (err) {
+          console.error("Immediate Sync Error:", err);
         }
+
         navigate('/app');
       }
     } catch (e) {

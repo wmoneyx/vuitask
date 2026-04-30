@@ -4,15 +4,17 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { safeFetch } from "@/lib/utils";
+import { useUser } from "@/UserContext";
 
 export function Dashboard() {
+  const { profile } = useUser();
   const [stats, setStats] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const uuid = localStorage.getItem('userUUID');
+      const uuid = profile?.user_uuid;
       if (!uuid) return;
       
       const [statsData, notifyData] = await Promise.all([

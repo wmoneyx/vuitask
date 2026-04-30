@@ -2,13 +2,16 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Share2, Copy, Check } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
+import { useUser } from "@/UserContext";
+import { safeFetch } from "@/lib/utils";
 
 export function RefPage() {
+  const { profile } = useUser();
   const [copied, setCopied] = useState(false);
-  const [referrals, setReferrals] = useState<any[]>([]);
+  const [refStats, setRefStats] = useState({ total: 0, earnings: 0, history: [] });
   
-  const uuid = localStorage.getItem('userUUID') || 'guest';
-  const refCode = useMemo(() => uuid.split('-')[0] || '12345', [uuid]);
+  const uuid = profile?.user_uuid;
+  const refCode = useMemo(() => profile?.user_uuid?.split('-')[0] || '12345', [profile?.user_uuid]);
   
   const refLink = `${window.location.origin}?ref=${refCode}`;
 
@@ -17,11 +20,11 @@ export function RefPage() {
   }, [uuid]);
 
   const fetchRefs = async () => {
+    if (!uuid) return;
     try {
-        const res = await fetch(`/api/user/referrals?uuid=${uuid}`);
-        const data = await res.json();
-        if (data.referrals) {
-            setReferrals(data.referrals);
+        const data = await safeFetch(`/api/user/referral/stats?uuid=${uuid}`);
+        if (data) {
+            setRefStats(data);
         }
     } catch(e) {}
   };
@@ -31,8 +34,6 @@ export function RefPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const totalReward = referrals.reduce((acc, r) => acc + (Number(r.reward) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -77,14 +78,35 @@ export function RefPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center border border-gray-100 hover:border-gray-200 transition-colors">
                <div className="text-[11px] font-bold text-slate-700 mb-3">Tổng Ref</div>
-               <div className="text-3xl font-black text-slate-800">{referrals.length}</div>
+               <div className="text-3xl font-black text-slate-800">{refStats.total}</div>
             </div>
             <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center border border-gray-100 hover:border-gray-200 transition-colors">
                <div className="text-[11px] font-bold text-slate-700 mb-3 flex items-center gap-1">Đã nhận (<VuiCoin size={12} className="text-orange-500 fill-orange-50" />)</div>
                <div className="text-3xl font-black text-yellow-500 flex items-center gap-2">
-                 {totalReward.toLocaleString()} <VuiCoin size={28} className="text-orange-500 fill-orange-50" />
+                 {refStats.earnings.toLocaleString()} <VuiCoin size={28} className="text-orange-500 fill-orange-50" />
                </div>
             </div>
+          </div>
+          <div className="bg-purple-50 rounded-2xl p-6 border border-purple-100">
+             <h3 className="font-bold text-purple-900 mb-3 text-sm uppercase">Cách thức hoạt động</h3>
+             <ul className="space-y-2 text-xs text-purple-700 font-medium">
+                <li className="flex gap-2">
+                   <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">1</span>
+                   Gửi link giới thiệu cho bạn bè của bạn.
+                </li>
+                <li className="flex gap-2">
+                   <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">2</span>
+                   Bạn bè đăng ký tài khoản qua link của bạn.
+                </li>
+                <li className="flex gap-2">
+                   <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">3</span>
+                   Khi bạn bè đạt số dư 1 VuiCoin, bạn sẽ nhận được 0.5 VuiCoin hoa hồng.
+                </li>
+                <li className="flex gap-2">
+                   <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">4</span>
+                   Không giới hạn số lượng bạn bè giới thiệu.
+                </li>
+             </ul>
           </div>
         </div>
       </AnimatedDiv>

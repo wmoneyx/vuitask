@@ -5,7 +5,12 @@ import { VuiCoin } from "@/components/ui/VuiCoin";
 import { CoinTask } from "@/components/ui/CoinTask";
 import { safeFetch } from '@/lib/utils';
 
+import { useNavigate } from 'react-router-dom';
+import { useUser } from '@/UserContext';
+
 export function ProfilePage() {
+  const navigate = useNavigate();
+  const { profile, refreshProfile } = useUser();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -18,58 +23,31 @@ export function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-     const uuid = localStorage.getItem('userUUID');
-     const storedEmail = localStorage.getItem('userEmail');
-     const storedName = localStorage.getItem('userName');
-     const storedAvatar = localStorage.getItem('userAvatar');
-     
-     if (uuid) {
-        setUsername(storedName || uuid);
-        setEmail(storedEmail || 'Chưa thiết lập');
-        setAvatarUrl(storedAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`);
-        
-        safeFetch(`/api/user/sync-profile`, {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ 
-              uuid, 
-              email: storedEmail, 
-              userName: storedName,
-              avatarUrl: storedAvatar
-           })
-        }).then(data => {
-            if (data && data.profile) {
-                setVuiBalance(data.profile.vui_coin_balance || 0);
-                setTaskBalance(data.profile.coin_task_balance || 0);
-                if (data.profile.user_name) {
-                  setUsername(data.profile.user_name);
-                  localStorage.setItem('userName', data.profile.user_name);
-                }
-                if (data.profile.avatar_url) {
-                  setAvatarUrl(data.profile.avatar_url);
-                  localStorage.setItem('userAvatar', data.profile.avatar_url);
-                }
-                if (data.profile.is_banned) setStatus("BAN");
-            }
-        });
+     if (profile) {
+        setUsername(profile.user_name || profile.user_uuid);
+        setEmail(profile.user_email || 'Chưa thiết lập');
+        setAvatarUrl(profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.user_uuid}`);
+        setVuiBalance(profile.vui_coin_balance || 0);
+        setTaskBalance(profile.coin_task_balance || 0);
+        if (profile.is_banned) setStatus("BAN");
      }
-  }, []);
+  }, [profile]);
 
   const saveProfile = async () => {
-    const uuid = localStorage.getItem('userUUID');
-    if (!uuid) return;
+    if (!profile?.user_uuid) return;
     
     setIsSaving(true);
-    const data = await safeFetch(`/api/user/sync-profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uuid, userName: username, avatarUrl: avatarUrl })
-    });
-    
-    if (data && data.profile) {
-        localStorage.setItem('userName', username);
-        localStorage.setItem('userAvatar', avatarUrl);
-    }
+    try {
+        const data = await safeFetch(`/api/user/sync-profile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid: profile.user_uuid, userName: username, avatarUrl: avatarUrl })
+        });
+        
+        if (data && data.profile) {
+            await refreshProfile();
+        }
+    } catch (err) {}
     setIsSaving(false);
   };
 
@@ -89,13 +67,26 @@ export function ProfilePage() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 text-slate-800 mb-6">
-        <User className="text-blue-500" size={28} />
-        <h2 className="text-2xl font-bold uppercase tracking-tight">
-          <AnimatedText delay={0.1}>Hồ Sơ Cá Nhân</AnimatedText>
-        </h2>
+    <div className="space-y-6 pb-8">
+      <div className="flex items-center justify-between text-slate-800 mb-6">
+        <div className="flex items-center gap-3">
+          <User className="text-blue-500" size={28} />
+          <h2 className="text-2xl font-bold uppercase tracking-tight">
+            <AnimatedText delay={0.1}>Hồ Sơ Cá Nhân</AnimatedText>
+          </h2>
+        </div>
+        <button 
+          onClick={handleLogout}
+          className="md:hidden px-4 py-2 bg-red-50 text-red-500 font-bold rounded-xl text-xs uppercase"
+        >
+          Đăng xuất
+        </button>
       </div>
 
       <AnimatedDiv delay={0.2} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">

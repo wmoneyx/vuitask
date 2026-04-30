@@ -6,17 +6,20 @@ import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 
+import { useUser } from '@/UserContext';
+
 export function TaskPrePage() {
+  const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [canSubmit, setCanSubmit] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
-  const localUUID = localStorage.getItem('omni_uuid');
+  const uuid = profile?.user_uuid;
 
   const fetchHistory = async () => {
-    if (!localUUID) return;
-    const data = await safeFetch(`/api/tasks/history?uuid=${localUUID}`);
+    if (!uuid) return;
+    const data = await safeFetch(`/api/tasks/history?uuid=${uuid}`);
     if (data && data.history) {
         // Filter for Pre tasks
         const preHistory = data.history.filter((h: any) => h.task_id === 'GMAIL_PRE');
@@ -25,8 +28,8 @@ export function TaskPrePage() {
   };
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (profile) fetchHistory();
+  }, [profile]);
 
   useEffect(() => {
     let timer: any;
@@ -51,8 +54,7 @@ export function TaskPrePage() {
   };
 
   const handleGoToVerify = async () => {
-    const uuid = localStorage.getItem('omni_uuid') || crypto.randomUUID();
-    localStorage.setItem('omni_uuid', uuid);
+    if (!uuid) return;
 
     try {
       const res = await fetch('/api/tasks/generate-session', {
@@ -68,6 +70,7 @@ export function TaskPrePage() {
       });
       const data = await res.json();
       if (data.sessionId) {
+        await refreshProfile();
         window.location.href = `/verifytaskpre?code=${data.sessionId}&uuid=${uuid}`;
       }
     } catch (e) {

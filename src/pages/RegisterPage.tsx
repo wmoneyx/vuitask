@@ -10,7 +10,7 @@ export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [referral, setReferral] = useState('');
+  const [referral, setReferral] = useState(() => sessionStorage.getItem('referralCode') || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -48,14 +48,29 @@ export function RegisterPage() {
       }
 
       if (data.user) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', email);
         localStorage.setItem('userUUID', data.user.id);
-        localStorage.setItem('userName', name);
         
-        // Profiles are usually created via trigger, but we have a sync endpoint in our server
-        // so we can rely on that or create it here. 
-        // Layout.tsx calls /api/user/sync-profile which handles creation if missing.
+        // Sync profile immediately
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+          
+          await fetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ 
+              uuid: data.user.id, 
+              email: email, 
+              userName: name,
+              referralCode: referral
+            })
+          });
+        } catch (err) {
+          console.error("Immediate Sync Error:", err);
+        }
         
         navigate('/app');
       }

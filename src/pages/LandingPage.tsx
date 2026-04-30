@@ -4,7 +4,7 @@ import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import { Users, DollarSign, Star, Zap, Shield, Clock } from 'lucide-react';
 
 export function LandingPage() {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const isLoggedIn = !!localStorage.getItem('userUUID');
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-800">

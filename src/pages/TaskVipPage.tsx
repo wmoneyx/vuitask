@@ -5,15 +5,18 @@ import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 
+import { useUser } from '@/UserContext';
+
 export function TaskVipPage() {
+  const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
   const [doingTask, setDoingTask] = useState<'map' | 'trip' | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const localUUID = localStorage.getItem('omni_uuid');
+  const uuid = profile?.user_uuid;
 
   const fetchHistory = async () => {
-    if (!localUUID) return;
-    const data = await safeFetch(`/api/tasks/history?uuid=${localUUID}`);
+    if (!uuid) return;
+    const data = await safeFetch(`/api/tasks/history?uuid=${uuid}`);
     if (data && data.history) {
         // Filter for VIP tasks
         const vipHistory = data.history.filter((h: any) => h.task_id && h.task_id.startsWith('vip_'));
@@ -22,10 +25,11 @@ export function TaskVipPage() {
   };
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (profile) fetchHistory();
+  }, [profile]);
 
   const startTask = async (type: 'map' | 'trip') => {
+      if (!uuid) return;
       const lockKey = `vip_task_${type}_lock`;
       const lastDoneStr = localStorage.getItem(lockKey);
       if (lastDoneStr) {
@@ -37,9 +41,6 @@ export function TaskVipPage() {
              return;
           }
       }
-
-      const uuid = localStorage.getItem('omni_uuid') || crypto.randomUUID();
-      localStorage.setItem('omni_uuid', uuid);
 
       setDoingTask(type);
       try {
@@ -86,6 +87,8 @@ export function TaskVipPage() {
 
              window.open(finalLink, '_blank');
              showNotification({ title: 'Khởi tạo thành công', message: "Đang mở nhiệm vụ trong tab mới...", type: 'success' });
+             
+             await refreshProfile();
           } else {
              throw new Error(vipData.error || "Không lấy được đường dẫn từ nhà cung cấp.");
           }

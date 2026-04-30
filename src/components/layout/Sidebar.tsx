@@ -1,3 +1,4 @@
+import { useUser } from "@/UserContext";
 import { NavLink, useNavigate } from "react-router-dom";
 import { LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck } from "lucide-react";
 import { SIDEBAR_MENUS, SUPPORT_MENUS } from "@/constants";
@@ -16,15 +17,10 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, toggle, onOpen, onClose, isAdmin = false }: SidebarProps) {
   const navigate = useNavigate();
+  const { profile } = useUser();
 
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userUUID');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('vuiCoinBalance');
-    localStorage.removeItem('coinTaskBalance');
-    localStorage.removeItem('isAdmin');
+    localStorage.clear();
     navigate('/');
   };
 
@@ -89,7 +85,7 @@ export function Sidebar({ isOpen, toggle, onOpen, onClose, isAdmin = false }: Si
                   <div className="text-xs text-slate-300 mb-1 uppercase font-medium">Số dư ví hiện tại</div>
                   <div className="text-2xl font-bold text-primary truncate flex items-center gap-1.5">
                      <VuiCoin size={20} strokeWidth={2.5} />
-                     0.0
+                     {profile?.vui_coin_balance?.toLocaleString() || '0'}
                   </div>
                 </div>
 

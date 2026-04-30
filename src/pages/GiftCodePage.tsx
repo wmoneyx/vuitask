@@ -2,24 +2,26 @@ import React, { useState } from 'react';
 import { Ticket } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { useNotification } from '../context/NotificationContext';
+import { useUser } from "@/UserContext";
+import { safeFetch } from "@/lib/utils";
 
 export function GiftCodePage() {
   const { showNotification } = useNotification();
+  const { profile, refreshProfile } = useUser();
   const [giftCode, setGiftCode] = useState('');
+  const [loading, setLoading] = useState(false);
   const [redemptionHistory, setRedemptionHistory] = useState<Array<{code: string, reward: number, time: string}>>(() => JSON.parse(localStorage.getItem('redemptionHistory') || '[]'));
-  const [usedGiftCodes, setUsedGiftCodes] = useState<Record<string, boolean>>(() => JSON.parse(localStorage.getItem('usedGiftCodes') || '{}'));
 
   const handleRedeemGiftCode = async () => {
-    const uuid = localStorage.getItem('userUUID');
-    if (!uuid) return;
+    if (!profile?.user_uuid || !giftCode) return;
+    setLoading(true);
 
     try {
-       const res = await fetch('/api/user/redeem-code', {
+       const data = await safeFetch('/api/giftcode/redeem', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uuid, code: giftCode })
+          body: JSON.stringify({ uuid: profile.user_uuid, code: giftCode })
        });
-       const data = await res.json();
        
        if (data.error) {
           showNotification({ title: 'Thất bại', message: data.error, type: 'error' });
@@ -27,21 +29,19 @@ export function GiftCodePage() {
        }
 
        const reward = data.reward;
-      
-       const prevVui = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
-       const next = prevVui + reward;
-       localStorage.setItem('vuiCoinBalance', next.toString());
-      
-       const historyItem = { code: giftCode, reward, time: new Date().toLocaleString() };
-       const newHistory = [...redemptionHistory, historyItem];
+       const historyItem = { code: giftCode, reward, time: new Date().toLocaleString('vi-VN') };
+       const newHistory = [historyItem, ...redemptionHistory];
        setRedemptionHistory(newHistory);
        localStorage.setItem('redemptionHistory', JSON.stringify(newHistory));
       
        setGiftCode('');
-       showNotification({ title: 'Thành công', message: `Nhập mã thành công! Nhận ${reward.toLocaleString()} VuiCoin`, type: 'success' });
-       window.dispatchEvent(new CustomEvent('balanceChanged'));
+       showNotification({ title: 'Thành công', message: `Nhập mã thành công! Nhận ${reward.toLocaleString()} ${data.type === 'coin_task' ? 'Xu Task' : 'VuiCoin'}`, type: 'success' });
+       
+       await refreshProfile();
     } catch(e) {
        showNotification({ title: 'Thất bại', message: 'Lỗi hệ thống', type: 'error' });
+    } finally {
+       setLoading(false);
     }
   };
 
@@ -66,9 +66,10 @@ export function GiftCodePage() {
             />
             <button 
               onClick={handleRedeemGiftCode} 
-              disabled={!giftCode || !!usedGiftCodes[giftCode]}
-              className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-6 py-3 rounded-xl font-bold uppercase tracking-widest disabled:opacity-50 transition-colors"
+              disabled={!giftCode || loading}
+              className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 px-6 py-3 rounded-xl font-bold uppercase tracking-widest disabled:opacity-50 transition-colors flex items-center gap-2"
               >
+              {loading && <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>}
               Xác nhận
             </button>
           </div>

@@ -3,6 +3,8 @@ import { Wallet, Banknote, CreditCard, Eye, AlertCircle } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
+import { useUser } from "@/UserContext";
+import { safeFetch } from "@/lib/utils";
 
 type WithdrawType = 'bank' | 'zalopay' | 'card_game';
 
@@ -11,27 +13,32 @@ const CARD_TYPES = ['VIETTEL', 'MOBI', 'VINA', 'GARENA'];
 
 export function WalletPage() {
   const { showNotification } = useNotification();
-  const [balance, setBalance] = useState(parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10));
+  const { profile, refreshProfile } = useUser();
+  const [balance, setBalance] = useState(0);
   const [selectedType, setSelectedType] = useState<WithdrawType | null>(null);
   const [amount, setAmount] = useState(15000);
   const [info, setInfo] = useState({ bankName: '', holderName: '', accountNumber: '', cardType: CARD_TYPES[0] });
   const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchWithdrawals();
-  }, []);
+    if (profile) {
+        setBalance(profile.vui_coin_balance || 0);
+        fetchWithdrawals();
+    }
+  }, [profile]);
 
   const fetchWithdrawals = async () => {
-    const uuid = localStorage.getItem('userUUID');
-    if (!uuid) return;
+    if (!profile?.user_uuid) return;
     try {
-       const res = await fetch(`/api/user/withdrawals?uuid=${uuid}`);
-       const data = await res.json();
-       if (data.withdrawals) setHistory(data.withdrawals);
+       const data = await safeFetch(`/api/wallet/history?uuid=${profile.user_uuid}`);
+       if (data && data.transactions) setHistory(data.transactions);
     } catch(e) {}
   };
 
   const handleConfirmWithdraw = async () => {
+    if (!profile?.user_uuid) return;
+
     const minAmount = selectedType === 'card_game' ? 10000 : 15000;
     if (amount < minAmount) {
       showNotification({ title: 'Lỗi số tiền', message: `Số tiền rút phải từ ${minAmount.toLocaleString()} VuiCoin trở lên`, type: 'error' });
@@ -45,31 +52,34 @@ export function WalletPage() {
       return;
     }
 
-    setBalance(p => p - totalDeduction);
-    localStorage.setItem('vuiCoinBalance', (balance - totalDeduction).toString());
-    
-    // Add to history (local optimistic)
-    // setHistory(p => [...p, { type: selectedType!, amount: amount * 0.95, status: 'Đang xử lý' }]);
-    
-    // Đẩy đơn rút lên cộng đồng
-    const localUUID = localStorage.getItem('userUUID') || crypto.randomUUID();
-    let username = localStorage.getItem('userName') || localStorage.getItem('userEmail')?.split('@')[0] || 'User';
+    setLoading(true);
+    try {
+        const details = JSON.stringify({ ...info });
+        const res = await safeFetch('/api/wallet/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                uuid: profile.user_uuid,
+                amount: amount,
+                method: selectedType,
+                details
+            })
+        });
 
-    await fetch('/api/community/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            uuid: localUUID,
-            amount: amount * 0.95,
-            username: username,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-            method: selectedType
-        })
-    });
+        if (res.error) {
+            showNotification({ title: 'Thất bại', message: res.error, type: 'error' });
+            return;
+        }
 
-    fetchWithdrawals();
-    showNotification({ title: 'Đã nhận lệnh', message: "Yêu cầu rút tiền thành công! Admin sẽ duyệt trong 24h.", type: 'success' });
-    setSelectedType(null);
+        await refreshProfile();
+        fetchWithdrawals();
+        showNotification({ title: 'Đã nhận lệnh', message: "Yêu cầu rút tiền thành công! Admin sẽ duyệt trong 24h.", type: 'success' });
+        setSelectedType(null);
+    } catch (err) {
+        showNotification({ title: 'Lỗi', message: "Lỗi kết nối", type: 'error' });
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (

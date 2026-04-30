@@ -29,9 +29,17 @@ import { TaskPrePage } from "./pages/TaskPrePage";
 import { VerifyTaskPrePage } from "./pages/VerifyTaskPrePage";
 
 import { CommunityPage } from "./pages/CommunityPage";
+import { UserProvider } from "./UserContext";
 
 export default function App() {
   useEffect(() => {
+    // Check for referral code in URL
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+    if (refCode) {
+      sessionStorage.setItem('referralCode', refCode);
+    }
+
     // Global User Check
     const uuid = localStorage.getItem('userUUID') || localStorage.getItem('omni_uuid');
     if (uuid) {
@@ -58,7 +66,8 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
+      <UserProvider>
+        <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -83,6 +92,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </UserProvider>
     </BrowserRouter>
   );
 }

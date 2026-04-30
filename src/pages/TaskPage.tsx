@@ -21,43 +21,29 @@ const TASKS = [
   { id: 'traffictop', name: 'TRAFFICTOP', maxViews: 999, reward: 200, auto: true, apiUrl: 'https://traffictop.net/api?api=OrKX4KckO50XBo29N0cCVBUW&url=' },
 ];
 
+import { useUser } from '@/UserContext';
+
 export function TaskPage() {
+  const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTaskUrl, setCurrentTaskUrl] = useState<string | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
 
-  // Lấy UID lưu tạm dưới local storage hoặc cứng 1 cái
-  const localUUID = localStorage.getItem('omni_uuid') || crypto.randomUUID();
-  if(!localStorage.getItem('omni_uuid')) localStorage.setItem('omni_uuid', localUUID);
+  const uuid = profile?.user_uuid;
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (profile) fetchHistory();
+  }, [profile]);
 
   const fetchHistory = async () => {
-    const data = await safeFetch(`/api/tasks/history?uuid=${localUUID}`);
+    if (!uuid) return;
+    const data = await safeFetch(`/api/tasks/history?uuid=${uuid}`);
     if (data && data.history) setHistory(data.history);
 
-    // Đồng bộ số dư
-    const balanceData = await safeFetch(`/api/user/balance?uuid=${localUUID}`);
-    if (balanceData && balanceData.balance !== undefined) {
-       // Cộng dồn vào ví hiện tại hoặc thay thế toàn bộ (ở đây lấy mốc backend)
-       const localBalance = parseInt(localStorage.getItem('vuiCoinBalance') || '0', 10);
-       localStorage.setItem('vuiCoinBalance', (localBalance + balanceData.balance).toString());
-       
-       // Đã cộng xong, clear balance trên backend để tránh cộng lần 2 (hacky sync)
-       safeFetch(`/api/user/clear-sync-balance?uuid=${localUUID}`);
-
-       if (balanceData.balance > 0) {
-          showNotification({ 
-            title: 'Cộng tiền!', 
-            message: `Bạn đã nhận được ${balanceData.balance} VuiCoin từ nhiệm vụ.`, 
-            type: 'success' 
-          });
-       }
-    }
+    // Refresh profile to update balance if tasks were completed in background
+    await refreshProfile();
   }
 
   const handleOpenLink = () => {
@@ -74,6 +60,7 @@ export function TaskPage() {
   };
 
   const handleDoTask = async (task: any) => {
+    if (!uuid) return;
     setLoadingTask(task.id);
     
     try {
@@ -82,7 +69,7 @@ export function TaskPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-              userId: localUUID,
+              userId: uuid,
               taskId: task.id,
               taskName: task.name,
               reward: task.reward,
@@ -94,7 +81,7 @@ export function TaskPage() {
       if (!sessionId) throw new Error("Không thể tạo phiên nhiệm vụ. Thử lại sau!");
 
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
-      const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${localUUID}`;
+      const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
       
       let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
       
