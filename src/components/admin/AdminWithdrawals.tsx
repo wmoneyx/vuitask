@@ -37,8 +37,17 @@ export function AdminWithdrawals() {
     }
   };
 
-  const handleReject = async (id: string) => {
-    showNotification({ title: 'Thông báo', message: "Tính năng từ chối sẽ được cập nhật sau!", type: 'info' });
+  const handleReject = async (id: string, amount: number) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`)) return;
+    const data = await safeFetch('/api/admin/reject-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id })
+    });
+    if (data && data.success) {
+        fetchWithdrawals();
+        showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
+    }
   };
 
   return (
@@ -86,7 +95,7 @@ export function AdminWithdrawals() {
                  <button onClick={() => handleApprove(item.id, item.amount)} className="flex-1 py-2.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
                    <CheckCircle size={18} /> Duyệt & Trả lời
                  </button>
-                 <button onClick={() => handleReject(item.id)} className="flex-1 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                 <button onClick={() => handleReject(item.id, item.amount)} className="flex-1 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
                    <XCircle size={18} /> Từ chối
                  </button>
                </div>

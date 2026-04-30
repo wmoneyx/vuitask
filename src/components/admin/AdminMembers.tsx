@@ -267,9 +267,9 @@ export function AdminMembers() {
                     
                     {dropdownOpen === user.id && (
                       <div className="absolute right-8 top-12 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                        <button onClick={() => toggleAdmin(user.id, !user.isAdmin)} className="w-full text-left px-4 py-2 text-sm font-bold hover:bg-blue-50 flex items-center gap-3 text-blue-600">
+                        <button onClick={() => toggleAdmin(user.id, !user.is_admin)} className="w-full text-left px-4 py-2 text-sm font-bold hover:bg-blue-50 flex items-center gap-3 text-blue-600">
                           <ShieldCheck size={16} />
-                          {user.isAdmin ? 'Gỡ quyền Admin' : 'Cấp quyền Admin'}
+                          {user.is_admin ? 'Gỡ quyền Admin' : 'Cấp quyền Admin'}
                         </button>
                         <button onClick={() => toggleBan(user.id, user.status === 'active' ? true : false)} className="w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 text-slate-700">
                           {user.status === 'active' ? <Ban size={16} className="text-gray-400" /> : <CheckCircle size={16} className="text-green-500" />}

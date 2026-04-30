@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
@@ -41,6 +41,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         updates.today_balance = Number(profile.today_balance || 0) + Number(amount);
         updates.monthly_balance = Number(profile.monthly_balance || 0) + Number(amount);
         updates.today_turns = Number(profile.today_turns || 0) + 1;
+        updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
     const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq(pkCol, userId);
@@ -280,6 +281,10 @@ async function startServer() {
 
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
     
+    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+    const isTooFast = timeTaken < 60000; // less than 1 minute
+    const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
+    
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
@@ -287,12 +292,19 @@ async function startServer() {
         task_name: session.task_name,
         timestamp: Date.now(),
         reward: session.reward,
-        status: 'Chờ duyệt',
-        status_v1: 'Đang duyệt',
-        status_v2: 'Đang duyệt',
+        status: finalStatus,
+        status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
+        status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
         url: reviewUrl,
         ip: ip
     });
+
+    // Increment turns
+    await updateUserStats(uuid, 0, true);
+
+    if (isTooFast) {
+       return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
+    }
 
     await supabaseAdmin.from('community_messages').insert({
       id: `task_review_${Date.now()}`,
@@ -327,6 +339,10 @@ async function startServer() {
 
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
+    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+    const isTooFast = timeTaken < 60000;
+    const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
+
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
@@ -334,12 +350,19 @@ async function startServer() {
         task_name: session.task_name,
         timestamp: Date.now(),
         reward: session.reward,
-        status: 'Chờ duyệt',
-        status_v1: 'Đang duyệt',
-        status_v2: 'Đang duyệt',
+        status: finalStatus,
+        status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
+        status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
         url: email,
         ip: ip
     });
+
+    // Increment turns
+    await updateUserStats(uuid, 0, true);
+
+    if (isTooFast) {
+       return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
+    }
 
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
@@ -378,8 +401,15 @@ async function startServer() {
       .eq('id', sessionId);
     
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
-    const status = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
     
+    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+    const isTooFast = timeTaken < 60000;
+
+    let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
+    if (isTooFast) {
+        finalStatus = 'Từ chối';
+    }
+
     const historyEntry = {
         id: sessionId,
         user_uuid: uuid,
@@ -387,16 +417,39 @@ async function startServer() {
         task_name: session.task_name,
         url: session.short_url || 'unknown',
         reward: session.reward,
-        status: status,
+        status: finalStatus,
         ip: ip,
         timestamp: Date.now()
     };
 
     await supabaseAdmin.from('tasks_history').insert(historyEntry);
 
-    // Give reward if auto
+    if (isTooFast) {
+        // Increment turns but 0 reward
+        await updateUserStats(uuid, 0, true);
+
+        // Warning to site notifications for admin/all or specifically a user message
+        if (session.auto) {
+            // Also notify the user or admin about warning
+            await supabaseAdmin.from('site_notifications').insert({
+                id: `FAST_WARN_${Date.now()}`,
+                title: "CẢNH BÁO SPAM NHIỆM VỤ",
+                content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                type: 'warning',
+                target: 'all',
+                timestamp: Date.now()
+            });
+            return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
+        } else {
+            return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
+        }
+    }
+
+    // Normal processing
     if (session.auto) {
         await updateUserStats(uuid, session.reward, true);
+    } else {
+        await updateUserStats(uuid, 0, true);
     }
 
     res.json({ status: "success", history: historyEntry });
@@ -823,17 +876,45 @@ async function startServer() {
   app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
       const { code, reward, max_uses, expiry_date, type } = req.body;
       const newCode = {
-          id: 'gift_' + Date.now(),
-          code,
-          reward,
-          max_uses,
+          code: code.toUpperCase(),
+          reward: Number(reward),
+          max_uses: Number(max_uses),
           current_uses: 0,
           expiry_date,
           type: type || 'vui_coin',
           created_at: new Date().toISOString()
       };
-      await supabaseAdmin.from('gift_codes').insert(newCode);
-      res.json({ success: true, code: newCode });
+      
+      const { data, error } = await supabaseAdmin.from('gift_codes').insert(newCode).select().single();
+      
+      if (error) {
+          console.error("Giftcode error:", error);
+          return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true, code: data });
+  });
+
+  app.post("/api/admin/notifications/send", checkAdmin, async (req, res) => {
+      const { title, content, target, type } = req.body;
+      
+      const { data, error } = await supabaseAdmin.from('site_notifications').insert({
+          title,
+          content,
+          target: target || 'all',
+          type: type || 'info',
+          created_at: new Date().toISOString()
+      }).select().single();
+
+      if (error) return res.status(500).json({ error: error.message });
+
+      await supabaseAdmin.from('activity_logs').insert({
+          user_uuid: 'admin',
+          action_type: 'SEND_NOTIFICATION',
+          description: `Sent notification: ${title}`
+      });
+
+      res.json({ success: true, notification: data });
   });
 
   app.post("/api/admin/system/giftcodes/delete", checkAdmin, async (req, res) => {
@@ -947,7 +1028,8 @@ async function startServer() {
             .eq('id', taskId);
 
           // Update balance using user_uuid from task record
-          await updateUserStats(task.user_uuid, task.reward, true);
+          // we use 'false' for isTask so we don't increment the 'today_turns' and 'total_tasks' twice
+          await updateUserStats(task.user_uuid, task.reward, false);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -957,6 +1039,49 @@ async function startServer() {
        return res.json({ success: true });
     }
     res.status(404).json({ error: "Task not found" });
+  });
+
+  app.post("/api/admin/reject-withdrawal", async (req, res) => {
+    const { withdrawalId } = req.body;
+    
+    // Get the withdrawal info
+    const { data: wRecord } = await supabaseAdmin
+      .from('community_messages')
+      .select('*')
+      .eq('id', withdrawalId)
+      .single();
+
+    if (!wRecord || wRecord.status !== 'Đang chờ duyệt') {
+       return res.status(400).json({ error: 'Không tìm thấy hoặc đã được xử lý.' });
+    }
+
+    // Refund amount + 5% fee to the user
+    const amount = wRecord.amount || 0;
+    const fee = amount * 0.05;
+    const totalRefund = amount + fee;
+
+    await supabaseAdmin
+      .from('community_messages')
+      .update({ status: 'Từ chối' })
+      .eq('id', withdrawalId);
+
+    // Call update user stats to increase balance (no it's better to just manually increment or reuse the function)
+    await updateUserStats(wRecord.user_uuid, totalRefund, false);
+
+    const replyMsg = {
+        id: `REPLY_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        type: 'reply',
+        user_name: 'Admin Vui Task',
+        user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
+        is_admin: true,
+        reply_to_id: withdrawalId,
+        content: `Yêu cầu rút tiền ${amount.toLocaleString()}đ của bạn đã bị từ chối. VNĐ đã được hoàn lại.`,
+        timestamp: Date.now()
+    };
+    
+    await supabaseAdmin.from('community_messages').insert(replyMsg);
+    
+    res.json({ success: true });
   });
   // ===================================
 
@@ -1283,8 +1408,8 @@ async function startServer() {
         .from('tasks_history')
         .select('*')
         .eq('user_uuid', uuid)
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())
-        .order('created_at', { ascending: true });
+        .gte('timestamp', Date.now() - 7 * 24 * 3600 * 1000)
+        .order('timestamp', { ascending: true });
 
       // Calculate chart data (last 7 days)
       const chartDataMap: any = {};
@@ -1300,7 +1425,7 @@ async function startServer() {
       }
 
       (tasksHistory || []).forEach(t => {
-        const dayKey = new Date(new Date(t.created_at).getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+        const dayKey = new Date(t.timestamp + 7 * 3600 * 1000).toISOString().split('T')[0];
         if (chartDataMap[dayKey]) {
            chartDataMap[dayKey].view += 1;
            if (t.status === 'Hoàn thành') {
@@ -1311,10 +1436,8 @@ async function startServer() {
 
       const chartData = Object.values(chartDataMap);
 
-      const { count: totalViews } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', uuid);
-
       res.json({
-        totalViews: totalViews || 0,
+        totalViews: profile?.total_tasks || 0,
         todayBalance: profile?.today_balance || 0,
         totalBalance: profile?.vui_coin_balance || 0,
         chartData

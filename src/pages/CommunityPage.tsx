@@ -80,14 +80,21 @@ export function CommunityPage() {
            {messages.map(msg => (
                <div key={msg.id} className="flex gap-4 group">
                    {/* Avatar */}
-                   <img src={msg.user_avatar || msg.user.avatar} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
+                   <img src={msg.user_avatar || msg.user?.avatar} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
                    
                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
-                          <span className={`font-bold text-sm tracking-tight ${msg.is_admin || msg.user.isAdmin ? 'text-blue-600' : 'text-slate-700'}`}>
-                              {msg.user_name || msg.user.name}
+                          <span className={`font-bold text-sm tracking-tight ${msg.is_admin || msg.user?.isAdmin ? 'text-blue-600' : 'text-slate-700'}`}>
+                              {((name) => {
+                                 if (!name) return 'Chưa rõ';
+                                 if (name.includes('@')) {
+                                    const [part1, part2] = name.split('@');
+                                    return part1.charAt(0) + '*'.repeat(Math.max(1, part1.length - 1)) + '@' + part2;
+                                 }
+                                 return name;
+                              })(msg.user_name || msg.user?.name)}
                           </span>
-                          {(msg.is_admin || msg.user.isAdmin) && <CheckCircle size={14} className="text-blue-500 fill-blue-50" />}
+                          {(msg.is_admin || msg.user?.isAdmin) && <CheckCircle size={14} className="text-blue-500 fill-blue-50" />}
                           <span className="text-[10px] text-gray-400 font-bold font-mono ml-auto sm:ml-0">
                              {new Date(msg.timestamp).toLocaleTimeString('vi-VN')}
                           </span>
@@ -111,7 +118,7 @@ export function CommunityPage() {
                              </div>
                           </div>
                       ) : (
-                          <div className={`p-4 rounded-2xl rounded-tl-none w-fit text-sm shadow-sm leading-relaxed border ${msg.is_admin || msg.user.isAdmin ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-800 border-gray-100'}`}>
+                          <div className={`p-4 rounded-2xl rounded-tl-none w-fit text-sm shadow-sm leading-relaxed border ${msg.is_admin || msg.user?.isAdmin ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-800 border-gray-100'}`}>
                              {msg.content}
                           </div>
                       )}

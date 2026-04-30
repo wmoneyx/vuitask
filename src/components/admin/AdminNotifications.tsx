@@ -42,14 +42,19 @@ export function AdminNotifications() {
       return;
     }
     
-    await safeFetch('/api/admin/notifications', {
+    const data = await safeFetch('/api/admin/notifications/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, type, target })
     });
-    showNotification({ title: 'Đã gửi', message: "Thông báo đã được đẩy tới hệ thống thành công!", type: 'success' });
-    setTitle('');
-    setContent('');
+
+    if (data && data.success) {
+      showNotification({ title: 'Đã gửi', message: "Thông báo đã được đẩy tới hệ thống thành công!", type: 'success' });
+      setTitle('');
+      setContent('');
+      fetchHistory();
+      setActiveTab('history');
+    }
   };
 
   return (
@@ -152,7 +157,7 @@ export function AdminNotifications() {
               <tbody className="divide-y divide-gray-100">
                 {history.map((notif: any) => (
                   <tr key={notif.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-2 text-center font-mono text-xs text-gray-500">#{notif.id.split('_')[1]}</td>
+                    <td className="p-2 text-center font-mono text-xs text-gray-500">#{notif.id.slice(-4)}</td>
                     <td className="p-2">
                       <div className="font-bold text-slate-800 text-sm line-clamp-1">{notif.title}</div>
                       <div className="text-[9px] font-bold mt-0.5 uppercase tracking-wider text-blue-500">
@@ -162,7 +167,7 @@ export function AdminNotifications() {
                     <td className="p-2 text-xs text-gray-600 line-clamp-2 max-w-sm">
                       {notif.content}
                     </td>
-                    <td className="p-2 text-xs text-gray-500">{new Date(notif.timestamp).toLocaleString('vi-VN')}</td>
+                    <td className="p-2 text-xs text-gray-500">{new Date(notif.created_at).toLocaleString('vi-VN')}</td>
                     <td className="p-2">
                        <div className="flex justify-center gap-1.5">
                          <button className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-slate-800 rounded-lg transition-colors tooltip" title="Chỉnh sửa">
