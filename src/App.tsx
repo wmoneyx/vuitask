@@ -30,6 +30,7 @@ import { VerifyTaskPrePage } from "./pages/VerifyTaskPrePage";
 
 import { CommunityPage } from "./pages/CommunityPage";
 import { UserProvider } from "./UserContext";
+import { MaintenanceGuard } from "./components/layout/MaintenanceGuard";
 
 export default function App() {
   useEffect(() => {
@@ -67,31 +68,33 @@ export default function App() {
   return (
     <BrowserRouter>
       <UserProvider>
-        <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/verifytask" element={<VerifyTaskPage />} />
-        <Route path="/verifytaskpro" element={<VerifyTaskProPage />} />
-        <Route path="/verifytaskpre" element={<VerifyTaskPrePage />} />
-        <Route path="/app" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="admin" element={<AdminPage />} />
-          <Route path="community" element={<CommunityPage />} />
-          <Route path="games" element={<ModGamePage />} />
-          <Route path="task" element={<TaskPage />} />
-          <Route path="task-vip" element={<TaskVipPage />} />
-          <Route path="task-pre" element={<TaskPrePage />} />
-          <Route path="attendance" element={<AttendancePage />} />
-          <Route path="giftcode" element={<GiftCodePage />} />
-          <Route path="ranking" element={<RankingPage />} />
-          <Route path="wallet" element={<WalletPage />} />
-          <Route path="security" element={<SecurityPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="referral" element={<RefPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        <MaintenanceGuard>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verifytask" element={<VerifyTaskPage />} />
+            <Route path="/verifytaskpro" element={<VerifyTaskProPage />} />
+            <Route path="/verifytaskpre" element={<VerifyTaskPrePage />} />
+            <Route path="/app" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="admin" element={<AdminPage />} />
+              <Route path="community" element={<CommunityPage />} />
+              <Route path="games" element={<ModGamePage />} />
+              <Route path="task" element={<TaskPage />} />
+              <Route path="task-vip" element={<TaskVipPage />} />
+              <Route path="task-pre" element={<TaskPrePage />} />
+              <Route path="attendance" element={<AttendancePage />} />
+              <Route path="giftcode" element={<GiftCodePage />} />
+              <Route path="ranking" element={<RankingPage />} />
+              <Route path="wallet" element={<WalletPage />} />
+              <Route path="security" element={<SecurityPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="referral" element={<RefPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </MaintenanceGuard>
       </UserProvider>
     </BrowserRouter>
   );

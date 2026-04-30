@@ -794,10 +794,68 @@ async function startServer() {
       res.json({ success: true });
   });
 
+  app.post("/api/admin/members/adjust-balance", checkAdmin, async (req, res) => {
+      const { id, amount, type } = req.body; // type: 'add' | 'subtract'
+      const adjAmount = type === 'add' ? Number(amount) : -Number(amount);
+      
+      await updateUserStats(id, adjAmount, false);
+      
+      await supabaseAdmin.from('activity_logs').insert({
+         user_uuid: 'admin',
+         action_type: 'ADJUST_BALANCE',
+         target_id: id,
+         description: `${type === 'add' ? 'Added' : 'Subtracted'} ${amount} for user ${id}`
+      });
+
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/delete-ip", checkAdmin, async (req, res) => {
+      const { ip, user_uuid } = req.body;
+      if (user_uuid) {
+          await supabaseAdmin.from('user_ips').delete().eq('ip_address', ip).eq('user_uuid', user_uuid);
+      } else {
+          await supabaseAdmin.from('user_ips').delete().eq('ip_address', ip);
+      }
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
+      const { code, reward, max_uses, expiry_date, type } = req.body;
+      const newCode = {
+          id: 'gift_' + Date.now(),
+          code,
+          reward,
+          max_uses,
+          current_uses: 0,
+          expiry_date,
+          type: type || 'vui_coin',
+          created_at: new Date().toISOString()
+      };
+      await supabaseAdmin.from('gift_codes').insert(newCode);
+      res.json({ success: true, code: newCode });
+  });
+
+  app.post("/api/admin/system/giftcodes/delete", checkAdmin, async (req, res) => {
+      const { id } = req.body;
+      await supabaseAdmin.from('gift_codes').delete().eq('id', id);
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/system/mods/delete", checkAdmin, async (req, res) => {
+      const { id } = req.body;
+      await supabaseAdmin.from('mod_games').delete().eq('id', id);
+      res.json({ success: true });
+  });
+
+  app.get("/api/system/maintenance", async (req, res) => {
+      const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', 'maintenance_mode').maybeSingle();
+      res.json({ maintenance: setting?.value === 'true' });
+  });
+
   app.post("/api/admin/members/delete", checkAdmin, async (req, res) => {
       const { id } = req.body;
       try {
-        // Try deleting from auth as well if possible
         await supabaseAdmin.auth.admin.deleteUser(id);
       } catch (err) {
         console.error("Auth delete error", err);
@@ -812,6 +870,12 @@ async function startServer() {
          description: `Deleted user ${id}`
       });
 
+      res.json({ success: true });
+  });
+
+  app.post("/api/admin/notifications/delete", checkAdmin, async (req, res) => {
+      const { id } = req.body;
+      await supabaseAdmin.from('site_notifications').delete().eq('id', id);
       res.json({ success: true });
   });
 

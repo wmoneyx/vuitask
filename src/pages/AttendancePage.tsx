@@ -223,8 +223,8 @@ export function AttendancePage() {
                         Điểm danh
                       </button>
                     ) : isCheckedIn ? (
-                      <div className="text-[11px] font-bold text-emerald-500 uppercase flex items-center justify-center gap-1 py-2">
-                        <CheckCircle2 size={14} /> Đã nhận
+                      <div className="bg-emerald-500 text-white py-2 rounded-xl text-[11px] font-bold w-full uppercase flex items-center justify-center gap-1 shadow-lg shadow-emerald-600/20">
+                        <CheckCircle2 size={14} /> Đã điểm danh
                       </div>
                     ) : (
                       <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1 py-2 bg-slate-100 rounded-xl">

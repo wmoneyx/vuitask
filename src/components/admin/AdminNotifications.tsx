@@ -13,16 +13,28 @@ export function AdminNotifications() {
   const [target, setTarget] = useState('all');
   const [history, setHistory] = useState<any[]>([]);
 
+  const fetchHistory = async () => {
+    const data = await safeFetch('/api/notifications');
+    if (data && data.notifications) {
+        setHistory(data.notifications.reverse());
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'history') {
-      safeFetch('/api/notifications')
-        .then(data => {
-            if (data && data.notifications) {
-                setHistory(data.notifications.reverse());
-            }
-        });
+      fetchHistory();
     }
   }, [activeTab]);
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Xóa thông báo này?")) return;
+    await safeFetch('/api/admin/notifications/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchHistory();
+  };
 
   const handleSend = async () => {
     if (!title || !content) {
@@ -156,7 +168,7 @@ export function AdminNotifications() {
                          <button className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-slate-800 rounded-lg transition-colors tooltip" title="Chỉnh sửa">
                             <Edit size={14} />
                          </button>
-                         <button className="p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors tooltip" title="Xóa">
+                         <button onClick={() => handleDelete(notif.id)} className="p-1.5 text-gray-400 hover:bg-rose-50 hover:text-rose-500 rounded-lg transition-colors tooltip" title="Xóa">
                             <Trash2 size={14} />
                          </button>
                        </div>

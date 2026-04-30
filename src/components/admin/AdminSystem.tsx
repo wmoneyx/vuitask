@@ -5,6 +5,7 @@ import { safeFetch } from '@/lib/utils';
 export function AdminSystem() {
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [mods, setMods] = useState<any[]>([]);
+  const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Mod inputs
@@ -13,14 +14,22 @@ export function AdminSystem() {
   const [modLink, setModLink] = useState('');
   const [modUrl, setModUrl] = useState('');
 
+  // Giftcode inputs
+  const [codeName, setCodeName] = useState('');
+  const [codeReward, setCodeReward] = useState('');
+  const [codeMaxUses, setCodeMaxUses] = useState('');
+  const [codeDays, setCodeDays] = useState('');
+  const [codeType, setCodeType] = useState('vui_coin');
+
   const fetchSystem = async () => {
      const data = await safeFetch('/api/admin/system');
      if (data) {
         if (data.settings) {
            const val = data.settings.find((s: any) => s.key === 'maintenance_mode');
-           if (val) setIsMaintenance(val.value.enabled);
+           if (val) setIsMaintenance(val.value === 'true');
         }
         if (data.mods) setMods(data.mods);
+        if (data.codes) setCodes(data.codes);
      }
      setLoading(false);
   };
@@ -32,24 +41,66 @@ export function AdminSystem() {
   const handleMaintenanceToggle = async () => {
       const nextState = !isMaintenance;
       setIsMaintenance(nextState);
-      safeFetch('/api/admin/system', {
+      await safeFetch('/api/admin/system', {
          method: 'POST',
          headers: {'Content-Type': 'application/json'},
-         body: JSON.stringify({ key: 'maintenance_mode', value: { enabled: nextState } })
+         body: JSON.stringify({ key: 'maintenance_mode', value: String(nextState) })
       });
   };
 
   const handleCreateMod = async () => {
       if (!modName || !modPrice || !modLink) return;
-      const data = await safeFetch('/api/admin/system/mods', {
+      await safeFetch('/api/admin/system/mods', {
          method: 'POST',
          headers: {'Content-Type': 'application/json'},
          body: JSON.stringify({ name: modName, price: Number(modPrice), link: modLink, image_url: modUrl })
       });
-      if (data) {
-         setModName(''); setModPrice(''); setModLink(''); setModUrl('');
-         fetchSystem();
-      }
+      setModName(''); setModPrice(''); setModLink(''); setModUrl('');
+      fetchSystem();
+  };
+
+  const handleDeleteMod = async (id: string) => {
+    if (!window.confirm("Xóa bản Mod này?")) return;
+    await safeFetch('/api/admin/system/mods/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchSystem();
+  };
+
+  const handleCreateGiftcode = async () => {
+    if (!codeName || !codeReward || !codeMaxUses) return;
+    let expiry = null;
+    if (codeDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + Number(codeDays));
+      expiry = d.toISOString();
+    }
+    
+    await safeFetch('/api/admin/system/giftcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        code: codeName.toUpperCase(), 
+        reward: Number(codeReward), 
+        max_uses: Number(codeMaxUses), 
+        expiry_date: expiry,
+        type: codeType 
+      })
+    });
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
+    fetchSystem();
+  };
+
+  const handleDeleteGiftcode = async (id: string) => {
+    if (!window.confirm("Xóa mã Giftcode này?")) return;
+    await safeFetch('/api/admin/system/giftcodes/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchSystem();
   };
 
   return (
@@ -89,21 +140,80 @@ export function AdminSystem() {
         <div className="space-y-4">
            <div className="grid grid-cols-3 gap-3">
              <div className="col-span-2">
-               <input type="text" placeholder="Mã Giftcode..." className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-bold uppercase" />
+               <input 
+                 type="text" 
+                 value={codeName}
+                 onChange={e => setCodeName(e.target.value)}
+                 placeholder="Mã Giftcode..." 
+                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-bold uppercase" 
+               />
              </div>
              <div className="col-span-1">
-               <input type="number" placeholder="Số lượt" className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" />
+               <input 
+                 type="number" 
+                 value={codeMaxUses}
+                 onChange={e => setCodeMaxUses(e.target.value)}
+                 placeholder="Số lượt" 
+                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
+               />
+             </div>
+             <div className="col-span-1">
+               <input 
+                 type="number" 
+                 value={codeReward}
+                 onChange={e => setCodeReward(e.target.value)}
+                 placeholder="Phần thưởng" 
+                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
+               />
+             </div>
+             <div className="col-span-2">
+               <select 
+                 value={codeType}
+                 onChange={e => setCodeType(e.target.value)}
+                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm font-medium"
+               >
+                  <option value="vui_coin">VuiCoin</option>
+                  <option value="coin_task">Coin Task</option>
+               </select>
              </div>
              <div className="col-span-3 pb-2 border-b border-gray-100 flex gap-2">
-                <input type="number" min="1" max="999" placeholder="Số ngày tồn tại (1-999)" className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" />
-                <button className="px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
+                <input 
+                  type="number" 
+                  value={codeDays}
+                  onChange={e => setCodeDays(e.target.value)}
+                  min="1" 
+                  max="999" 
+                  placeholder="Số ngày tồn tại (1-999)" 
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
+                />
+                <button onClick={handleCreateGiftcode} className="px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
                   <Plus size={20} />
                 </button>
              </div>
            </div>
 
            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-              <div className="text-center p-4 text-gray-400 text-sm">Chưa có mã Giftcode nào</div>
+              {codes.map(code => (
+                <div key={code.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-purple-50/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                       <Trophy size={20} className="text-purple-600" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        {code.code}
+                        <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-purple-100 text-purple-600">{code.current_uses}/{code.max_uses}</span>
+                      </div>
+                      <div className="text-[10px] text-gray-500 flex items-center gap-1">
+                        Thưởng: <span className="font-bold text-purple-600">{Number(code.reward).toLocaleString()}</span>
+                        {code.expiry_date && <span> • Hết hạn: {new Date(code.expiry_date).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteGiftcode(code.id)} className="text-gray-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                </div>
+              ))}
+              {codes.length === 0 && <div className="text-center p-4 text-gray-400 text-sm">Chưa có mã Giftcode nào</div>}
            </div>
         </div>
       </div>
@@ -147,7 +257,7 @@ export function AdminSystem() {
                       <div className="font-mono text-xs text-blue-500">{Number(mod.price).toLocaleString()}đ</div>
                     </div>
                   </div>
-                  <button className="text-gray-400 hover:text-rose-500"><Trash2 size={16}/></button>
+                  <button onClick={() => handleDeleteMod(mod.id)} className="text-gray-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
                 </div>
               ))}
               {mods.length === 0 && (
