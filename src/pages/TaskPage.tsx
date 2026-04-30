@@ -61,6 +61,17 @@ export function TaskPage() {
 
   const handleDoTask = async (task: any) => {
     if (!uuid) return;
+    
+    // Check daily turn limit
+    if ((profile?.today_turns || 0) >= 10) {
+      showNotification({ 
+        title: 'Giới hạn hằng ngày', 
+        message: 'Bạn đã đạt giới hạn 10 lượt làm nhiệm vụ mỗi ngày. Hãy quay lại vào ngày mai!', 
+        type: 'warning' 
+      });
+      return;
+    }
+
     setLoadingTask(task.id);
     
     try {
@@ -220,12 +231,14 @@ export function TaskPage() {
 
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Thời gian phiên</div>
-                <div className="font-bold text-slate-800 text-lg">15 Phút</div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Giới hạn lượt làm</div>
+                <div className="font-bold text-slate-800 text-lg">{(profile?.today_turns || 0)} / 10</div>
               </div>
               <div className="bg-orange-50/50 rounded-2xl p-4 border border-orange-100/50">
                 <div className="text-[10px] font-bold text-orange-500/70 uppercase tracking-wider mb-1">Duyệt thưởng</div>
-                <div className="font-bold text-orange-600 text-lg">{task.auto ? 'TỰ ĐỘNG' : 'CHỜ DUYỆT'}</div>
+                <div className="font-bold text-orange-600 text-lg uppercase">
+                  {['linkngon', 'linktop', 'traffictop', 'bbmkts'].includes(task.id.toLowerCase()) ? 'Thủ công' : 'Tự động'}
+                </div>
               </div>
             </div>
 

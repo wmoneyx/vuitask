@@ -953,7 +953,7 @@ async function startServer() {
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,
-        today_turns: 10,
+        today_turns: 0,
         monthly_balance: 0,
         last_reset_day: todayVN,
         last_reset_month: thisMonthVN,
@@ -1095,7 +1095,7 @@ async function startServer() {
 
     if (lastResetDay !== todayVN) {
         updates.today_balance = 0;
-        updates.today_turns = 10; // Default to 10 daily turns
+        updates.today_turns = 0; // Reset turned completed counter to 0
         updates.last_reset_day = todayVN;
     }
 
