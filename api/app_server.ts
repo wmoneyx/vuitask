@@ -661,8 +661,8 @@ async function startServer() {
 
        const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
        const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at');
-       const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, created_at, task_id');
-       const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, created_at');
+       const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, timestamp, task_id, status_v1');
+       const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, timestamp, amount').eq('type', 'withdrawal');
 
        // Chart data: past 7 days
        const chartData: any[] = [];
@@ -688,15 +688,16 @@ async function startServer() {
        let pendingTasks = 0;
 
        (tasks || []).forEach(t => {
-          const tTime = new Date(t.created_at).getTime();
-          if (t.status === 'Hoàn thành') {
+          const tTime = t.timestamp; // We use numeric timestamp column in tasks_history
+          if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
              totalRev += Number(t.reward || 0);
-             if (new Date(t.created_at) >= today) {
+             if (tTime >= today.getTime()) {
                 todayRev += Number(t.reward || 0);
              }
              const day = chartData.find(d => tTime >= d.start && tTime <= d.end);
              if (day) day.revenue += Number(t.reward || 0);
-          } else if (t.status === 'Chờ duyệt') {
+          }
+          if (t.status === 'Chờ duyệt') {
              pendingTasks++;
           }
        });
@@ -705,15 +706,12 @@ async function startServer() {
        let pendingWithdrawals = 0;
 
        (withdrawals || []).forEach(w => {
-           const wTime = new Date(w.created_at).getTime();
+           const wTime = w.timestamp;
            if (w.status === 'Đã thanh toán') {
-              const match = w.content?.match(/amount:\s*(\d+)/i);
-              if (match) {
-                 const amt = Number(match[1]);
-                 totalWithdrawn += amt;
-                 const day = chartData.find(d => wTime >= d.start && wTime <= d.end);
-                 if (day) day.withdrawn += amt;
-              }
+              const amt = Number(w.amount || 0);
+              totalWithdrawn += amt;
+              const day = chartData.find(d => wTime >= d.start && wTime <= d.end);
+              if (day) day.withdrawn += amt;
            } else if (w.status === 'Đang chờ duyệt') {
               pendingWithdrawals++;
            }
@@ -728,8 +726,9 @@ async function startServer() {
        // Recent actions
        const recentActions = [];
        (allUsers || []).slice(-10).forEach(u => recentActions.push({ timestamp: new Date(u.created_at).getTime(), type: 'user', title: 'Người dùng mới', desc: 'Có tài khoản mới đăng ký' }));
-       (tasks || []).slice(-10).forEach(t => recentActions.push({ timestamp: new Date(t.created_at).getTime(), type: 'task', title: 'Nhiệm vụ', desc: `Vừa làm nhiệm vụ ${t.task_id || ''}` }));
-       (withdrawals || []).slice(-10).forEach(w => recentActions.push({ timestamp: new Date(w.created_at).getTime(), type: 'withdraw', title: 'Rút tiền', desc: `Có đơn rút tiền mới: ${w.status}` }));
+       (tasks || []).slice(-10).forEach(t => recentActions.push({ timestamp: t.timestamp, type: 'task', title: 'Nhiệm vụ', desc: `Vừa làm nhiệm vụ ${t.task_id || ''}` }));
+       (withdrawals || []).slice(-10).forEach(w => recentActions.push({ timestamp: w.timestamp, type: 'withdraw', title: 'Rút tiền', desc: `Có đơn rút tiền mới: ${w.status}` }));
+
        
        recentActions.sort((a,b) => b.timestamp - a.timestamp);
        const topRecent = recentActions.slice(0, 10);
@@ -774,7 +773,7 @@ async function startServer() {
 
   app.get("/api/admin/members", checkAdmin, async (req, res) => {
       const { data: profiles } = await supabaseAdmin.from('profiles').select(SAFE_PROFILE_COLS).order('created_at', { ascending: false });
-      const { data: tasks } = await supabaseAdmin.from('tasks_history').select('user_uuid, reward, status, created_at');
+      const { data: tasks } = await supabaseAdmin.from('tasks_history').select('user_uuid, reward, status, timestamp, status_v1');
       const { data: ips } = await supabaseAdmin.from('user_ips').select('*');
       
       const today = new Date();
@@ -787,10 +786,10 @@ async function startServer() {
           let approved = 0;
 
           userTasks.forEach((t: any) => {
-             if (t.status === 'Hoàn thành') {
+             if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
                 totalRev += Number(t.reward || 0);
                 approved++;
-                if (new Date(t.created_at) >= today) {
+                if (t.timestamp >= today.getTime()) {
                    todayRev += Number(t.reward || 0);
                 }
              }
@@ -1428,7 +1427,7 @@ async function startServer() {
         const dayKey = new Date(t.timestamp + 7 * 3600 * 1000).toISOString().split('T')[0];
         if (chartDataMap[dayKey]) {
            chartDataMap[dayKey].view += 1;
-           if (t.status === 'Hoàn thành') {
+           if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
              chartDataMap[dayKey].vui += Number(t.reward || 0);
            }
         }
@@ -1595,19 +1594,25 @@ async function startServer() {
     const { uuid, amount, method, details } = req.body;
     if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
     if (!profile || profile.vui_coin_balance < amount) {
       return res.status(400).json({ error: "Số dư không đủ" });
     }
 
     await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
-    const { error } = await supabaseAdmin.from('wallet_transactions').insert({
+    
+    // Instead of wallet_transactions, insert into community_messages
+    const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const { error } = await supabaseAdmin.from('community_messages').insert({
+      id: msgId,
+      type: 'withdrawal',
       user_uuid: uuid,
-      type: 'withdraw',
-      amount,
-      method,
-      details,
-      status: 'pending'
+      user_name: profile.user_name || 'User',
+      user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
+      content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
+      amount: amount,
+      status: 'Đang chờ duyệt',
+      timestamp: Date.now()
     });
 
     if (error) return res.status(500).json({ error: error.message });
@@ -1617,8 +1622,9 @@ async function startServer() {
   app.get("/api/wallet/history", async (req, res) => {
     const uuid = req.query.uuid as string;
     const { data: transactions } = await supabaseAdmin
-      .from('wallet_transactions')
+      .from('community_messages')
       .select('*')
+      .eq('type', 'withdrawal')
       .eq('user_uuid', uuid)
       .order('timestamp', { ascending: false });
 

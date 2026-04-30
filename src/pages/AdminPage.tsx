@@ -172,9 +172,9 @@ export function AdminPage() {
 
   const stats = [
     { label: "THÀNH VIÊN", value: statsData.users.toLocaleString(), icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
-    { label: "DOANH THU", value: `$${statsData.totalRevenue.toLocaleString()}`, icon: Database, color: "text-green-500", bg: "bg-green-50" },
-    { label: "DOANH THU HÔM NAY", value: `$${statsData.todayRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-cyan-500", bg: "bg-cyan-50" },
-    { label: "ĐÃ RÚT", value: `$${statsData.totalWithdrawn.toLocaleString()}`, icon: CreditCard, color: "text-purple-500", bg: "bg-purple-50" },
+    { label: "DOANH THU", value: `${statsData.totalRevenue.toLocaleString()}đ`, icon: Database, color: "text-green-500", bg: "bg-green-50" },
+    { label: "DOANH THU HÔM NAY", value: `${statsData.todayRevenue.toLocaleString()}đ`, icon: TrendingUp, color: "text-cyan-500", bg: "bg-cyan-50" },
+    { label: "ĐÃ RÚT", value: `${statsData.totalWithdrawn.toLocaleString()}đ`, icon: CreditCard, color: "text-purple-500", bg: "bg-purple-50" },
     { label: "YÊU CẦU RÚT", value: statsData.pendingWithdrawals.toLocaleString(), icon: History, color: "text-orange-500", bg: "bg-orange-50" },
     { label: "YÊU CẦU DUYỆT", value: statsData.pendingTasks.toLocaleString(), icon: UserCheck, color: "text-indigo-500", bg: "bg-indigo-50" },
     { label: "IP TRÙNG LẶP", icon: Smartphone, value: statsData.duplicateIps.toLocaleString(), color: "text-yellow-500", bg: "bg-yellow-50" },
@@ -321,9 +321,18 @@ export function AdminPage() {
                         dy={10}
                       />
                       <YAxis 
+                        yAxisId="left"
+                        orientation="left"
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                        tick={{ fill: '#3b82f6', fontSize: 10 }}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#eab308', fontSize: 10 }}
                       />
                       <Tooltip 
                         contentStyle={{ 
@@ -335,6 +344,7 @@ export function AdminPage() {
                         }} 
                       />
                       <Line 
+                        yAxisId="left"
                         type="monotone" 
                         dataKey="users" 
                         stroke="#3b82f6" 
@@ -345,6 +355,7 @@ export function AdminPage() {
                         name="Người dùng"
                       />
                       <Line 
+                        yAxisId="right"
                         type="monotone" 
                         dataKey="revenue" 
                         stroke="#eab308" 
@@ -355,6 +366,7 @@ export function AdminPage() {
                         name="Doanh thu"
                       />
                       <Line 
+                        yAxisId="right"
                         type="monotone" 
                         dataKey="withdrawn" 
                         stroke="#ef4444" 
