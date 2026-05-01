@@ -14,7 +14,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     // 1. Find the profile column and existing data
     let profile: any = null;
     let pkCol = 'user_uuid';
-    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month';
+    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, total_tasks';
     
     const { data: res1 } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
     if (res1) {
@@ -355,9 +355,8 @@ async function startServer() {
 
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
-    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-    const isTooFast = timeTaken < 60000;
-    const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
+    // No anti-spam for PRE tasks
+    const finalStatus = 'Chờ duyệt';
 
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
@@ -367,18 +366,14 @@ async function startServer() {
         timestamp: Date.now(),
         reward: session.reward,
         status: finalStatus,
-        status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
-        status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
+        status_v1: 'Đang duyệt',
+        status_v2: 'Đang duyệt',
         url: email,
         ip: ip
     });
 
     // Increment turns
     await updateUserStats(uuid, 0, true);
-
-    if (isTooFast) {
-       return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
-    }
 
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
