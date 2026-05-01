@@ -285,7 +285,7 @@ export function AdminPage() {
             {/* Charts & Recent Activity Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Chart */}
-              <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-[400px]">
+              <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                 <div className="flex items-center justify-between mb-8">
                   <div className="space-y-1">
                     <h3 className="font-bold text-slate-900 text-lg">Biểu đồ tăng trưởng (LIVE)</h3>
@@ -309,7 +309,7 @@ export function AdminPage() {
                     Hoạt động
                   </div>
                 </div>
-                <div className="h-[280px] w-full">
+                <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={statsData.chartData.length > 0 ? statsData.chartData : data}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -382,7 +382,7 @@ export function AdminPage() {
               </div>
 
               {/* Activity Sidebar */}
-              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col h-[400px]">
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-bold text-slate-900 text-lg">Hành động mới nhất</h3>
                   {statsData.recentActions.length > 0 && (
