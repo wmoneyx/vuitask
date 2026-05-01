@@ -268,7 +268,8 @@ async function startServer() {
   app.post("/api/tasks/start-vip", async (req, res) => {
     const { type, uuid, destinationUrl } = req.body || {};
     // API_URL_GOC base
-    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodeURIComponent(destinationUrl)}`;
+    const encodedUrl = encodeURIComponent(destinationUrl);
+    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodedUrl}&url2=${encodedUrl}`;
 
     try {
       console.log(`Calling provider VIP API: ${API_URL_GOC}`);
@@ -1652,10 +1653,19 @@ async function startServer() {
       }
 
       (tasksHistory || []).forEach(t => {
-        const dayKey = new Date(t.timestamp + 7 * 3600 * 1000).toISOString().split('T')[0];
+        const dayKey = new Date(Number(t.timestamp) + 7 * 3600 * 1000).toISOString().split('T')[0];
         if (chartDataMap[dayKey]) {
            chartDataMap[dayKey].view += 1;
-           if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
+           // Improved condition to catch all potential approved statuses
+           const isApproved = 
+              t.status === 'Hoàn thành' || 
+              t.status === 'Đã duyệt' || 
+              t.status === 'Đã duyệt L2' ||
+              t.status_v1 === 'Đã duyệt' || 
+              t.status_v1 === 'Đã duyệt L1' ||
+              t.status_v2 === 'Đã duyệt L2';
+
+           if (isApproved) {
              chartDataMap[dayKey].vui += Number(t.reward || 0);
            }
         }

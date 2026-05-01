@@ -114,7 +114,7 @@ export function TaskPage() {
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
       
       let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
-      if (task.id === 'timmap') {
+      if (task.apiUrl.includes('linktot.net')) {
         apiRequestUrl += '&url2=' + encodeURIComponent(destinationUrl);
       }
       

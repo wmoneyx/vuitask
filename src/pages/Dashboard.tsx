@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, Wallet, BellRing, Loader2 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { safeFetch } from "@/lib/utils";
@@ -90,7 +90,17 @@ export function Dashboard() {
             <div className="h-72 w-full">
               {stats?.chartData?.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                  <AreaChart data={stats.chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorView" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorVui" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
                     <YAxis 
@@ -111,7 +121,7 @@ export function Dashboard() {
                       width={45}
                     />
                     <Tooltip 
-                      cursor={{fill: '#f8fafc'}} 
+                      cursor={{stroke: '#cbd5e1', strokeWidth: 1}} 
                       contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', padding: '12px'}} 
                       formatter={(value: any, name: any) => {
                         if (name === "Thu nhập") return [Number(value).toLocaleString() + " VuiCoin", name];
@@ -119,9 +129,27 @@ export function Dashboard() {
                       }}
                     />
                     <Legend iconType="circle" wrapperStyle={{fontSize: '12px', paddingTop: '20px'}} />
-                    <Bar yAxisId="left" dataKey="view" name="Lượt làm" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                    <Bar yAxisId="right" dataKey="vui" name="Thu nhập" fill="#a855f7" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  </BarChart>
+                    <Area 
+                      yAxisId="left"
+                      type="monotone" 
+                      dataKey="view" 
+                      name="Lượt làm" 
+                      stroke="#3b82f6" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorView)" 
+                    />
+                    <Area 
+                      yAxisId="right"
+                      type="monotone" 
+                      dataKey="vui" 
+                      name="Thu nhập" 
+                      stroke="#a855f7" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorVui)" 
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center border-2 border-dashed border-gray-100 rounded-xl">
