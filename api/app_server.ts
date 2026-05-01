@@ -481,67 +481,70 @@ async function startServer() {
           .from('sessions')
           .update({ completed: true })
           .eq('id', sessionId);
+    
+        const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
+        
+        const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+        const isTooFast = timeTaken < 60000;
+
+        let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
+        let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
+        
+        if (isTooFast) {
+            finalStatus = 'Từ chối';
+            statusV1 = 'Từ chối';
+        }
+
+        const historyEntry = {
+            id: sessionId,
+            user_uuid: uuid,
+            task_id: session.task_id,
+            task_name: session.task_name,
+            url: session.short_url || 'unknown',
+            reward: session.reward,
+            status: finalStatus,
+            status_v1: statusV1,
+            status_v2: statusV1,
+            ip: ip,
+            timestamp: Date.now()
+        };
+
+        const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
+        if (insertError) {
+            console.error("Failed to insert into tasks_history:", insertError);
+        }
+
+        if (isTooFast) {
+            // Warning to site notifications for admin/all or specifically a user message
+            if (session.auto) {
+                // Also notify the user or admin about warning
+                await supabaseAdmin.from('site_notifications').insert({
+                    id: `FAST_WARN_${Date.now()}`,
+                    title: "CẢNH BÁO SPAM NHIỆM VỤ",
+                    content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                    type: 'warning',
+                    target: 'all',
+                    timestamp: Date.now()
+                });
+                return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
+            } else {
+                return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
+            }
+        }
+
+        // Normal processing
+        if (session.auto) {
+            await updateUserStats(uuid, session.reward, true);
+        } 
+        // Manual tasks will be incremented when approved via /api/admin/approve-task
+
+        res.json({ status: "success", history: historyEntry });
+    } catch (error) {
+        console.error("Error in complete-session:", error);
+        res.status(500).json({ error: "Lỗi máy chủ!" });
     } finally {
         releaseLock(uuid, "complete-session");
     }
-    
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
-    
-    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-    const isTooFast = timeTaken < 60000;
-
-    let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
-    let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
-    
-    if (isTooFast) {
-        finalStatus = 'Từ chối';
-        statusV1 = 'Từ chối';
-    }
-
-    const historyEntry = {
-        id: sessionId,
-        user_uuid: uuid,
-        task_id: session.task_id,
-        task_name: session.task_name,
-        url: session.short_url || 'unknown',
-        reward: session.reward,
-        status: finalStatus,
-        status_v1: statusV1,
-        status_v2: statusV1,
-        ip: ip,
-        timestamp: Date.now()
-    };
-
-    const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
-    if (insertError) {
-        console.error("Failed to insert into tasks_history:", insertError);
-    }
-
-    if (isTooFast) {
-        // Warning to site notifications for admin/all or specifically a user message
-        if (session.auto) {
-            // Also notify the user or admin about warning
-            await supabaseAdmin.from('site_notifications').insert({
-                id: `FAST_WARN_${Date.now()}`,
-                title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
-                type: 'warning',
-                target: 'all',
-                timestamp: Date.now()
-            });
-            return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
-        } else {
-            return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
-        }
-    }
-
-    // Normal processing
-    if (session.auto) {
-        await updateUserStats(uuid, session.reward, true);
-    } 
-    // Manual tasks will be incremented when approved via /api/admin/approve-task
-
-    res.json({ status: "success", history: historyEntry });
   });
 
   app.post("/api/user/tasks/clear", async (req, res) => {
@@ -1632,7 +1635,7 @@ async function startServer() {
 
   app.post("/api/user/attendance", async (req, res) => {
      const { uuid, day, reward } = req.body || {};
-     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+     const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
      // Simple check if already done today
      const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
      if (logs && logs.length > 0) {
