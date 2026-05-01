@@ -29,6 +29,32 @@ function releaseLock(userId: string, action: string) {
 
 const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
+async function ensureStatsConsistent(userId: string, profile: any) {
+    const changes: any = {};
+    const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
+    const thisMonthVN = todayVN.substring(0, 7) + "-01";
+    
+    // Day reset
+    if (profile.last_reset_day !== todayVN) {
+        changes.today_balance = 0;
+        changes.today_turns = 0;
+        changes.last_reset_day = todayVN;
+    }
+    
+    // Month reset
+    if (profile.last_reset_month !== thisMonthVN) {
+        changes.monthly_balance = 0;
+        changes.last_reset_month = thisMonthVN;
+    }
+    
+    // Apply if changes needed
+    if (Object.keys(changes).length > 0) {
+        await supabaseAdmin.from('profiles').update(changes).eq('user_uuid', userId);
+        return { ...profile, ...changes };
+    }
+    return profile;
+}
+
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
     
@@ -37,10 +63,8 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     let pkCol = 'user_uuid';
     const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, weekly_balance, monthly_balance, last_reset_day, last_reset_week, last_reset_month, total_tasks';
     
-    // We try to select all, but some might be missing. Supabase will return error if any col is missing.
     let { data: res1, error: selectError } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
     
-    // Fallback if some columns are missing
     if (selectError) {
         const fallbackCols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, total_tasks';
         const { data: resFallback } = await supabaseAdmin.from('profiles').select(fallbackCols).eq('user_uuid', userId).maybeSingle();
@@ -63,11 +87,9 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         return;
     }
     
-    const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
-    const thisMonthVN = todayVN.substring(0, 7) + "-01";
-
-    let currentTodayBalance = Number(profile.today_balance || 0);
-    let currentTodayTurns = Number(profile.today_turns || 0);
+    // Ensure consistent
+    profile = await ensureStatsConsistent(userId, profile);
+    
     let currentWeeklyBalance = Number(profile.weekly_balance || 0);
     let currentMonthlyBalance = Number(profile.monthly_balance || 0);
 
