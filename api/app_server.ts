@@ -378,7 +378,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
-    const { sessionId, uuid, email, note } = req.body || {};
+    const { sessionId, uuid, email, password, note } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -387,7 +387,7 @@ async function startServer() {
       .single();
     
     if (!session || session.expires < Date.now() || session.completed || session.user_uuid !== uuid) {
-      return res.status(400).json({ error: "Phiên không hợp lệ" });
+       return res.status(400).json({ error: "Phiên không hợp lệ" });
     }
 
     await supabaseAdmin
@@ -397,8 +397,10 @@ async function startServer() {
 
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
-    // No anti-spam for PRE tasks
     const finalStatus = 'Chờ duyệt';
+
+    // Store pre-task info as JSON in url column
+    const preData = JSON.stringify({ email, password, note });
 
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
@@ -410,7 +412,7 @@ async function startServer() {
         status: finalStatus,
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
-        url: email,
+        url: preData,
         ip: ip
     });
 
@@ -1125,7 +1127,7 @@ async function startServer() {
     const { data: pending } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
-      .eq('status', 'Chờ duyệt');
+      .or('status.eq.Chờ duyệt,status.eq.Chờ duyệt L2');
     
     res.json({ pending: pending || [] });
   });
@@ -1135,6 +1137,7 @@ async function startServer() {
       .from('tasks_history')
       .select('*')
       .neq('status', 'Chờ duyệt')
+      .neq('status', 'Chờ duyệt L2')
       .order('timestamp', { ascending: false })
       .limit(100);
     
@@ -1169,21 +1172,42 @@ async function startServer() {
   });
 
   app.post("/api/admin/approve-task", async (req, res) => {
-    const { taskId, decision } = req.body; // decision: 'approve' | 'reject'
+    const { taskId, decision, step } = req.body; // decision: 'approve' | 'reject', step?: 1 | 2
     
     const { data: task } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('id', taskId)
-      .eq('status', 'Chờ duyệt')
       .single();
 
     if (task) {
+       // Check if its a VIP task for multi-step
+       const isVip = task.task_id && task.task_id.startsWith('vip_');
+
        if (decision === 'approve') {
-          await supabaseAdmin
-            .from('tasks_history')
-            .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
-            .eq('id', taskId);
+          if (isVip) {
+            if (step === 1) {
+                await supabaseAdmin
+                  .from('tasks_history')
+                  .update({ status_v1: 'Đã duyệt L1', status: 'Chờ duyệt L2' })
+                  .eq('id', taskId);
+            } else {
+                await supabaseAdmin
+                  .from('tasks_history')
+                  .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt L1', status_v2: 'Đã duyệt L2' })
+                  .eq('id', taskId);
+                
+                await updateUserStats(task.user_uuid, task.reward, true);
+            }
+          } else {
+            // Standard / Pre
+             await supabaseAdmin
+               .from('tasks_history')
+               .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
+               .eq('id', taskId);
+             
+             await updateUserStats(task.user_uuid, task.reward, true);
+          }
 
           // Log to approval_history
           await supabaseAdmin.from('approval_history').insert({
@@ -1192,15 +1216,14 @@ async function startServer() {
             user_uuid: task.user_uuid,
             action: 'approve',
             timestamp: Date.now(),
-            admin_note: 'Approved'
+            admin_note: isVip ? `Approved Step ${step}` : 'Approved'
           });
 
-          // Update balance using user_uuid from task record
-          await updateUserStats(task.user_uuid, task.reward, true);
        } else {
+          // Reject always marks as rejected
           await supabaseAdmin
             .from('tasks_history')
-            .update({ status: 'Từ chối', status_v1: 'Từ chối' })
+            .update({ status: 'Từ chối', status_v1: 'Từ chối', status_v2: 'Từ chối' })
             .eq('id', taskId);
 
           // Log to approval_history
@@ -1232,10 +1255,9 @@ async function startServer() {
        return res.status(400).json({ error: 'Không tìm thấy hoặc đã được xử lý.' });
     }
 
-    // Refund amount + 5% fee to the user
+    // Refund only the "thực nhận" (95% of the requested amount) to the user
     const amount = wRecord.amount || 0;
-    const fee = amount * 0.05;
-    const totalRefund = amount + fee;
+    const totalRefund = amount * 0.95;
 
     await supabaseAdmin
       .from('community_messages')
@@ -1771,6 +1793,19 @@ async function startServer() {
       return res.status(400).json({ error: "Số dư không đủ" });
     }
 
+    // Check for existing pending withdrawal
+    const { data: existingWd } = await supabaseAdmin
+      .from('community_messages')
+      .select('id')
+      .eq('user_uuid', uuid)
+      .eq('type', 'withdrawal')
+      .eq('status', 'Đang chờ duyệt')
+      .limit(1);
+
+    if (existingWd && existingWd.length > 0) {
+      return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
+    }
+
     await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
     
     // Instead of wallet_transactions, insert into community_messages
@@ -1968,6 +2003,36 @@ async function startServer() {
      const uuid = req.query.uuid as string;
      const { data: wds } = await supabaseAdmin.from('community_messages').select('*').eq('type', 'withdrawal').eq('user_uuid', uuid).order('timestamp', { ascending: false });
      res.json({ withdrawals: wds || [] });
+  });
+
+  app.post("/api/wallet/cancel-withdraw", async (req, res) => {
+    const { uuid, withdrawalId } = req.body;
+    
+    const { data: wRecord } = await supabaseAdmin
+      .from('community_messages')
+      .select('*')
+      .eq('id', withdrawalId)
+      .eq('user_uuid', uuid)
+      .single();
+
+    if (!wRecord || wRecord.status !== 'Đang chờ duyệt') {
+       return res.status(400).json({ error: 'Không tìm thấy lệnh rút hoặc lệnh đã được xử lý.' });
+    }
+
+    const amount = wRecord.amount || 0;
+    
+    await supabaseAdmin
+      .from('community_messages')
+      .update({ status: 'Đã hủy' })
+      .eq('id', withdrawalId);
+
+    // Update balance
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
+    if (profile) {
+      await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance + amount }).eq('user_uuid', uuid);
+    }
+
+    res.json({ success: true });
   });
 
   // ===================================

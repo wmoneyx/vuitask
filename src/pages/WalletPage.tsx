@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wallet, Banknote, CreditCard, Eye, AlertCircle } from 'lucide-react';
+import { Wallet, Banknote, CreditCard, Eye, AlertCircle, XCircle } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
@@ -93,6 +93,38 @@ export function WalletPage() {
     }
   };
 
+  const handleCancelWithdraw = async (withdrawalId: string) => {
+    if (!profile?.user_uuid) return;
+    if (!confirm("Bạn có chắc chắn muốn hủy lệnh rút tiền này không?")) return;
+
+    setLoading(true);
+    try {
+      const res = await safeFetch('/api/wallet/cancel-withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uuid: profile.user_uuid,
+          withdrawalId
+        })
+      });
+
+      if (res.error) {
+        showNotification({ title: 'Lỗi', message: res.error, type: 'error' });
+        return;
+      }
+
+      await refreshProfile();
+      fetchWithdrawals();
+      showNotification({ title: 'Đã hủy', message: "Đã hủy lệnh rút tiền thành công. Số tiền đã được hoàn lại.", type: 'success' });
+    } catch (err) {
+      showNotification({ title: 'Lỗi', message: "Lỗi kết nối", type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasPendingWithdrawal = history.some(w => w.status === 'Đang chờ duyệt');
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 text-slate-800 mb-6">
@@ -111,15 +143,27 @@ export function WalletPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button onClick={() => { setSelectedType('bank'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button 
+              disabled={hasPendingWithdrawal}
+              onClick={() => { setSelectedType('bank'); setInfo({}); }} 
+              className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdrawal ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500'}`}
+            >
                 <Banknote className="text-blue-500" />
                 <span className="font-bold text-sm uppercase">Bank</span>
             </button>
-            <button onClick={() => { setSelectedType('zalopay'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button 
+              disabled={hasPendingWithdrawal}
+              onClick={() => { setSelectedType('zalopay'); setInfo({}); }} 
+              className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdrawal ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500'}`}
+            >
                 <Banknote className="text-sky-500" />
                 <span className="font-bold text-sm uppercase">ZaloPay</span>
             </button>
-            <button onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button 
+              disabled={hasPendingWithdrawal}
+              onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} 
+              className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdrawal ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500'}`}
+            >
                 <CreditCard className="text-rose-500" />
                 <span className="font-bold text-sm uppercase">Thẻ Cào</span>
             </button>
@@ -227,6 +271,17 @@ export function WalletPage() {
                                     <div className="font-bold text-emerald-600">{netAmount.toLocaleString()}đ</div>
                                 </div>
                             </div>
+                            
+                            {statusInfo.label === 'Chờ duyệt' && (
+                                <button 
+                                    onClick={() => handleCancelWithdraw(h.id)} 
+                                    disabled={loading}
+                                    className="mt-1 flex items-center justify-center gap-2 text-rose-500 hover:text-rose-600 text-[10px] font-black uppercase tracking-widest py-2 border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors"
+                                >
+                                    <XCircle size={14}/> Hủy lệnh rút
+                                </button>
+                            )}
+
                             {isCard && statusInfo.label === 'Hoàn thành' && h.admin_reply && (
                                 <button 
                                     onClick={() => setShowCardModal(h.admin_reply)} 
