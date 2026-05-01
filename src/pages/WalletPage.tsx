@@ -180,22 +180,6 @@ export function WalletPage() {
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-800 uppercase text-sm">Lịch sử rút thưởng</h3>
-            {history.length > 0 && (
-                <button 
-                    onClick={async () => {
-                        if (!window.confirm("Xóa tất cả lịch sử rút thưởng của bạn?")) return;
-                        await safeFetch('/api/user/wallet/clear', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uuid: profile?.user_uuid })
-                        });
-                        fetchWithdrawals();
-                    }}
-                    className="text-xs font-bold text-rose-500 uppercase hover:underline"
-                >
-                    Xóa tất cả
-                </button>
-            )}
         </div>
         {history.length === 0 ? (
             <p className="text-gray-400 italic text-sm">Chưa có giao dịch nào</p>

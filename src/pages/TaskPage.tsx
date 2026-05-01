@@ -314,22 +314,6 @@ export function TaskPage() {
         <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between font-bold text-slate-800">
           <h3>Lịch sử làm nhiệm vụ</h3>
           <div className="flex gap-4">
-            {history.length > 0 && (
-                <button 
-                  onClick={async () => {
-                    if (!window.confirm("Xóa tất cả lịch sử làm nhiệm vụ của bạn?")) return;
-                    await safeFetch('/api/user/tasks/clear', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ uuid })
-                    });
-                    fetchHistory();
-                  }}
-                  className="text-xs text-rose-500 uppercase hover:underline"
-                >
-                    Xóa tất cả
-                </button>
-            )}
             <button onClick={fetchHistory} className="text-xs text-blue-600 uppercase hover:underline">Tải lại</button>
           </div>
         </div>

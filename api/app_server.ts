@@ -521,10 +521,18 @@ async function startServer() {
 
   app.get("/api/tasks/history", async (req, res) => {
     const uuid = req.query.uuid as string;
+    
+    // Calculate start of today in GMT+7
+    const now = new Date();
+    const nowVN = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const startOfTodayVN = new Date(nowVN.getFullYear(), nowVN.getMonth(), nowVN.getDate());
+    const startOfTodayUTC = new Date(startOfTodayVN.getTime() - (7 * 60 * 60 * 1000));
+
     const { data: history, error } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000')
+      .gte('timestamp', startOfTodayUTC.getTime())
       .order('timestamp', { ascending: false });
     
     if (error) {
@@ -1679,10 +1687,17 @@ async function startServer() {
     const type = req.query.type as string;
     if (!uuid) return res.status(400).json({ error: "Missing uuid" });
 
+    // Calculate start of today in GMT+7
+    const now = new Date();
+    const nowVN = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const startOfTodayVN = new Date(nowVN.getFullYear(), nowVN.getMonth(), nowVN.getDate());
+    const startOfTodayUTC = new Date(startOfTodayVN.getTime() - (7 * 60 * 60 * 1000));
+
     let query = supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid)
+      .gte('timestamp', startOfTodayUTC.getTime())
       .order('timestamp', { ascending: false })
       .limit(50);
 
