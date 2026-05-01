@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.tasks_history (
   id TEXT PRIMARY KEY,
   user_uuid TEXT NOT NULL,
   task_name TEXT NOT NULL,
+  task_id TEXT,
   url TEXT,
   reward BIGINT NOT NULL,
   status TEXT NOT NULL, -- 'Hoàn thành', 'Chờ duyệt', 'Từ chối'
@@ -64,6 +65,9 @@ CREATE TABLE IF NOT EXISTS public.tasks_history (
   timestamp BIGINT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Thêm cột nếu chưa có (Migration)
+ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS task_id TEXT;
 
 -- 4. Sessions Table
 CREATE TABLE IF NOT EXISTS public.sessions (

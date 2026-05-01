@@ -14,7 +14,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     // 1. Find the profile column and existing data
     let profile: any = null;
     let pkCol = 'user_uuid';
-    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance';
+    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month';
     
     const { data: res1 } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
     if (res1) {
@@ -33,14 +33,35 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         return;
     }
     
+    const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
+    const thisMonthVN = todayVN.substring(0, 7) + "-01";
+
+    let currentTodayBalance = Number(profile.today_balance || 0);
+    let currentTodayTurns = Number(profile.today_turns || 0);
+    let currentMonthlyBalance = Number(profile.monthly_balance || 0);
+
     const updates: any = {
         vui_coin_balance: Number(profile.vui_coin_balance || 0) + Number(amount),
     };
+
+    if (profile.last_reset_day !== todayVN) {
+        currentTodayBalance = 0;
+        currentTodayTurns = 0;
+        updates.last_reset_day = todayVN;
+        updates.today_balance = 0; // Ensure reset in DB
+        updates.today_turns = 0;   // Ensure reset in DB
+    }
+
+    if (profile.last_reset_month !== thisMonthVN) {
+        currentMonthlyBalance = 0;
+        updates.last_reset_month = thisMonthVN;
+        updates.monthly_balance = 0; // Ensure reset in DB
+    }
     
     if (isTask) {
-        updates.today_balance = Number(profile.today_balance || 0) + Number(amount);
-        updates.monthly_balance = Number(profile.monthly_balance || 0) + Number(amount);
-        updates.today_turns = Number(profile.today_turns || 0) + 1;
+        updates.today_balance = currentTodayBalance + Number(amount);
+        updates.monthly_balance = currentMonthlyBalance + Number(amount);
+        updates.today_turns = currentTodayTurns + 1;
         updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
@@ -81,12 +102,7 @@ async function startServer() {
   const PORT = 3000;
 
   // API routes
-  app.use((req, res, next) => {
-    if (process.env.VERCEL && req.body && typeof req.body === 'object') {
-      return next();
-    }
-    express.json()(req, res, next);
-  });
+  app.use(express.json());
 
   app.post("/api/tasks/generate-session", async (req, res) => {
     const { userId, taskId, taskName, reward, auto } = req.body;
@@ -406,8 +422,11 @@ async function startServer() {
     const isTooFast = timeTaken < 60000;
 
     let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
+    let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
+    
     if (isTooFast) {
         finalStatus = 'Từ chối';
+        statusV1 = 'Từ chối';
     }
 
     const historyEntry = {
@@ -418,11 +437,16 @@ async function startServer() {
         url: session.short_url || 'unknown',
         reward: session.reward,
         status: finalStatus,
+        status_v1: statusV1,
+        status_v2: statusV1,
         ip: ip,
         timestamp: Date.now()
     };
 
-    await supabaseAdmin.from('tasks_history').insert(historyEntry);
+    const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
+    if (insertError) {
+        console.error("Failed to insert into tasks_history:", insertError);
+    }
 
     if (isTooFast) {
         // Increment turns but 0 reward
@@ -898,10 +922,12 @@ async function startServer() {
       const { title, content, target, type } = req.body;
       
       const { data, error } = await supabaseAdmin.from('site_notifications').insert({
+          id: `NOTIF_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           title,
           content,
           target: target || 'all',
           type: type || 'info',
+          timestamp: Date.now(),
           created_at: new Date().toISOString()
       }).select().single();
 
@@ -1296,8 +1322,7 @@ async function startServer() {
               await supabaseAdmin.from('referrals').insert({
                   referrer_uuid: referrer.user_uuid,
                   referred_uuid: uuid,
-                  timestamp: Date.now(),
-                  reward_vui: 10000, 
+                  reward: 10000, 
                   status: 'pending'
               });
           }
@@ -1305,9 +1330,8 @@ async function startServer() {
 
       // Record IP
       if (ip !== 'unknown') {
-        const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString() };
-        ipRecord[pkCol] = uuid;
-        await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: pkCol + ',ip_address' });
+        const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString(), user_uuid: uuid };
+        await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: 'user_uuid,ip_address' });
       }
 
       return res.json({ profile: normalize(newProfile) });
@@ -1532,16 +1556,22 @@ async function startServer() {
     const type = req.query.type as string;
     if (!uuid) return res.status(400).json({ error: "Missing uuid" });
 
-    let tableName = 'task_history';
-    if (type === 'vip') tableName = 'task_vip_history';
-    if (type === 'pre') tableName = 'task_pre_history';
-
-    const { data: history, error } = await supabaseAdmin
-      .from(tableName)
+    let query = supabaseAdmin
+      .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid)
       .order('timestamp', { ascending: false })
       .limit(50);
+
+    if (type === 'vip') {
+        query = query.like('task_id', 'vip_%');
+    } else if (type === 'pre') {
+        query = query.eq('task_id', 'GMAIL_PRE');
+    } else if (type === 'normal') {
+        query = query.not('task_id', 'like', 'vip_%').neq('task_id', 'GMAIL_PRE');
+    }
+
+    const { data: history, error } = await query;
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ history: history || [] });
@@ -1771,7 +1801,7 @@ async function startServer() {
 
   // ===================================
 
-  app.all('/api/*', (req, res) => {
+  app.all(/^\/api\/.*$/, (req, res) => {
     res.status(404).json({ error: "API Route Not Found", url: req.url });
   });
 
@@ -1785,7 +1815,8 @@ async function startServer() {
     app.use(vite.middlewares);
 
     // This handles SPA fallback in development mode
-    app.use('*', async (req, res, next) => {
+    app.use(async (req: any, res: any, next: any) => {
+      if (req.method !== 'GET') return next();
       const url = req.originalUrl;
       try {
         let template = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf-8');
@@ -1801,7 +1832,7 @@ async function startServer() {
     if (!process.env.VERCEL) {
       const distPath = path.join(__dirname, '../dist');
       app.use(express.static(distPath));
-      app.get('*', (_req, res) => {
+      app.get(/^\/.*$/, (_req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
