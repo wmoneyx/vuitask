@@ -5,7 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const pendingRequests = new Set<string>();
+
 export async function safeFetch(url: string, options?: RequestInit) {
+  const method = options?.method || 'GET';
+  const requestKey = `${method}:${url}`;
+
+  // Anti-spam: prevent identical concurrent requests
+  if (method !== 'GET' && pendingRequests.has(requestKey)) {
+    console.warn(`[Anti-Spam] Duplicate request blocked: ${requestKey}`);
+    return null;
+  }
+
+  if (method !== 'GET') {
+    pendingRequests.add(requestKey);
+  }
+
   try {
     // Fail-safe: if url somehow contains the old netlify domain, strip it out
     if (url.includes('vuitask.netlify.app')) {
@@ -36,5 +51,9 @@ export async function safeFetch(url: string, options?: RequestInit) {
   } catch (err) {
     // Avoid spamming logs for standard network errors if possible
     return null;
+  } finally {
+    if (method !== 'GET') {
+      pendingRequests.delete(requestKey);
+    }
   }
 }

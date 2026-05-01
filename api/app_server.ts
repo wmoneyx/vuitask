@@ -6,6 +6,27 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Anti-spam locks
+const userLocks: Map<string, number> = new Map();
+const LOCK_TIMEOUT = 10000; // 10 seconds fail-safe
+
+function acquireLock(userId: string, action: string): boolean {
+    const key = `${userId}:${action}`;
+    const now = Date.now();
+    const existingLock = userLocks.get(key);
+
+    if (existingLock && now - existingLock < LOCK_TIMEOUT) {
+        return false;
+    }
+
+    userLocks.set(key, now);
+    return true;
+}
+
+function releaseLock(userId: string, action: string) {
+    userLocks.delete(`${userId}:${action}`);
+}
+
 const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
@@ -436,25 +457,33 @@ async function startServer() {
   app.post("/api/tasks/complete-session", async (req, res) => {
     const { sessionId, uuid } = req.body || {};
     
-    const { data: session } = await supabaseAdmin
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    
-    if (!session || session.expires < Date.now() || session.completed) {
-      return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
+    if (!acquireLock(uuid, "complete-session")) {
+        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
     }
 
-    if (session.user_uuid !== uuid) {
-        return res.status(403).json({ error: "Unauthorized" });
-    }
+    try {
+        const { data: session } = await supabaseAdmin
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .single();
+        
+        if (!session || session.expires < Date.now() || session.completed) {
+          return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
+        }
 
-    // Mark completed
-    await supabaseAdmin
-      .from('sessions')
-      .update({ completed: true })
-      .eq('id', sessionId);
+        if (session.user_uuid !== uuid) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        // Mark completed
+        await supabaseAdmin
+          .from('sessions')
+          .update({ completed: true })
+          .eq('id', sessionId);
+    } finally {
+        releaseLock(uuid, "complete-session");
+    }
     
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
     
@@ -1174,12 +1203,21 @@ async function startServer() {
 
   app.post("/api/admin/approve-task", async (req, res) => {
     const { taskId, decision, step } = req.body; // decision: 'approve' | 'reject', step?: 1 | 2
-    
-    const { data: task } = await supabaseAdmin
-      .from('tasks_history')
-      .select('*')
-      .eq('id', taskId)
-      .single();
+
+    const lockKey = `${taskId}:${decision}`;
+    if (!acquireLock("admin", lockKey)) {
+        return res.status(429).json({ error: "Hệ thống đang xử lý yêu cầu này." });
+    }
+
+    try {
+        const { data: task } = await supabaseAdmin
+          .from('tasks_history')
+          .select('*')
+          .eq('id', taskId)
+          .single();
+    } finally {
+        releaseLock("admin", lockKey);
+    }
 
     if (task) {
        // Check if its a VIP task for multi-step
@@ -1594,7 +1632,7 @@ async function startServer() {
 
   app.post("/api/user/attendance", async (req, res) => {
      const { uuid, day, reward } = req.body || {};
-     const today = new Date().toISOString().split('T')[0];
+     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
      // Simple check if already done today
      const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
      if (logs && logs.length > 0) {
@@ -1752,12 +1790,20 @@ async function startServer() {
   app.post("/api/giftcode/redeem", async (req, res) => {
     const { code, uuid } = req.body || {};
     if (!code || !uuid) return res.status(400).json({ error: "Missing info" });
+    
+    if (!acquireLock(uuid, "redeem-giftcode")) {
+        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
+    }
 
-    const { data: giftCode, error: codeErr } = await supabaseAdmin
-      .from('gift_codes')
-      .select('*')
-      .eq('code', code.toUpperCase())
-      .single();
+    try {
+        const { data: giftCode, error: codeErr } = await supabaseAdmin
+          .from('gift_codes')
+          .select('*')
+          .eq('code', code.toUpperCase())
+          .single();
+    } finally {
+        releaseLock(uuid, "redeem-giftcode");
+    }
 
     if (codeErr || !giftCode) return res.status(404).json({ error: "Mã giftcode không tồn tại" });
 
@@ -1797,44 +1843,53 @@ async function startServer() {
   // Wallet and Withdrawals
   app.post("/api/wallet/withdraw", async (req, res) => {
     const { uuid, amount, method, details } = req.body || {};
-    if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
-    if (!profile || profile.vui_coin_balance < amount) {
-      return res.status(400).json({ error: "Số dư không đủ" });
+    if (!acquireLock(uuid, "withdraw")) {
+        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
     }
 
-    // Check for existing pending withdrawal
-    const { data: existingWd } = await supabaseAdmin
-      .from('community_messages')
-      .select('id')
-      .eq('user_uuid', uuid)
-      .eq('type', 'withdrawal')
-      .eq('status', 'Đang chờ duyệt')
-      .limit(1);
+    try {
+        if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
-    if (existingWd && existingWd.length > 0) {
-      return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
+        const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
+        if (!profile || profile.vui_coin_balance < amount) {
+          return res.status(400).json({ error: "Số dư không đủ" });
+        }
+
+        // Check for existing pending withdrawal
+        const { data: existingWd } = await supabaseAdmin
+          .from('community_messages')
+          .select('id')
+          .eq('user_uuid', uuid)
+          .eq('type', 'withdrawal')
+          .eq('status', 'Đang chờ duyệt')
+          .limit(1);
+
+        if (existingWd && existingWd.length > 0) {
+          return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
+        }
+
+        await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
+        
+        // Instead of wallet_transactions, insert into community_messages
+        const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const { error } = await supabaseAdmin.from('community_messages').insert({
+          id: msgId,
+          type: 'withdrawal',
+          user_uuid: uuid,
+          user_name: profile.user_name || 'User',
+          user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
+          content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
+          amount: amount,
+          status: 'Đang chờ duyệt',
+          timestamp: Date.now()
+        });
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json({ success: true });
+    } finally {
+        releaseLock(uuid, "withdraw");
     }
-
-    await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
-    
-    // Instead of wallet_transactions, insert into community_messages
-    const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const { error } = await supabaseAdmin.from('community_messages').insert({
-      id: msgId,
-      type: 'withdrawal',
-      user_uuid: uuid,
-      user_name: profile.user_name || 'User',
-      user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
-      content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
-      amount: amount,
-      status: 'Đang chờ duyệt',
-      timestamp: Date.now()
-    });
-
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ success: true });
   });
 
   app.post("/api/user/wallet/clear", async (req, res) => {

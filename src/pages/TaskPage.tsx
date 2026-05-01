@@ -297,8 +297,8 @@ export function TaskPage() {
 
             <button 
               onClick={() => handleDoTask(task)}
-              disabled={loadingTask === task.id}
-              className="w-full py-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-slate-900/20"
+              disabled={!!loadingTask}
+              className={`w-full py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg ${!!loadingTask ? 'bg-slate-700 cursor-not-allowed opacity-60' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/20'}`}
             >
               {loadingTask === task.id ? (
                 <><Loader2 size={18} className="animate-spin" /> ĐANG TẠO LINK...</>

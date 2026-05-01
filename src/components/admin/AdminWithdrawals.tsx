@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Copy, CheckCircle, XCircle, Gamepad2, Send } from 'lucide-react';
+import { CreditCard, Copy, CheckCircle, XCircle, Gamepad2, Send, Loader2 } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 
@@ -88,6 +88,7 @@ export function AdminWithdrawals() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [showInfoModal, setShowInfoModal] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({ serial: '', code: '' });
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWithdrawals();
@@ -106,32 +107,42 @@ export function AdminWithdrawals() {
   const displayedList = activeSubTab === 'pending' ? pending : history;
 
   const handleApprove = async (id: string, amount: number, cardData?: {serial: string, code: string}) => {
-    const actualAmount = amount * 0.95;
-    let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
-    if (cardData) {
-        confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
-    }
-    const data = await safeFetch('/api/community/admin-reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
-    });
-    if (data) {
-        fetchWithdrawals();
-        showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
+    setProcessingId(id);
+    try {
+        const actualAmount = amount * 0.95;
+        let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
+        if (cardData) {
+            confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
+        }
+        const data = await safeFetch('/api/community/admin-reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
+        });
+        if (data) {
+            fetchWithdrawals();
+            showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
+        }
+    } finally {
+        setProcessingId(null);
     }
   };
 
   const handleReject = async (id: string, amount: number) => {
     if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`)) return;
-    const data = await safeFetch('/api/admin/reject-withdrawal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalId: id })
-    });
-    if (data && data.success) {
-        fetchWithdrawals();
-        showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
+    setProcessingId(id);
+    try {
+        const data = await safeFetch('/api/admin/reject-withdrawal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ withdrawalId: id })
+        });
+        if (data && data.success) {
+            fetchWithdrawals();
+            showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
+        }
+    } finally {
+        setProcessingId(null);
     }
   };
 
@@ -200,10 +211,10 @@ export function AdminWithdrawals() {
                  <button onClick={() => setShowInfoModal(item)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
                    <Gamepad2 size={14} /> Xem
                  </button>
-                 <button onClick={() => handleApprove(item.id, item.amount)} className="flex-1 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
+                 <button disabled={!!processingId} onClick={() => handleApprove(item.id, item.amount)} className={`flex-1 py-1.5 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs ${!!processingId ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
                    <CheckCircle size={14} /> Duyệt
                  </button>
-                 <button onClick={() => handleReject(item.id, item.amount)} className="flex-1 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
+                 <button disabled={!!processingId} onClick={() => handleReject(item.id, item.amount)} className={`flex-1 py-1.5 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs ${!!processingId ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}>
                    <XCircle size={14} /> Từ chối
                  </button>
                </div>
