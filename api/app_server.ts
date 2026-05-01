@@ -1318,14 +1318,13 @@ async function startServer() {
       const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
       const thisMonthVN = todayVN.substring(0, 7) + "-01";
   
-    // 1. Fetch with PK Column Detection & Explicit Column Selection
+    // Safe columns to fetch
+    const SAFE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
     let profile: any = null;
     let pkCol = 'user_uuid';
-    // Remove avatar_url from SAFE_COLS as it's confirmed missing in some environments
-    const SAFE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
 
     try {
-      // Try primary fetch with safe columns
+      // 1. Try to fetch existing profile with safe columns
       let res1 = await supabaseAdmin.from('profiles').select(SAFE_COLS).eq('user_uuid', uuid).maybeSingle();
       
       if (res1.error && res1.error.message.includes('column')) {
@@ -1337,55 +1336,52 @@ async function startServer() {
         profile = res1.data;
         pkCol = 'user_uuid';
       } else {
-        // Try fallback to just select(*) and/or different PK
-        const res2 = await supabaseAdmin.from('profiles').select(SAFE_PROFILE_COLS).eq('id', uuid).maybeSingle();
+        // Fallback or Try different PK
+        const res2 = await supabaseAdmin.from('profiles').select('*').eq('id', uuid).maybeSingle();
         if (res2.data) {
           profile = res2.data;
           pkCol = 'id';
-        } else if (res1.error && !res1.error.message.includes('column')) {
-          console.error("Profile Fetch res1 Error:", res1.error.message);
         }
       }
     } catch (err) {
       console.error("Profile Fetch Error:", err);
     }
   
-      // Normalized Profile Helper
-      const normalize = (p: any) => {
-        if (!p) return null;
-        return {
-          ...p,
-          user_uuid: p.user_uuid || p.id || uuid,
-          avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id || uuid}`,
-          is_admin: p.is_admin === true || p.isAdmin === true || p.is_admin === 'true' || p.is_admin === 1
-        };
+    // Normalized Profile Helper
+    const normalize = (p: any) => {
+      if (!p) return null;
+      return {
+        ...p,
+        user_uuid: p.user_uuid || p.id || uuid,
+        avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id || uuid}`,
+        is_admin: p.is_admin === true || p.isAdmin === true || p.is_admin === 'true' || p.is_admin === 1
       };
-  
-      // IP Check Helper
-      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-      
-      if (!profile) {
-      // 1. Fetch from Supabase Auth if needed
+    };
+
+    // IP Check Helper
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    
+    if (!profile) {
+      // Create profile only if missing
       let email = reqEmail;
       let userName = reqUserName;
       let avatarUrl = reqAvatarUrl;
 
-      try {
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(uuid);
-        if (authUser && authUser.user) {
-          if (!email) email = authUser.user.email;
-          if (!userName) userName = authUser.user.user_metadata?.full_name || authUser.user.email?.split('@')[0];
-          if (!avatarUrl) avatarUrl = authUser.user.user_metadata?.avatar_url;
+      // Only fetch from Auth admin if essential info is missing
+      if (!email || !userName) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(uuid);
+          if (authUser && authUser.user) {
+            if (!email) email = authUser.user.email;
+            if (!userName) userName = authUser.user.user_metadata?.full_name || authUser.user.email?.split('@')[0];
+            if (!avatarUrl) avatarUrl = authUser.user.user_metadata?.avatar_url;
+          }
+        } catch (err) {
+          console.error("Auth User Fetch Error:", err);
         }
-      } catch (err) {
-        console.error("Auth User Fetch Error:", err);
       }
 
-      const { count, error: countError } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-      if (countError) console.error("Count Error:", countError);
-      const isFirstUser = (count || 0) === 0;
-
-      // 2. IP Duplicate Check (Relaxed to 3 accounts per IP for mobile users)
+      // 2. IP Duplicate Check (Relaxed to 3 accounts per IP)
       if (ip !== 'unknown' && ip !== '127.0.0.1' && ip !== '::1') {
         const { data: existingIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip);
         if (existingIps && existingIps.length >= 3) {
@@ -1395,10 +1391,15 @@ async function startServer() {
         }
       }
 
+      // Check if first user to grant admin
+      const { count } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+      const isFirstUser = (count || 0) === 0;
+
       let insertData: any = { 
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
+        avatar_url: avatarUrl || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,

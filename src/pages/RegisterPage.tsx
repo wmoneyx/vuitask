@@ -69,28 +69,31 @@ export function RegisterPage() {
       if (data.user) {
         localStorage.setItem('userUUID', data.user.id);
         
-        // Sync profile immediately
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          const token = session?.access_token;
-          
-          await fetch('/api/user/sync-profile', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ 
-              uuid: data.user.id, 
-              email: email, 
-              userName: name,
-              referralCode: referral
-            })
-          });
-        } catch (err) {
-          console.error("Immediate Sync Error:", err);
-        }
-        
+        // Sync profile in background
+        const syncProfile = async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            
+            fetch('/api/user/sync-profile', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({ 
+                uuid: data.user.id, 
+                email: email, 
+                userName: name,
+                referralCode: referral
+              })
+            }).catch(() => {});
+          } catch (err) {
+            console.error("BG Register Sync Error:", err);
+          }
+        };
+
+        syncProfile();
         navigate('/app');
       }
     } catch (e) {
