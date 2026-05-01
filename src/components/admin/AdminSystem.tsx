@@ -15,12 +15,18 @@ export function AdminSystem() {
   const [modUrl, setModUrl] = useState('');
 
   // Giftcode inputs
+  const [codeName, setCodeName] = useState('');
   const [codeReward, setCodeReward] = useState('');
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeDays, setCodeDays] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
   const [ranks, setRanks] = useState<any[]>([]);
+
+  const generateRandomCode = () => {
+    const code = 'VUI' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    setCodeName(code);
+  };
 
   const fetchSystem = async () => {
      const data = await safeFetch('/api/admin/system');
@@ -73,7 +79,7 @@ export function AdminSystem() {
   };
 
   const handleCreateGiftcode = async () => {
-    if (!codeReward || !codeMaxUses) return;
+    if (!codeName || !codeReward || !codeMaxUses) return;
     let expiry = null;
     if (codeDays) {
       const d = new Date();
@@ -81,21 +87,18 @@ export function AdminSystem() {
       expiry = d.toISOString();
     }
     
-    // Auto generate 8 char alphanumeric code
-    const generatedCode = 'VUI' + Math.random().toString(36).substring(2, 7).toUpperCase();
-    
     await safeFetch('/api/admin/system/giftcodes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        code: generatedCode, 
+        code: codeName.toUpperCase(), 
         reward: Number(codeReward), 
         max_uses: Number(codeMaxUses), 
         expiry_date: expiry,
         type: codeType 
       })
     });
-    setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
     fetchSystem();
   };
 
@@ -145,13 +148,32 @@ export function AdminSystem() {
             <Gift size={24} />
           </div>
           <div>
-             <h3 className="text-lg font-bold text-slate-900">Quản lý Giftcode</h3>
-             <p className="text-sm text-gray-500">Tạo mã quà tặng cho người chơi</p>
+             <h3 className="text-lg font-bold text-slate-900">Tạo Mã Giftcode</h3>
+             <p className="text-sm text-gray-500">Tạo mã quà tặng tùy chỉnh hoặc ngẫu nhiên</p>
           </div>
         </div>
         
         <div className="space-y-4">
+           <div className="flex gap-2">
+              <input 
+                 type="text" 
+                 value={codeName}
+                 onChange={e => setCodeName(e.target.value.toUpperCase())}
+                 placeholder="NHẬP MÃ HOẶC TẠO NGẪU NHIÊN..." 
+                 className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-bold" 
+              />
+              <button 
+                onClick={generateRandomCode}
+                className="px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-xs transition-colors"
+                title="Tạo mã ngẫu nhiên"
+              >
+                NGẪU NHIÊN
+              </button>
+           </div>
+
            <div className="grid grid-cols-2 gap-3">
+             <div className="col-span-1 text-xs font-bold text-slate-400 ml-1">SỐ LƯỢT DÙNG</div>
+             <div className="col-span-1 text-xs font-bold text-slate-400 ml-1">PHẦN THƯỞNG</div>
              <div className="col-span-1">
                <input 
                  type="number" 
@@ -176,8 +198,8 @@ export function AdminSystem() {
                  onChange={e => setCodeType(e.target.value)}
                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm font-medium"
                >
-                  <option value="vui_coin">VuiCoin</option>
-                  <option value="coin_task">Coin Task</option>
+                  <option value="vui_coin">VuiCoin Balance</option>
+                  <option value="coin_task">Coin Task Balance</option>
                </select>
              </div>
              <div className="col-span-2 pb-2 border-b border-gray-100 flex gap-2">
@@ -187,18 +209,19 @@ export function AdminSystem() {
                   onChange={e => setCodeDays(e.target.value)}
                   min="1" 
                   max="999" 
-                  placeholder="Số ngày tồn tại (1-999)" 
+                  placeholder="Hạn dùng (số ngày)..." 
                   className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
                 />
-                <button onClick={handleCreateGiftcode} className="px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors">
-                  <Plus size={20} />
+                <button onClick={handleCreateGiftcode} className="px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors gap-2">
+                  <Plus size={20} /> TẠO MÃ
                 </button>
              </div>
            </div>
 
-           <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mã đang hoạt động</div>
               {codes.map(code => (
-                <div key={code.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-purple-50/30">
+                <div key={code.code} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl bg-purple-50/30">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                        <Trophy size={20} className="text-purple-600" />
@@ -206,19 +229,19 @@ export function AdminSystem() {
                     <div>
                       <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
                         {code.code}
-                        <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-purple-100 text-purple-600">{code.current_uses}/{code.max_uses}</span>
+                        <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-purple-100 text-purple-600">{code.used_count}/{code.max_uses}</span>
                       </div>
                       <div className="text-[10px] text-gray-500 flex items-center gap-1">
-                        Thưởng: <span className="font-bold text-purple-600">{Number(code.reward).toLocaleString()}</span>
-                        {code.expiry_date && <span> • Hết hạn: {new Date(code.expiry_date).toLocaleDateString()}</span>}
+                        Thưởng: <span className="font-bold text-purple-600">{Number(code.reward_amount).toLocaleString()}</span>
+                        {code.expires_at && <span> • Hết hạn: {new Date(code.expires_at).toLocaleDateString()}</span>}
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => handleDeleteGiftcode(code.id)} className="text-gray-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                  <button onClick={() => handleDeleteGiftcode(code.code)} className="text-gray-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
                 </div>
               ))}
-              {codes.length === 0 && <div className="text-center p-4 text-gray-400 text-sm">Chưa có mã Giftcode nào</div>}
-           </div>
+              {codes.length === 0 && <div className="text-center p-4 text-gray-400 text-sm italic">Chưa có mã Giftcode nào</div>}
+            </div>
         </div>
       </div>
 

@@ -28,14 +28,19 @@ export function GiftCodePage() {
           return;
        }
 
-       const reward = data.reward;
-       const historyItem = { code: giftCode, reward, time: new Date().toLocaleString('vi-VN') };
-       const newHistory = [historyItem, ...redemptionHistory];
-       setRedemptionHistory(newHistory);
-       localStorage.setItem('redemptionHistory', JSON.stringify(newHistory));
-      
-       setGiftCode('');
-       showNotification({ title: 'Thành công', message: `Nhập mã thành công! Nhận ${reward.toLocaleString()} ${data.type === 'coin_task' ? 'Xu Task' : 'VuiCoin'}`, type: 'success' });
+        const reward = data.reward;
+        const type = data.type;
+        const historyItem = { code: giftCode, reward, type, time: new Date().toLocaleString('vi-VN') };
+        const newHistory = [historyItem, ...redemptionHistory];
+        setRedemptionHistory(newHistory as any);
+        localStorage.setItem('redemptionHistory', JSON.stringify(newHistory));
+       
+        setGiftCode('');
+        showNotification({ 
+          title: 'Thành công', 
+          message: `Nhập mã thành công! Nhận ${reward.toLocaleString()} ${type === 'coin_task' ? 'Xu Task' : 'VuiCoin'}`, 
+          type: 'success' 
+        });
        
        await refreshProfile();
     } catch(e) {
@@ -87,7 +92,9 @@ export function GiftCodePage() {
                     <div className="font-bold text-slate-800 text-sm">{item.code}</div>
                     <div className="text-xs text-gray-500">{item.time}</div>
                   </div>
-                  <div className="font-bold text-emerald-500">+{item.reward.toLocaleString()} VuiCoin</div>
+                  <div className={`font-bold ${(item as any).type === 'coin_task' ? 'text-blue-500' : 'text-emerald-500'}`}>
+                    +{(item as any).reward.toLocaleString()} {(item as any).type === 'coin_task' ? 'Xu Task' : 'VuiCoin'}
+                  </div>
                 </div>
               ))
             )}
