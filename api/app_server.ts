@@ -357,8 +357,8 @@ async function startServer() {
         ip: ip
     });
 
-    // Increment turns
-    await updateUserStats(uuid, 0, true);
+    // No increment turns here, it will be added when approved
+    // await updateUserStats(uuid, 0, true);
 
     if (isTooFast) {
        return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
@@ -414,8 +414,8 @@ async function startServer() {
         ip: ip
     });
 
-    // Increment turns
-    await updateUserStats(uuid, 0, true);
+    // No increment turns here, it will be added when approved
+    // await updateUserStats(uuid, 0, true);
 
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
@@ -486,9 +486,6 @@ async function startServer() {
     }
 
     if (isTooFast) {
-        // Increment turns but 0 reward
-        await updateUserStats(uuid, 0, true);
-
         // Warning to site notifications for admin/all or specifically a user message
         if (session.auto) {
             // Also notify the user or admin about warning
@@ -509,9 +506,8 @@ async function startServer() {
     // Normal processing
     if (session.auto) {
         await updateUserStats(uuid, session.reward, true);
-    } else {
-        await updateUserStats(uuid, 0, true);
-    }
+    } 
+    // Manual tasks will be incremented when approved via /api/admin/approve-task
 
     res.json({ status: "success", history: historyEntry });
   });
