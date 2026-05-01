@@ -4,6 +4,7 @@ import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { safeFetch } from '@/lib/utils';
 import confetti from 'canvas-confetti';
+import { DEFAULT_AVATAR } from '../constants';
 
 export function RankingPage() {
     const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, avatar: string}>>([]);
@@ -22,7 +23,7 @@ export function RankingPage() {
                 id: item.user_uuid,
                 username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
                 score: (period === 'day' ? item.today_balance : (period === 'week' ? item.weekly_balance : item.monthly_balance)) || 0,
-                avatar: item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
+                avatar: item.avatar_url || DEFAULT_AVATAR
             }));
             setRanks(fetched);
         }

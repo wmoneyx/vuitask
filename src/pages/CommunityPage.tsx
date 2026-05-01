@@ -3,6 +3,7 @@ import { GenericPage } from "@/components/layout/GenericPage";
 import { MessageCircle, CheckCircle, Activity, Heart, ThumbsUp, Send } from "lucide-react";
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import { safeFetch } from "@/lib/utils";
+import { DEFAULT_AVATAR } from '../constants';
 
 export function CommunityPage() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -80,7 +81,7 @@ export function CommunityPage() {
            {messages.map(msg => (
                <div key={msg.id} className="flex gap-4 group">
                    {/* Avatar */}
-                   <img src={msg.user_avatar || msg.user?.avatar} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
+                   <img src={msg.user_avatar || msg.user?.avatar || DEFAULT_AVATAR} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
                    
                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">

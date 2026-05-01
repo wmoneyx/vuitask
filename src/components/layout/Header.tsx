@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/Logo";
 import { useNavigate, Link } from "react-router-dom";
 import { safeFetch } from "@/lib/utils";
 import { useUser } from "@/UserContext";
+import { DEFAULT_AVATAR } from "@/constants";
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -252,9 +253,7 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
               <div className="text-xs text-gray-500">{userEmail}</div>
             </div>
             <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-primary font-bold shadow-md ring-2 ring-white uppercase overflow-hidden">
-              {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : username.charAt(0)}
+              <img src={profile?.avatar_url || DEFAULT_AVATAR} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
           </button>
 
