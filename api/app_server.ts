@@ -213,6 +213,18 @@ async function startServer() {
     res.json({ sessionId });
   });
 
+  app.post("/api/tasks/proxy", async (req, res) => {
+    const { apiUrl } = req.body;
+    try {
+        const response = await fetch(apiUrl);
+        const data = await response.text();
+        res.status(200).send(data);
+    } catch (e) {
+        console.error("Proxy error:", e);
+        res.status(500).json({ error: "Failed to fetch via proxy" });
+    }
+  });
+
   app.post("/api/tasks/update-session-url", async (req, res) => {
     const { sessionId, shortUrl } = req.body;
     
