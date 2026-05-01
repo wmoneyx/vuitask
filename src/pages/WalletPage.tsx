@@ -144,9 +144,9 @@ export function WalletPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button 
-              disabled={hasPendingWithdrawal || loading}
+              disabled={hasPendingWithdrawal}
               onClick={() => { setSelectedType('bank'); setInfo({}); }} 
-              className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdrawal || loading ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 shadow-sm'}`}
+              className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdrawal ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500'}`}
             >
                 <Banknote className="text-blue-500" />
                 <span className="font-bold text-sm uppercase">Bank</span>
@@ -215,13 +215,7 @@ export function WalletPage() {
                     <AlertCircle size={14}/> Phí rút 5% : {(amount * 0.05).toLocaleString()} VuiCoin. Bạn sẽ nhận được: {(amount * 0.95).toLocaleString()} VuiCoin
                 </div>
 
-                <button 
-                  disabled={loading}
-                  onClick={handleConfirmWithdraw} 
-                  className={`w-full text-white font-bold py-3 rounded-xl uppercase transition-all ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800 shadow-lg'}`}
-                >
-                  {loading ? 'Đang xử lý...' : 'Xác nhận rút'}
-                </button>
+                <button onClick={handleConfirmWithdraw} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase">Xác nhận rút</button>
                 <button onClick={() => setSelectedType(null)} className="text-gray-400 text-sm w-full text-center hover:text-gray-600">Đóng</button>
             </div>
         </AnimatedDiv>

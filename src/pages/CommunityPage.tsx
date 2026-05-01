@@ -3,7 +3,6 @@ import { GenericPage } from "@/components/layout/GenericPage";
 import { MessageCircle, CheckCircle, Activity, Heart, ThumbsUp, Send } from "lucide-react";
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import { safeFetch } from "@/lib/utils";
-import { DEFAULT_AVATAR } from '../constants';
 
 export function CommunityPage() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -81,7 +80,7 @@ export function CommunityPage() {
            {messages.map(msg => (
                <div key={msg.id} className="flex gap-4 group">
                    {/* Avatar */}
-                   <img src={msg.user_avatar || msg.user?.avatar || DEFAULT_AVATAR} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
+                   <img src={msg.user_avatar || msg.user?.avatar} className="w-11 h-11 rounded-2xl border border-gray-200 shrink-0 shadow-sm" alt="avatar" />
                    
                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
@@ -142,6 +141,45 @@ export function CommunityPage() {
                    </div>
                </div>
            ))}
+        </div>
+
+        {/* Chat Input */}
+        <div className="p-6 border-t border-gray-100 bg-white flex items-center gap-4">
+           <div className="flex-1 relative">
+               <input 
+                 type="text" 
+                 placeholder="Nhập tin nhắn (Gửi với tư cách Admin)..." 
+                 className="w-full bg-gray-50 border border-transparent rounded-2xl px-6 py-4 text-sm focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all font-medium" 
+                 onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                       const val = e.currentTarget.value.trim();
+                       e.currentTarget.value = '';
+                       await fetch('/api/community/admin-message', {
+                          method: 'POST',
+                          headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({ content: val })
+                       });
+                       fetchMessages();
+                    }
+                 }}
+               />
+           </div>
+           <button onClick={() => {
+               const input = document.querySelector('input[placeholder="Nhập tin nhắn (Gửi với tư cách Admin)..."]') as HTMLInputElement;
+               if (input && input.value.trim()) {
+                   const val = input.value.trim();
+                   input.value = '';
+                   fetch('/api/community/admin-message', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify({ content: val })
+                   }).then(() => {
+                       fetchMessages();
+                   });
+               }
+           }} className="w-14 h-14 bg-blue-600 text-white hover:bg-blue-700 active:scale-95 rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 shrink-0">
+              <Send size={20} />
+           </button>
         </div>
       </div>
     </GenericPage>

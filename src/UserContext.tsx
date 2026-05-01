@@ -67,26 +67,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshProfile();
-    
-    // Listen for Supabase auth changes for faster sync
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth event:", event);
-      if (session?.user) {
-        localStorage.setItem('userUUID', session.user.id);
-        refreshProfile();
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('userUUID');
-        setProfile(null);
-      }
-    });
-
     // Listen for balance updates from other components
     const handleUpdate = () => refreshProfile();
     window.addEventListener('balanceUpdated', handleUpdate);
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener('balanceUpdated', handleUpdate);
-    };
+    return () => window.removeEventListener('balanceUpdated', handleUpdate);
   }, []);
 
   return (

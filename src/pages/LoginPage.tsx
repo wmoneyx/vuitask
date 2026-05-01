@@ -80,29 +80,27 @@ export function LoginPage() {
       if (data.user) {
         localStorage.setItem('userUUID', data.user.id);
         
-        // Sync profile in background - UserContext will handle the heavy lifting on mount/auth change
-        const syncProfile = async () => {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+        // Sync profile immediately - Bearer token will be picked up by UserContext 
+        // but we can pass it here as well for immediate effect
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
 
-            fetch('/api/user/sync-profile', {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-              },
-              body: JSON.stringify({ 
-                uuid: data.user.id, 
-                email: email
-              })
-            }).catch(() => {});
-          } catch (err) {
-            console.error("BG Sync Error:", err);
-          }
-        };
+          await fetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ 
+              uuid: data.user.id, 
+              email: email
+            })
+          });
+        } catch (err) {
+          console.error("Immediate Sync Error:", err);
+        }
 
-        syncProfile();
         navigate('/app');
       }
     } catch (e) {

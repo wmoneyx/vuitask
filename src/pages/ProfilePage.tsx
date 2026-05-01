@@ -4,7 +4,6 @@ import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { CoinTask } from "@/components/ui/CoinTask";
 import { safeFetch } from '@/lib/utils';
-import { DEFAULT_AVATAR } from '../constants';
 
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@/UserContext';
@@ -27,7 +26,7 @@ export function ProfilePage() {
      if (profile) {
         setUsername(profile.user_name || profile.user_uuid);
         setEmail(profile.user_email || 'Chưa thiết lập');
-        setAvatarUrl(profile.avatar_url || DEFAULT_AVATAR);
+        setAvatarUrl(profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.user_uuid}`);
         setVuiBalance(profile.vui_coin_balance || 0);
         setTaskBalance(profile.coin_task_balance || 0);
         if (profile.is_banned) setStatus("BAN");

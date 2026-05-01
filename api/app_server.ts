@@ -6,27 +6,6 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Anti-spam locks
-const userLocks: Map<string, number> = new Map();
-const LOCK_TIMEOUT = 10000; // 10 seconds fail-safe
-
-function acquireLock(userId: string, action: string): boolean {
-    const key = `${userId}:${action}`;
-    const now = Date.now();
-    const existingLock = userLocks.get(key);
-
-    if (existingLock && now - existingLock < LOCK_TIMEOUT) {
-        return false;
-    }
-
-    userLocks.set(key, now);
-    return true;
-}
-
-function releaseLock(userId: string, action: string) {
-    userLocks.delete(`${userId}:${action}`);
-}
-
 const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
@@ -289,8 +268,7 @@ async function startServer() {
   app.post("/api/tasks/start-vip", async (req, res) => {
     const { type, uuid, destinationUrl } = req.body || {};
     // API_URL_GOC base
-    const encodedUrl = encodeURIComponent(destinationUrl);
-    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodedUrl}&url2=${encodedUrl}`;
+    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodeURIComponent(destinationUrl)}`;
 
     try {
       console.log(`Calling provider VIP API: ${API_URL_GOC}`);
@@ -457,94 +435,83 @@ async function startServer() {
   app.post("/api/tasks/complete-session", async (req, res) => {
     const { sessionId, uuid } = req.body || {};
     
-    if (!acquireLock(uuid, "complete-session")) {
-        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
-    }
-
-    try {
-        const { data: session } = await supabaseAdmin
-          .from('sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .single();
-        
-        if (!session || session.expires < Date.now() || session.completed) {
-          return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
-        }
-
-        if (session.user_uuid !== uuid) {
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
-        // Mark completed
-        await supabaseAdmin
-          .from('sessions')
-          .update({ completed: true })
-          .eq('id', sessionId);
+    const { data: session } = await supabaseAdmin
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
     
-        const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
-        
-        const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-        const isTooFast = timeTaken < 60000;
-
-        let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
-        let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
-        
-        if (isTooFast) {
-            finalStatus = 'Từ chối';
-            statusV1 = 'Từ chối';
-        }
-
-        const historyEntry = {
-            id: sessionId,
-            user_uuid: uuid,
-            task_id: session.task_id,
-            task_name: session.task_name,
-            url: session.short_url || 'unknown',
-            reward: session.reward,
-            status: finalStatus,
-            status_v1: statusV1,
-            status_v2: statusV1,
-            ip: ip,
-            timestamp: Date.now()
-        };
-
-        const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
-        if (insertError) {
-            console.error("Failed to insert into tasks_history:", insertError);
-        }
-
-        if (isTooFast) {
-            // Warning to site notifications for admin/all or specifically a user message
-            if (session.auto) {
-                // Also notify the user or admin about warning
-                await supabaseAdmin.from('site_notifications').insert({
-                    id: `FAST_WARN_${Date.now()}`,
-                    title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                    content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
-                    type: 'warning',
-                    target: 'all',
-                    timestamp: Date.now()
-                });
-                return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
-            } else {
-                return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
-            }
-        }
-
-        // Normal processing
-        if (session.auto) {
-            await updateUserStats(uuid, session.reward, true);
-        } 
-        // Manual tasks will be incremented when approved via /api/admin/approve-task
-
-        res.json({ status: "success", history: historyEntry });
-    } catch (error) {
-        console.error("Error in complete-session:", error);
-        res.status(500).json({ error: "Lỗi máy chủ!" });
-    } finally {
-        releaseLock(uuid, "complete-session");
+    if (!session || session.expires < Date.now() || session.completed) {
+      return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
     }
+
+    if (session.user_uuid !== uuid) {
+        return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // Mark completed
+    await supabaseAdmin
+      .from('sessions')
+      .update({ completed: true })
+      .eq('id', sessionId);
+    
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
+    
+    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+    const isTooFast = timeTaken < 60000;
+
+    let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
+    let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
+    
+    if (isTooFast) {
+        finalStatus = 'Từ chối';
+        statusV1 = 'Từ chối';
+    }
+
+    const historyEntry = {
+        id: sessionId,
+        user_uuid: uuid,
+        task_id: session.task_id,
+        task_name: session.task_name,
+        url: session.short_url || 'unknown',
+        reward: session.reward,
+        status: finalStatus,
+        status_v1: statusV1,
+        status_v2: statusV1,
+        ip: ip,
+        timestamp: Date.now()
+    };
+
+    const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
+    if (insertError) {
+        console.error("Failed to insert into tasks_history:", insertError);
+    }
+
+    if (isTooFast) {
+        // Warning to site notifications for admin/all or specifically a user message
+        if (session.auto) {
+            // Also notify the user or admin about warning
+            await supabaseAdmin.from('site_notifications').insert({
+                id: `FAST_WARN_${Date.now()}`,
+                title: "CẢNH BÁO SPAM NHIỆM VỤ",
+                content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                type: 'warning',
+                target: 'all',
+                timestamp: Date.now()
+            });
+            return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
+        } else {
+            return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
+        }
+    }
+
+    // Normal processing
+    if (session.auto) {
+        await updateUserStats(uuid, session.reward, true);
+    } 
+    // Manual tasks will be incremented when approved via /api/admin/approve-task
+
+    res.json({ status: "success", history: historyEntry });
   });
 
   app.post("/api/user/tasks/clear", async (req, res) => {
@@ -1206,21 +1173,12 @@ async function startServer() {
 
   app.post("/api/admin/approve-task", async (req, res) => {
     const { taskId, decision, step } = req.body; // decision: 'approve' | 'reject', step?: 1 | 2
-
-    const lockKey = `${taskId}:${decision}`;
-    if (!acquireLock("admin", lockKey)) {
-        return res.status(429).json({ error: "Hệ thống đang xử lý yêu cầu này." });
-    }
-
-    try {
-        const { data: task } = await supabaseAdmin
-          .from('tasks_history')
-          .select('*')
-          .eq('id', taskId)
-          .single();
-    } finally {
-        releaseLock("admin", lockKey);
-    }
+    
+    const { data: task } = await supabaseAdmin
+      .from('tasks_history')
+      .select('*')
+      .eq('id', taskId)
+      .single();
 
     if (task) {
        // Check if its a VIP task for multi-step
@@ -1360,13 +1318,14 @@ async function startServer() {
       const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
       const thisMonthVN = todayVN.substring(0, 7) + "-01";
   
-    // Safe columns to fetch
-    const SAFE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
+    // 1. Fetch with PK Column Detection & Explicit Column Selection
     let profile: any = null;
     let pkCol = 'user_uuid';
+    // Remove avatar_url from SAFE_COLS as it's confirmed missing in some environments
+    const SAFE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
 
     try {
-      // 1. Try to fetch existing profile with safe columns
+      // Try primary fetch with safe columns
       let res1 = await supabaseAdmin.from('profiles').select(SAFE_COLS).eq('user_uuid', uuid).maybeSingle();
       
       if (res1.error && res1.error.message.includes('column')) {
@@ -1378,52 +1337,55 @@ async function startServer() {
         profile = res1.data;
         pkCol = 'user_uuid';
       } else {
-        // Fallback or Try different PK
-        const res2 = await supabaseAdmin.from('profiles').select('*').eq('id', uuid).maybeSingle();
+        // Try fallback to just select(*) and/or different PK
+        const res2 = await supabaseAdmin.from('profiles').select(SAFE_PROFILE_COLS).eq('id', uuid).maybeSingle();
         if (res2.data) {
           profile = res2.data;
           pkCol = 'id';
+        } else if (res1.error && !res1.error.message.includes('column')) {
+          console.error("Profile Fetch res1 Error:", res1.error.message);
         }
       }
     } catch (err) {
       console.error("Profile Fetch Error:", err);
     }
   
-    // Normalized Profile Helper
-    const normalize = (p: any) => {
-      if (!p) return null;
-      return {
-        ...p,
-        user_uuid: p.user_uuid || p.id || uuid,
-        avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id || uuid}`,
-        is_admin: p.is_admin === true || p.isAdmin === true || p.is_admin === 'true' || p.is_admin === 1
+      // Normalized Profile Helper
+      const normalize = (p: any) => {
+        if (!p) return null;
+        return {
+          ...p,
+          user_uuid: p.user_uuid || p.id || uuid,
+          avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id || uuid}`,
+          is_admin: p.is_admin === true || p.isAdmin === true || p.is_admin === 'true' || p.is_admin === 1
+        };
       };
-    };
-
-    // IP Check Helper
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-    
-    if (!profile) {
-      // Create profile only if missing
+  
+      // IP Check Helper
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+      
+      if (!profile) {
+      // 1. Fetch from Supabase Auth if needed
       let email = reqEmail;
       let userName = reqUserName;
       let avatarUrl = reqAvatarUrl;
 
-      // Only fetch from Auth admin if essential info is missing
-      if (!email || !userName) {
-        try {
-          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(uuid);
-          if (authUser && authUser.user) {
-            if (!email) email = authUser.user.email;
-            if (!userName) userName = authUser.user.user_metadata?.full_name || authUser.user.email?.split('@')[0];
-            if (!avatarUrl) avatarUrl = authUser.user.user_metadata?.avatar_url;
-          }
-        } catch (err) {
-          console.error("Auth User Fetch Error:", err);
+      try {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(uuid);
+        if (authUser && authUser.user) {
+          if (!email) email = authUser.user.email;
+          if (!userName) userName = authUser.user.user_metadata?.full_name || authUser.user.email?.split('@')[0];
+          if (!avatarUrl) avatarUrl = authUser.user.user_metadata?.avatar_url;
         }
+      } catch (err) {
+        console.error("Auth User Fetch Error:", err);
       }
 
-      // 2. IP Duplicate Check (Relaxed to 3 accounts per IP)
+      const { count, error: countError } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+      if (countError) console.error("Count Error:", countError);
+      const isFirstUser = (count || 0) === 0;
+
+      // 2. IP Duplicate Check (Relaxed to 3 accounts per IP for mobile users)
       if (ip !== 'unknown' && ip !== '127.0.0.1' && ip !== '::1') {
         const { data: existingIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip);
         if (existingIps && existingIps.length >= 3) {
@@ -1433,15 +1395,10 @@ async function startServer() {
         }
       }
 
-      // Check if first user to grant admin
-      const { count } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-      const isFirstUser = (count || 0) === 0;
-
       let insertData: any = { 
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
-        avatar_url: avatarUrl || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,
@@ -1635,7 +1592,7 @@ async function startServer() {
 
   app.post("/api/user/attendance", async (req, res) => {
      const { uuid, day, reward } = req.body || {};
-     const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
+     const today = new Date().toISOString().split('T')[0];
      // Simple check if already done today
      const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
      if (logs && logs.length > 0) {
@@ -1694,19 +1651,10 @@ async function startServer() {
       }
 
       (tasksHistory || []).forEach(t => {
-        const dayKey = new Date(Number(t.timestamp) + 7 * 3600 * 1000).toISOString().split('T')[0];
+        const dayKey = new Date(t.timestamp + 7 * 3600 * 1000).toISOString().split('T')[0];
         if (chartDataMap[dayKey]) {
            chartDataMap[dayKey].view += 1;
-           // Improved condition to catch all potential approved statuses
-           const isApproved = 
-              t.status === 'Hoàn thành' || 
-              t.status === 'Đã duyệt' || 
-              t.status === 'Đã duyệt L2' ||
-              t.status_v1 === 'Đã duyệt' || 
-              t.status_v1 === 'Đã duyệt L1' ||
-              t.status_v2 === 'Đã duyệt L2';
-
-           if (isApproved) {
+           if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
              chartDataMap[dayKey].vui += Number(t.reward || 0);
            }
         }
@@ -1793,20 +1741,12 @@ async function startServer() {
   app.post("/api/giftcode/redeem", async (req, res) => {
     const { code, uuid } = req.body || {};
     if (!code || !uuid) return res.status(400).json({ error: "Missing info" });
-    
-    if (!acquireLock(uuid, "redeem-giftcode")) {
-        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
-    }
 
-    try {
-        const { data: giftCode, error: codeErr } = await supabaseAdmin
-          .from('gift_codes')
-          .select('*')
-          .eq('code', code.toUpperCase())
-          .single();
-    } finally {
-        releaseLock(uuid, "redeem-giftcode");
-    }
+    const { data: giftCode, error: codeErr } = await supabaseAdmin
+      .from('gift_codes')
+      .select('*')
+      .eq('code', code.toUpperCase())
+      .single();
 
     if (codeErr || !giftCode) return res.status(404).json({ error: "Mã giftcode không tồn tại" });
 
@@ -1846,53 +1786,44 @@ async function startServer() {
   // Wallet and Withdrawals
   app.post("/api/wallet/withdraw", async (req, res) => {
     const { uuid, amount, method, details } = req.body || {};
+    if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
-    if (!acquireLock(uuid, "withdraw")) {
-        return res.status(429).json({ error: "Thao tác quá nhanh. Vui lòng thử lại sau giây lát." });
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
+    if (!profile || profile.vui_coin_balance < amount) {
+      return res.status(400).json({ error: "Số dư không đủ" });
     }
 
-    try {
-        if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
+    // Check for existing pending withdrawal
+    const { data: existingWd } = await supabaseAdmin
+      .from('community_messages')
+      .select('id')
+      .eq('user_uuid', uuid)
+      .eq('type', 'withdrawal')
+      .eq('status', 'Đang chờ duyệt')
+      .limit(1);
 
-        const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
-        if (!profile || profile.vui_coin_balance < amount) {
-          return res.status(400).json({ error: "Số dư không đủ" });
-        }
-
-        // Check for existing pending withdrawal
-        const { data: existingWd } = await supabaseAdmin
-          .from('community_messages')
-          .select('id')
-          .eq('user_uuid', uuid)
-          .eq('type', 'withdrawal')
-          .eq('status', 'Đang chờ duyệt')
-          .limit(1);
-
-        if (existingWd && existingWd.length > 0) {
-          return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
-        }
-
-        await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
-        
-        // Instead of wallet_transactions, insert into community_messages
-        const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        const { error } = await supabaseAdmin.from('community_messages').insert({
-          id: msgId,
-          type: 'withdrawal',
-          user_uuid: uuid,
-          user_name: profile.user_name || 'User',
-          user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
-          content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
-          amount: amount,
-          status: 'Đang chờ duyệt',
-          timestamp: Date.now()
-        });
-
-        if (error) return res.status(500).json({ error: error.message });
-        res.json({ success: true });
-    } finally {
-        releaseLock(uuid, "withdraw");
+    if (existingWd && existingWd.length > 0) {
+      return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
     }
+
+    await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
+    
+    // Instead of wallet_transactions, insert into community_messages
+    const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const { error } = await supabaseAdmin.from('community_messages').insert({
+      id: msgId,
+      type: 'withdrawal',
+      user_uuid: uuid,
+      user_name: profile.user_name || 'User',
+      user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
+      content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
+      amount: amount,
+      status: 'Đang chờ duyệt',
+      timestamp: Date.now()
+    });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
   });
 
   app.post("/api/user/wallet/clear", async (req, res) => {
