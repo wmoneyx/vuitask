@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Logo } from '@/components/ui/Logo';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const captchaRef = useRef<HCaptcha | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +24,12 @@ export function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!token) {
+      setError("Vui lòng xác minh Captcha!");
+      return;
+    }
+
     setLoading(true);
     
     if (!email.endsWith('@gmail.com')) {
@@ -40,6 +49,7 @@ export function RegisterPage() {
         email,
         password,
         options: {
+          captchaToken: token,
           data: {
             full_name: name,
           }
@@ -47,6 +57,10 @@ export function RegisterPage() {
       });
 
       if (authError) {
+        if (captchaRef.current) {
+          captchaRef.current.resetCaptcha();
+        }
+        setToken(null);
         setError(authError.message);
         setLoading(false);
         return;
@@ -190,6 +204,17 @@ export function RegisterPage() {
                     placeholder="Nhập mã giới thiệu..."
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5 flex justify-center">
+                <HCaptcha
+                  sitekey="832ae6de-e0d6-4b9a-a87c-d3dc8cd0d000"
+                  onVerify={(t) => {
+                    setToken(t);
+                    setError('');
+                  }}
+                  ref={captchaRef}
+                />
               </div>
 
               <div className="pt-2">

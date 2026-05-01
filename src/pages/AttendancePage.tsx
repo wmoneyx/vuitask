@@ -40,6 +40,17 @@ export function AttendancePage() {
 
   const [checkedInDays, setCheckedInDays] = useState<number[]>([]);
 
+  useEffect(() => {
+    const fetchAttendanceHistory = async () => {
+      if (!profile?.user_uuid) return;
+      const data = await safeFetch(`/api/user/attendance-history?uuid=${profile.user_uuid}`);
+      if (data && data.historyCode) {
+        setCheckedInDays(data.historyCode);
+      }
+    };
+    fetchAttendanceHistory();
+  }, [profile]);
+
   const handleCheckIn = async (day: number) => {
     if (!checkedInDays.includes(day)) {
       const earned = day * 10;

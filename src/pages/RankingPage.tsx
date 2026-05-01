@@ -8,19 +8,20 @@ import confetti from 'canvas-confetti';
 export function RankingPage() {
     const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, avatar: string}>>([]);
     const [loading, setLoading] = useState(true);
+    const [view, setView] = useState<'day' | 'week' | 'month'>('month');
 
     useEffect(() => {
-        fetchLeaderboard();
-    }, []);
+        fetchLeaderboard(view);
+    }, [view]);
 
-    const fetchLeaderboard = async () => {
+    const fetchLeaderboard = async (period: 'day' | 'week' | 'month') => {
         setLoading(true);
-        const data = await safeFetch('/api/user/leaderboard');
+        const data = await safeFetch(`/api/user/leaderboard?period=${period}`);
         if (data && data.leaderboard) {
             const fetched = data.leaderboard.map((item: any) => ({
                 id: item.user_uuid,
                 username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
-                score: item.monthly_balance || 0,
+                score: (period === 'day' ? item.today_balance : (period === 'week' ? item.weekly_balance : item.monthly_balance)) || 0,
                 avatar: item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
             }));
             setRanks(fetched);
@@ -50,8 +51,12 @@ export function RankingPage() {
                         <AnimatedText delay={0.1}>Xếp Hạng</AnimatedText>
                     </h2>
                 </div>
-                <div className="px-4 py-1.5 bg-slate-100 rounded-full text-xs font-bold text-slate-500 uppercase tracking-wider border border-slate-200">
-                    Tháng này
+                <div className="flex bg-slate-100 rounded-full p-1 border border-slate-200">
+                    {(['day', 'week', 'month'] as const).map(p => (
+                        <button key={p} onClick={() => setView(p)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition ${view === p ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
+                            {p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : 'Tháng'}
+                        </button>
+                    ))}
                 </div>
             </div>
 

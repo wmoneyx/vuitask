@@ -114,6 +114,9 @@ export function TaskPage() {
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
       
       let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
+      if (task.id === 'timmap') {
+        apiRequestUrl += '&url2=' + encodeURIComponent(destinationUrl);
+      }
       
       showNotification({ title: 'Khởi tạo', message: `Đang lấy link từ hệ thống ${task.name}...`, type: 'info' });
 
@@ -206,7 +209,7 @@ export function TaskPage() {
         setShowTaskModal(true);
         showNotification({ title: 'Sẵn sàng', message: 'Link đã sẵn sàng, hãy làm nhiệm vụ ngay!', type: 'success' });
       } else {
-        throw new Error(result.message || result.error || "API Error");
+        throw new Error(result.message || result.error || JSON.stringify(result) || "API Error");
       }
     } catch (error: any) {
       console.error("Lỗi tạo link:", error);
@@ -308,9 +311,27 @@ export function TaskPage() {
       </div>
 
       <AnimatedDiv delay={0.3} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
-        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
-          <h3 className="font-bold text-slate-800">Lịch sử làm nhiệm vụ</h3>
-          <button onClick={fetchHistory} className="text-xs font-bold text-blue-600 uppercase hover:underline">Tải lại</button>
+        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between font-bold text-slate-800">
+          <h3>Lịch sử làm nhiệm vụ</h3>
+          <div className="flex gap-4">
+            {history.length > 0 && (
+                <button 
+                  onClick={async () => {
+                    if (!window.confirm("Xóa tất cả lịch sử làm nhiệm vụ của bạn?")) return;
+                    await safeFetch('/api/user/tasks/clear', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uuid })
+                    });
+                    fetchHistory();
+                  }}
+                  className="text-xs text-rose-500 uppercase hover:underline"
+                >
+                    Xóa tất cả
+                </button>
+            )}
+            <button onClick={fetchHistory} className="text-xs text-blue-600 uppercase hover:underline">Tải lại</button>
+          </div>
         </div>
         <div className="overflow-x-auto custom-scrollbar max-h-96">
           <table className="w-full text-left border-collapse min-w-full text-sm">

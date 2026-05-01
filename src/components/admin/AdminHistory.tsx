@@ -26,6 +26,20 @@ export function AdminHistory() {
           <h2 className="text-xl font-bold text-slate-800">Lịch sử hoạt động</h2>
           <p className="text-sm text-gray-500">Ghi log tất cả những thao tác thay đổi trong hệ thống</p>
         </div>
+        <div className="ml-auto">
+          {logs.length > 0 && (
+            <button 
+              onClick={async () => {
+                 if (!window.confirm("Xóa tất cả lịch sử hệ thống?")) return;
+                 await safeFetch('/api/admin/history/clear', { method: 'POST' });
+                 fetchLogs();
+              }}
+              className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-sm transition-colors"
+            >
+              Xóa tất cả
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-gray-100 before:via-gray-200 before:to-transparent">

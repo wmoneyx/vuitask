@@ -383,7 +383,21 @@ export function AdminPage() {
 
               {/* Activity Sidebar */}
               <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col">
-                <h3 className="font-bold text-slate-900 text-lg mb-6">Hành động mới nhất</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-slate-900 text-lg">Hành động mới nhất</h3>
+                  {statsData.recentActions.length > 0 && (
+                    <button 
+                      onClick={async () => {
+                        if (!window.confirm("Xóa tất cả hành động gần đây?")) return;
+                        await safeFetch('/api/admin/recent-actions/clear', { method: 'POST' });
+                        fetchStats();
+                      }}
+                      className="text-[10px] font-bold text-rose-500 uppercase hover:underline"
+                    >
+                      Xóa tất cả
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">                  
                   {statsData.recentActions.length === 0 ? (
                     <div className="text-center py-10 opacity-30">

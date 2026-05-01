@@ -14,9 +14,18 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     // 1. Find the profile column and existing data
     let profile: any = null;
     let pkCol = 'user_uuid';
-    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, total_tasks';
+    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, weekly_balance, monthly_balance, last_reset_day, last_reset_week, last_reset_month, total_tasks';
     
-    const { data: res1 } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
+    // We try to select all, but some might be missing. Supabase will return error if any col is missing.
+    let { data: res1, error: selectError } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
+    
+    // Fallback if some columns are missing
+    if (selectError) {
+        const fallbackCols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, total_tasks';
+        const { data: resFallback } = await supabaseAdmin.from('profiles').select(fallbackCols).eq('user_uuid', userId).maybeSingle();
+        res1 = resFallback as any;
+    }
+    
     if (res1) {
         profile = res1;
         pkCol = 'user_uuid';
@@ -38,6 +47,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
 
     let currentTodayBalance = Number(profile.today_balance || 0);
     let currentTodayTurns = Number(profile.today_turns || 0);
+    let currentWeeklyBalance = Number(profile.weekly_balance || 0);
     let currentMonthlyBalance = Number(profile.monthly_balance || 0);
 
     const updates: any = {
@@ -48,23 +58,54 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         currentTodayBalance = 0;
         currentTodayTurns = 0;
         updates.last_reset_day = todayVN;
-        updates.today_balance = 0; // Ensure reset in DB
-        updates.today_turns = 0;   // Ensure reset in DB
+        updates.today_balance = 0; 
+        updates.today_turns = 0;   
+    }
+
+    // Weekly reset: simplified (Sunday to Monday)
+    const todayDate = new Date();
+    const dayOfWeek = todayDate.getDay(); // 0 is Sunday
+    const weekStart = new Date(todayDate);
+    weekStart.setDate(todayDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+
+    // Only update weekly if column exists
+    if ('weekly_balance' in profile || 'last_reset_week' in profile) {
+        if (profile.last_reset_week !== weekStartStr) {
+            currentWeeklyBalance = 0;
+            updates.last_reset_week = weekStartStr;
+            updates.weekly_balance = 0;
+        }
     }
 
     if (profile.last_reset_month !== thisMonthVN) {
         currentMonthlyBalance = 0;
         updates.last_reset_month = thisMonthVN;
-        updates.monthly_balance = 0; // Ensure reset in DB
+        updates.monthly_balance = 0; 
     }
     
     if (isTask) {
         updates.today_balance = currentTodayBalance + Number(amount);
+        if ('weekly_balance' in profile) {
+            updates.weekly_balance = currentWeeklyBalance + Number(amount);
+        }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
         updates.today_turns = currentTodayTurns + 1;
         updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
+    // Final check to remove columns that definitely don't exist based on the profile we fetched
+    Object.keys(updates).forEach(key => {
+        if (!(key in profile) && key !== pkCol && key !== 'vui_coin_balance' && key !== 'id') {
+            // If it wasn't in our SELECT *, it probably doesn't exist
+            // (Note: select('*') might not have been used, but our cols string had it)
+            // To be safe, if it wasn't in res1/profile, we remove it from updates
+            if (res1 && !(key in res1)) {
+                delete updates[key];
+            }
+        }
+    });
+
     const { error: updateError } = await supabaseAdmin.from('profiles').update(updates).eq(pkCol, userId);
     if (updateError) {
         console.error(`[updateUserStats] Failed to update profile:`, updateError);
@@ -103,6 +144,7 @@ async function startServer() {
 
   // API routes
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   app.post("/api/tasks/generate-session", async (req, res) => {
     const { userId, taskId, taskName, reward, auto } = req.body;
@@ -144,7 +186,7 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session", async (req, res) => {
-    const { sessionId, uuid } = req.body;
+    const { sessionId, uuid } = req.body || {};
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
@@ -180,7 +222,7 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session-pro", async (req, res) => {
-    const { sessionId, uuid } = req.body;
+    const { sessionId, uuid } = req.body || {};
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
@@ -224,7 +266,7 @@ async function startServer() {
   });
 
   app.post("/api/tasks/start-vip", async (req, res) => {
-    const { type, uuid, destinationUrl } = req.body;
+    const { type, uuid, destinationUrl } = req.body || {};
     // API_URL_GOC base
     const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodeURIComponent(destinationUrl)}`;
 
@@ -278,7 +320,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pro-task", async (req, res) => {
-    const { sessionId, uuid, type, reviewUrl } = req.body;
+    const { sessionId, uuid, type, reviewUrl } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -336,7 +378,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
-    const { sessionId, uuid, email, note } = req.body;
+    const { sessionId, uuid, email, note } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -389,7 +431,7 @@ async function startServer() {
   });
 
   app.post("/api/tasks/complete-session", async (req, res) => {
-    const { sessionId, uuid } = req.body;
+    const { sessionId, uuid } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -474,6 +516,13 @@ async function startServer() {
     res.json({ status: "success", history: historyEntry });
   });
 
+  app.post("/api/user/tasks/clear", async (req, res) => {
+    const { uuid } = req.body;
+    if (!uuid) return res.status(400).json({ error: "UUID required" });
+    await supabaseAdmin.from('tasks_history').delete().eq('user_uuid', uuid);
+    res.json({ success: true });
+  });
+
   app.get("/api/tasks/history", async (req, res) => {
     const uuid = req.query.uuid as string;
     const { data: history, error } = await supabaseAdmin
@@ -536,12 +585,13 @@ async function startServer() {
   });
 
   app.post("/api/community/withdraw", async (req, res) => {
-    const { uuid, amount, username, avatar, method } = req.body;
+    const { uuid, amount, username, avatar, method } = req.body || {};
     
     // Check balance first
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
     const fee = amount * 0.05;
-    const totalDeduction = amount + fee;
+    const netAmount = amount - fee; // User gets 95%
+    const totalDeduction = amount; // User loses requested amount, admin takes 5%
     
     if (!profile || profile.vui_coin_balance < totalDeduction) {
         return res.status(400).json({ success: false, error: 'Số dư không đủ.' });
@@ -557,8 +607,8 @@ async function startServer() {
        user_uuid: uuid,
        user_name: username || 'User',
        user_avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`,
-       amount,
-       content: `Method: ${method || 'bank'}\nAmount: ${amount}`,
+       amount: netAmount, // Store net amount
+       content: `Method: ${method || 'bank'}\nAmount: ${netAmount}\nRequested: ${amount}`,
        status: 'Đang chờ duyệt',
        timestamp: Date.now()
     };
@@ -574,6 +624,25 @@ async function startServer() {
       .from('community_messages')
       .update({ status: 'Đã thanh toán' })
       .eq('id', withdrawalId);
+    
+    // Get withdrawal info to access user_uuid
+    const { data: wRecord } = await supabaseAdmin
+      .from('community_messages')
+      .select('user_uuid')
+      .eq('id', withdrawalId)
+      .single();
+
+    if (wRecord) {
+        // Log to approval_history
+        await supabaseAdmin.from('approval_history').insert({
+            type: 'withdrawal',
+            original_id: withdrawalId,
+            user_uuid: wRecord.user_uuid,
+            action: 'approve',
+            timestamp: Date.now(),
+            admin_note: 'Approved'
+        });
+    }
 
     const replyMsg = {
         id: `REPLY_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -591,7 +660,7 @@ async function startServer() {
   });
 
   app.post("/api/community/react", async (req, res) => {
-     const { messageId, emoji, uuid, name } = req.body;
+     const { messageId, emoji, uuid, name } = req.body || {};
      
      // Check if reaction exists
      const { data: existing } = await supabaseAdmin
@@ -672,6 +741,13 @@ async function startServer() {
     // The main issue was UI visibility for the user.
     next();
   };
+
+  app.post("/api/admin/recent-actions/clear", checkAdmin, async (req, res) => {
+      // Assuming recent actions come from activity_logs or similar
+      // If AdminPage stats use activity_logs for recentActions:
+      await supabaseAdmin.from('activity_logs').delete().neq('id', '0');
+      res.json({ success: true });
+  });
 
   app.get("/api/admin/stats", checkAdmin, async (req, res) => {
      try {
@@ -882,7 +958,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/delete-ip", checkAdmin, async (req, res) => {
-      const { ip, user_uuid } = req.body;
+      const { ip, user_uuid } = req.body || {};
       if (user_uuid) {
           await supabaseAdmin.from('user_ips').delete().eq('ip_address', ip).eq('user_uuid', user_uuid);
       } else {
@@ -898,7 +974,7 @@ async function startServer() {
           reward: Number(reward),
           max_uses: Number(max_uses),
           current_uses: 0,
-          expiry_date,
+          expires_at: expiry_date,
           type: type || 'vui_coin',
           created_at: new Date().toISOString()
       };
@@ -980,16 +1056,36 @@ async function startServer() {
       res.json({ success: true });
   });
 
+  app.post("/api/admin/notifications/clear", checkAdmin, async (req, res) => {
+      await supabaseAdmin.from('site_notifications').delete().neq('id', '0');
+      res.json({ success: true });
+  });
+
   app.get("/api/admin/history", checkAdmin, async (req, res) => {
      const { data: logs } = await supabaseAdmin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50);
      res.json({ logs: logs || [] });
+  });
+
+  app.post("/api/admin/history/clear", checkAdmin, async (req, res) => {
+     await supabaseAdmin.from('activity_logs').delete().neq('id', '0');
+     res.json({ success: true });
   });
 
   app.get("/api/admin/system", checkAdmin, async (req, res) => {
      const { data: settings } = await supabaseAdmin.from('system_settings').select('*');
      const { data: mods } = await supabaseAdmin.from('mod_games').select('*').order('created_at', { ascending: false });
      const { data: codes } = await supabaseAdmin.from('gift_codes').select('*').order('created_at', { ascending: false });
-     res.json({ settings: settings || [], mods: mods || [], codes: codes || [] });
+     const { data: leaderboard } = await supabaseAdmin.from('profiles').select('user_name, user_email, monthly_balance').order('monthly_balance', { ascending: false }).limit(50);
+     res.json({ settings: settings || [], mods: mods || [], codes: codes || [], leaderboard: leaderboard?.filter(p => Number(p.monthly_balance) > 0) || [] });
+  });
+
+  app.post("/api/admin/leaderboard/clear", checkAdmin, async (req, res) => {
+     await supabaseAdmin.from('profiles').update({
+        today_balance: 0,
+        weekly_balance: 0,
+        monthly_balance: 0
+     }).neq('user_uuid', '0');
+     res.json({ success: true });
   });
 
   app.post("/api/admin/system", checkAdmin, async (req, res) => {
@@ -1030,6 +1126,44 @@ async function startServer() {
     res.json({ pending: pending || [] });
   });
 
+  app.get("/api/admin/tasks-history", async (req, res) => {
+    const { data: history } = await supabaseAdmin
+      .from('tasks_history')
+      .select('*')
+      .neq('status', 'Chờ duyệt')
+      .order('timestamp', { ascending: false })
+      .limit(100);
+    
+    res.json({ history: history || [] });
+  });
+
+  app.post("/api/admin/clear-tasks-history", async (req, res) => {
+    // Xóa tất cả tasks_history trạng thái không phải chờ duyệt (đã xong/từ chối)
+    await supabaseAdmin
+      .from('tasks_history')
+      .delete()
+      .neq('status', 'Chờ duyệt');
+      
+    // Đồng thời xóa khỏi approval_history để đồng bộ
+    await supabaseAdmin.from('approval_history').delete().eq('type', 'task');
+    
+    res.json({ success: true });
+  });
+
+  app.post("/api/admin/clear-withdrawals-history", async (req, res) => {
+    // Xóa tất cả community_messages type='withdrawal' trạng thái không phải chờ duyệt
+    await supabaseAdmin
+      .from('community_messages')
+      .delete()
+      .eq('type', 'withdrawal')
+      .neq('status', 'Đang chờ duyệt');
+
+    // Đồng thời xóa log ở approval_history
+    await supabaseAdmin.from('approval_history').delete().eq('type', 'withdrawal');
+    
+    res.json({ success: true });
+  });
+
   app.post("/api/admin/approve-task", async (req, res) => {
     const { taskId, decision } = req.body; // decision: 'approve' | 'reject'
     
@@ -1047,14 +1181,33 @@ async function startServer() {
             .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
             .eq('id', taskId);
 
+          // Log to approval_history
+          await supabaseAdmin.from('approval_history').insert({
+            type: 'task',
+            original_id: taskId,
+            user_uuid: task.user_uuid,
+            action: 'approve',
+            timestamp: Date.now(),
+            admin_note: 'Approved'
+          });
+
           // Update balance using user_uuid from task record
-          // we use 'false' for isTask so we don't increment the 'today_turns' and 'total_tasks' twice
-          await updateUserStats(task.user_uuid, task.reward, false);
+          await updateUserStats(task.user_uuid, task.reward, true);
        } else {
           await supabaseAdmin
             .from('tasks_history')
             .update({ status: 'Từ chối', status_v1: 'Từ chối' })
             .eq('id', taskId);
+
+          // Log to approval_history
+          await supabaseAdmin.from('approval_history').insert({
+            type: 'task',
+            original_id: taskId,
+            user_uuid: task.user_uuid,
+            action: 'reject',
+            timestamp: Date.now(),
+            admin_note: 'Rejected'
+          });
        }
        return res.json({ success: true });
     }
@@ -1085,6 +1238,16 @@ async function startServer() {
       .update({ status: 'Từ chối' })
       .eq('id', withdrawalId);
 
+    // Log to approval_history
+    await supabaseAdmin.from('approval_history').insert({
+      type: 'withdrawal',
+      original_id: withdrawalId,
+      user_uuid: wRecord.user_uuid,
+      action: 'reject',
+      timestamp: Date.now(),
+      admin_note: 'Rejected'
+    });
+
     // Call update user stats to increase balance (no it's better to just manually increment or reuse the function)
     await updateUserStats(wRecord.user_uuid, totalRefund, false);
 
@@ -1106,7 +1269,7 @@ async function startServer() {
   // ===================================
 
     app.post("/api/user/sync-profile", async (req, res) => {
-      const { uuid, email: reqEmail, userName: reqUserName, avatarUrl: reqAvatarUrl, referralCode } = req.body;
+      const { uuid, email: reqEmail, userName: reqUserName, avatarUrl: reqAvatarUrl, referralCode } = req.body || {};
       if (!uuid) return res.status(400).json({ error: "UUID required" });
 
       // SECURITY: Check Authorization Bearer token if provided
@@ -1382,8 +1545,27 @@ async function startServer() {
 
   // ========== ADDITIONAL APIs ==========
   // Attendance API
+  app.get("/api/user/attendance-history", async (req, res) => {
+     const { uuid } = req.query;
+     if (!uuid) return res.status(400).json({ error: "UUID required" });
+     
+     const now = new Date();
+     const month = (now.getMonth() + 1).toString().padStart(2, '0');
+     const year = now.getFullYear();
+     const startMonth = `${year}-${month}-01`;
+
+     const { data: logs, error } = await supabaseAdmin
+        .from('attendance_logs')
+        .select('day_count, timestamp')
+        .eq('user_uuid', uuid)
+        .gte('timestamp', startMonth);
+     
+     if (error) return res.status(500).json({ error: error.message });
+     res.json({ historyCode: logs?.map(l => l.day_count) || [] });
+  });
+
   app.post("/api/user/attendance", async (req, res) => {
-     const { uuid, day, reward } = req.body;
+     const { uuid, day, reward } = req.body || {};
      const today = new Date().toISOString().split('T')[0];
      // Simple check if already done today
      const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
@@ -1466,39 +1648,19 @@ async function startServer() {
   });
 
   // Gift Code API
-  app.post("/api/user/redeem-code", async (req, res) => {
-     const { uuid, code } = req.body;
-     const { data: giftcode } = await supabaseAdmin.from('gift_codes').select('*').eq('code', code).single();
-     if (!giftcode) return res.status(404).json({ error: "Mã không tồn tại" });
-     
-     if (giftcode.current_uses >= giftcode.max_uses) {
-         return res.status(400).json({ error: "Mã đã hết lượt sử dụng" });
-     }
-     if (giftcode.expiry_date && new Date(giftcode.expiry_date).getTime() < Date.now()) {
-         return res.status(400).json({ error: "Mã đã hết hạn" });
-     }
-     const { data: alreadyUsed } = await supabaseAdmin.from('gift_code_redeems').select('*').eq('user_uuid', uuid).eq('code', code).single();
-     if (alreadyUsed) return res.status(400).json({ error: "Bạn đã sử dụng mã này rồi" });
-
-     // Perform redeem
-     await supabaseAdmin.from('gift_code_redeems').insert({ user_uuid: uuid, code: code, reward: giftcode.reward });
-     await supabaseAdmin.from('gift_codes').update({ current_uses: giftcode.current_uses + 1 }).eq('code', code);
-     
-     // Give reward
-     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
-     const currentBalance = profile?.vui_coin_balance || 0;
-     await updateUserStats(uuid, giftcode.reward, false);
-
-     res.json({ success: true, reward: giftcode.reward });
-  });
-
   // Leaderboard API
   app.get("/api/user/leaderboard", async (req, res) => {
      try {
+       const period = req.query.period as string || 'month';
+       let sortCol = 'monthly_balance';
+       if (period === 'day') sortCol = 'today_balance';
+       else if (period === 'week') sortCol = 'weekly_balance';
+       
        let { data: profiles, error } = await supabaseAdmin
          .from('profiles')
-         .select('user_uuid, user_name, monthly_balance')
-         .order('monthly_balance', { ascending: false })
+         .select(`user_uuid, user_name, today_balance, weekly_balance, monthly_balance`)
+         .order(sortCol, { ascending: false })
+         .gt(sortCol, 0)
          .limit(20);
 
        if (profiles && !error) {
@@ -1506,36 +1668,6 @@ async function startServer() {
                ...p,
                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
            }));
-       }
-       
-       if (error) {
-           console.warn("Leaderboard primary query failed, trying fallback:", error.message);
-           // Fallback: order by vui_coin_balance if monthly_balance is missing
-           // Avoid select('*') as it might hit missing columns too
-           const fallback = await supabaseAdmin
-             .from('profiles')
-             .select('user_name, vui_coin_balance')
-             .order('vui_coin_balance', { ascending: false })
-             .limit(20);
-           
-           if (fallback.error) {
-               console.error("Leaderboard fallback failed too:", fallback.error.message);
-               // Last ditch: just get anything
-               const lastDitch = await supabaseAdmin.from('profiles').select('user_uuid').limit(10);
-               profiles = (lastDitch.data || []).map((p: any) => ({
-                   user_uuid: p.user_uuid || p.id,
-                   user_name: 'Người dùng',
-                   avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`,
-                   monthly_balance: 0
-               }));
-           } else {
-               profiles = (fallback.data || []).map(p => ({
-                   user_uuid: (p as any).user_uuid || (p as any).id,
-                   user_name: p.user_name || 'Người dùng',
-                   avatar_url: (p as any).avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${(p as any).user_uuid || (p as any).id}`,
-                   monthly_balance: p.vui_coin_balance || 0
-               }));
-           }
        }
        
        res.json({ leaderboard: profiles || [] });
@@ -1574,7 +1706,7 @@ async function startServer() {
 
   // Gift Code Redemption
   app.post("/api/giftcode/redeem", async (req, res) => {
-    const { code, uuid } = req.body;
+    const { code, uuid } = req.body || {};
     if (!code || !uuid) return res.status(400).json({ error: "Missing info" });
 
     const { data: giftCode, error: codeErr } = await supabaseAdmin
@@ -1616,7 +1748,7 @@ async function startServer() {
 
   // Wallet and Withdrawals
   app.post("/api/wallet/withdraw", async (req, res) => {
-    const { uuid, amount, method, details } = req.body;
+    const { uuid, amount, method, details } = req.body || {};
     if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
@@ -1644,6 +1776,13 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.post("/api/user/wallet/clear", async (req, res) => {
+    const { uuid } = req.body;
+    if (!uuid) return res.status(400).json({ error: "UUID required" });
+    await supabaseAdmin.from('community_messages').delete().eq('type', 'withdrawal').eq('user_uuid', uuid);
+    res.json({ success: true });
+  });
+
   app.get("/api/wallet/history", async (req, res) => {
     const uuid = req.query.uuid as string;
     const { data: transactions } = await supabaseAdmin
@@ -1653,7 +1792,29 @@ async function startServer() {
       .eq('user_uuid', uuid)
       .order('timestamp', { ascending: false });
 
-    res.json({ transactions: transactions || [] });
+    if (!transactions) return res.json({ transactions: [] });
+
+    // Fetch replies for these withdrawals (to get card details or admin notes)
+    const withdrawalIds = transactions.map(t => t.id);
+    const { data: replies } = await supabaseAdmin
+      .from('community_messages')
+      .select('*')
+      .eq('type', 'reply')
+      .in('reply_to_id', withdrawalIds);
+
+    const replyMap: Record<string, any> = {};
+    if (replies) {
+        replies.forEach(r => {
+            if (!replyMap[r.reply_to_id]) replyMap[r.reply_to_id] = r;
+        });
+    }
+
+    const enhancedTransactions = transactions.map(t => ({
+        ...t,
+        admin_reply: replyMap[t.id] || null
+    }));
+
+    res.json({ transactions: enhancedTransactions });
   });
 
   // Referrals
@@ -1672,7 +1833,7 @@ async function startServer() {
   });
 
   app.post("/api/user/heartbeat", async (req, res) => {
-    const { uuid } = req.body;
+    const { uuid } = req.body || {};
     if (!uuid) return res.status(400).json({ error: "UUID required" });
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
@@ -1752,7 +1913,7 @@ async function startServer() {
   });
 
   app.post("/api/user/log-ip", async (req, res) => {
-     const { uuid } = req.body;
+     const { uuid } = req.body || {};
      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
      const userAgent = req.headers['user-agent'] || 'Unknown';
      
@@ -1775,7 +1936,7 @@ async function startServer() {
 
   // Referrals API
   app.post("/api/user/referral", async (req, res) => {
-     const { referrerCode, uuid } = req.body;
+     const { referrerCode, uuid } = req.body || {};
      // Note: we can use a separate unique string for ref code. For now, let's just find by some logic or we store 'ref_code' in profiles
      // If you want a real implementation, you'd add ref_code to profiles.
      res.json({ success: true });

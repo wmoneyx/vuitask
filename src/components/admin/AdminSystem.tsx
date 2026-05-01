@@ -15,11 +15,12 @@ export function AdminSystem() {
   const [modUrl, setModUrl] = useState('');
 
   // Giftcode inputs
-  const [codeName, setCodeName] = useState('');
   const [codeReward, setCodeReward] = useState('');
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeDays, setCodeDays] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
+
+  const [ranks, setRanks] = useState<any[]>([]);
 
   const fetchSystem = async () => {
      const data = await safeFetch('/api/admin/system');
@@ -30,9 +31,11 @@ export function AdminSystem() {
         }
         if (data.mods) setMods(data.mods);
         if (data.codes) setCodes(data.codes);
+        if (data.leaderboard) setRanks(data.leaderboard);
      }
      setLoading(false);
   };
+
 
   useEffect(() => {
      fetchSystem();
@@ -70,7 +73,7 @@ export function AdminSystem() {
   };
 
   const handleCreateGiftcode = async () => {
-    if (!codeName || !codeReward || !codeMaxUses) return;
+    if (!codeReward || !codeMaxUses) return;
     let expiry = null;
     if (codeDays) {
       const d = new Date();
@@ -78,20 +81,24 @@ export function AdminSystem() {
       expiry = d.toISOString();
     }
     
+    // Auto generate 8 char alphanumeric code
+    const generatedCode = 'VUI' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    
     await safeFetch('/api/admin/system/giftcodes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        code: codeName.toUpperCase(), 
+        code: generatedCode, 
         reward: Number(codeReward), 
         max_uses: Number(codeMaxUses), 
         expiry_date: expiry,
         type: codeType 
       })
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
+    setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
     fetchSystem();
   };
+
 
   const handleDeleteGiftcode = async (id: string) => {
     if (!window.confirm("Xóa mã Giftcode này?")) return;
@@ -100,6 +107,12 @@ export function AdminSystem() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id })
     });
+    fetchSystem();
+  };
+
+  const handleClearRanks = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn XÓA TOÀN BỘ dữ liệu xếp hạng ? (Tất cả điểm số trong ngày, tuần, tháng sẽ bị reset về 0)")) return;
+    await safeFetch('/api/admin/leaderboard/clear', { method: 'POST' });
     fetchSystem();
   };
 
@@ -138,16 +151,7 @@ export function AdminSystem() {
         </div>
         
         <div className="space-y-4">
-           <div className="grid grid-cols-3 gap-3">
-             <div className="col-span-2">
-               <input 
-                 type="text" 
-                 value={codeName}
-                 onChange={e => setCodeName(e.target.value)}
-                 placeholder="Mã Giftcode..." 
-                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 font-bold uppercase" 
-               />
-             </div>
+           <div className="grid grid-cols-2 gap-3">
              <div className="col-span-1">
                <input 
                  type="number" 
@@ -176,7 +180,7 @@ export function AdminSystem() {
                   <option value="coin_task">Coin Task</option>
                </select>
              </div>
-             <div className="col-span-3 pb-2 border-b border-gray-100 flex gap-2">
+             <div className="col-span-2 pb-2 border-b border-gray-100 flex gap-2">
                 <input 
                   type="number" 
                   value={codeDays}
@@ -279,7 +283,7 @@ export function AdminSystem() {
               <p className="text-sm text-gray-500">Top 50 người dùng</p>
             </div>
           </div>
-          <button className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold text-xs transition-colors flex items-center gap-2">
+          <button onClick={handleClearRanks} className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold text-xs transition-colors flex items-center gap-2">
              <Trash2 size={14} /> XÓA TẤT CẢ
           </button>
         </div>
@@ -287,10 +291,22 @@ export function AdminSystem() {
         <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
            <div className="p-3 border-b border-gray-100 text-xs font-bold text-slate-400 uppercase flex justify-between px-6">
               <span>Thành viên</span>
-              <span>Hành động</span>
+              <span className="text-right">Điểm Tháng</span>
            </div>
            <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
-              <div className="text-center p-4 text-gray-400 text-sm">Bảng xếp hạng trống</div>
+              {ranks.length === 0 ? (
+                <div className="text-center p-4 text-gray-400 text-sm">Bảng xếp hạng trống</div>
+              ) : (
+                ranks.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-lg">
+                    <div className="flex justify-start items-center gap-2">
+                       <span className="font-bold text-slate-400 w-5 text-center">{i + 1}</span>
+                       <span className="font-bold text-sm text-slate-700">{r.user_name || r.user_email?.split('@')[0]}</span>
+                    </div>
+                    <span className="font-bold text-yellow-500 text-sm">{r.monthly_balance?.toLocaleString() || 0}</span>
+                  </div>
+                ))
+              )}
            </div>
         </div>
       </div>

@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Logo } from '@/components/ui/Logo';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import { ArrowLeft, Mail, Lock, LogIn, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const captchaRef = useRef<HCaptcha | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,6 +33,12 @@ export function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!token) {
+      setError("Vui lòng xác minh Captcha!");
+      return;
+    }
+
     setLoading(true);
     
     if (!email.endsWith('@gmail.com')) {
@@ -48,9 +57,16 @@ export function LoginPage() {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          captchaToken: token,
+        }
       });
 
       if (authError) {
+        if (captchaRef.current) {
+          captchaRef.current.resetCaptcha();
+        }
+        setToken(null);
         // Fallback for development if Supabase is not configured or user doesn't exist yet
         if (authError.message.includes('Invalid login credentials')) {
            setError('Thông tin đăng nhập không chính xác');
@@ -176,6 +192,17 @@ export function LoginPage() {
                 <div className="text-sm">
                   <a href="#" className="font-bold text-primary hover:text-orange-500">Quên mật khẩu?</a>
                 </div>
+              </div>
+
+              <div className="space-y-1.5 flex justify-center">
+                <HCaptcha
+                  sitekey="832ae6de-e0d6-4b9a-a87c-d3dc8cd0d000"
+                  onVerify={(t) => {
+                    setToken(t);
+                    setError('');
+                  }}
+                  ref={captchaRef}
+                />
               </div>
 
               <div className="pt-2">

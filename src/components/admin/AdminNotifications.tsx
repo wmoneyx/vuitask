@@ -59,19 +59,34 @@ export function AdminNotifications() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-        <button 
-          onClick={() => setActiveTab('create')}
-          className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'create' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-        >
-          Tạo thông báo mới
-        </button>
-        <button 
-          onClick={() => setActiveTab('history')}
-          className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-        >
-          Lịch sử thông báo
-        </button>
+      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setActiveTab('create')}
+            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'create' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Tạo thông báo mới
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Lịch sử thông báo
+          </button>
+        </div>
+        
+        {activeTab === 'history' && history.length > 0 && (
+          <button 
+            onClick={async () => {
+              if (!window.confirm("Bạn có chắc chắn xóa TẤT CẢ thông báo không?")) return;
+              await safeFetch('/api/admin/notifications/clear', { method: 'POST' });
+              fetchHistory();
+            }}
+            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-sm transition-colors"
+          >
+            Xóa tất cả
+          </button>
+        )}
       </div>
 
       {activeTab === 'create' && (

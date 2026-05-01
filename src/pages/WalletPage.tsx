@@ -20,6 +20,7 @@ export function WalletPage() {
   const [info, setInfo] = useState({ bankName: '', holderName: '', accountNumber: '', cardType: CARD_TYPES[0] });
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showCardModal, setShowCardModal] = useState<any | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -44,6 +45,16 @@ export function WalletPage() {
       showNotification({ title: 'Lỗi số tiền', message: `Số tiền rút phải từ ${minAmount.toLocaleString()} VuiCoin trở lên`, type: 'error' });
       return;
     }
+    
+    if (selectedType === 'bank' && (!info.bankName || !info.holderName || !info.accountNumber)) {
+        showNotification({ title: 'Lỗi thông tin', message: `Vui lòng nhập đầy đủ thông tin ngân hàng`, type: 'error' });
+        return;
+    }
+    if (selectedType === 'zalopay' && (!info.holderName || !info.accountNumber)) {
+        showNotification({ title: 'Lỗi thông tin', message: `Vui lòng nhập đầy đủ thông tin ZaloPay`, type: 'error' });
+        return;
+    }
+
     const fee = amount * 0.05;
     const totalDeduction = amount + fee;
 
@@ -100,15 +111,15 @@ export function WalletPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button onClick={() => setSelectedType('bank')} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button onClick={() => { setSelectedType('bank'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
                 <Banknote className="text-blue-500" />
                 <span className="font-bold text-sm uppercase">Bank</span>
             </button>
-            <button onClick={() => setSelectedType('zalopay')} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button onClick={() => { setSelectedType('zalopay'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
                 <Banknote className="text-sky-500" />
                 <span className="font-bold text-sm uppercase">ZaloPay</span>
             </button>
-            <button onClick={() => setSelectedType('card_game')} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
+            <button onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
                 <CreditCard className="text-rose-500" />
                 <span className="font-bold text-sm uppercase">Thẻ Cào</span>
             </button>
@@ -167,28 +178,99 @@ export function WalletPage() {
       )}
 
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-        <h3 className="font-bold text-slate-800 mb-4 uppercase text-sm">Lịch sử rút thưởng</h3>
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-800 uppercase text-sm">Lịch sử rút thưởng</h3>
+            {history.length > 0 && (
+                <button 
+                    onClick={async () => {
+                        if (!window.confirm("Xóa tất cả lịch sử rút thưởng của bạn?")) return;
+                        await safeFetch('/api/user/wallet/clear', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uuid: profile?.user_uuid })
+                        });
+                        fetchWithdrawals();
+                    }}
+                    className="text-xs font-bold text-rose-500 uppercase hover:underline"
+                >
+                    Xóa tất cả
+                </button>
+            )}
+        </div>
         {history.length === 0 ? (
             <p className="text-gray-400 italic text-sm">Chưa có giao dịch nào</p>
         ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {history.map((h, i) => {
-                    const method = h.content?.includes('card_game') ? 'card_game' : (h.content?.includes('zalopay') ? 'zalopay' : 'bank');
+                    const contentLower = h.content?.toLowerCase() || '';
+                    const isCard = contentLower.includes('card_game') || contentLower.includes('the_cao') || contentLower.includes('thẻ cào');
+                    const isZalo = contentLower.includes('zalopay');
+                    const method = isCard ? 'Thẻ Cào' : (isZalo ? 'ZaloPay' : 'Bank');
+                    const getStatusInfo = (status: string) => {
+                        if (status === 'Đã thanh toán') return { label: 'Hoàn thành', colors: 'bg-green-100 text-green-700' };
+                        if (status === 'Từ chối') return { label: 'Từ chối', colors: 'bg-rose-100 text-rose-700' };
+                        return { label: 'Chờ duyệt', colors: 'bg-orange-100 text-orange-700' };
+                    };
+                    const statusInfo = getStatusInfo(h.status);
+                    const amount = h.amount || 0;
+                    const fee = amount * 0.05;
+                    const netAmount = amount - fee;
+                    const methodIcon = isCard ? <CreditCard size={18}/> : <Banknote size={18}/>;
+                    
                     return (
-                    <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                        <div className='flex items-center gap-3'>
-                            <div className='p-2 bg-white rounded-lg'>{method === 'card_game' ? <CreditCard size={18}/> : <Banknote size={18}/>}</div>
-                            <div>
-                                <div className='font-bold text-sm uppercase'>{method}</div>
-                                <div className='text-xs text-emerald-500 font-bold'>+{h.amount?.toLocaleString()} VuiCoin</div>
+                        <div key={i} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                            <div className="flex items-center justify-between">
+                                <div className='flex items-center gap-3'>
+                                    <div className='p-2 bg-white rounded-lg shadow-sm text-blue-500'>
+                                        {methodIcon}
+                                    </div>
+                                    <div>
+                                        <div className='font-bold text-sm uppercase text-slate-800'>{method}</div>
+                                        <div className="text-xs text-slate-500">{new Date(h.timestamp).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                                <div className={`text-xs font-bold px-3 py-1 rounded-full ${statusInfo.colors}`}>
+                                    {statusInfo.label}
+                                </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm mt-1">
+                                <div className="bg-white p-2 rounded-lg border border-slate-100">
+                                    <div className="text-[10px] text-gray-400 font-bold uppercase">Số rút</div>
+                                    <div className="font-bold text-slate-700">{amount.toLocaleString()}đ</div>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-100">
+                                    <div className="text-[10px] text-gray-400 font-bold uppercase">Thực nhận</div>
+                                    <div className="font-bold text-emerald-600">{netAmount.toLocaleString()}đ</div>
+                                </div>
+                            </div>
+                            {isCard && statusInfo.label === 'Hoàn thành' && h.admin_reply && (
+                                <button 
+                                    onClick={() => setShowCardModal(h.admin_reply)} 
+                                    className='mt-2 flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition'
+                                >
+                                    <Eye size={14}/> Xem chi tiết thẻ
+                                </button>
+                            )}
                         </div>
-                        {method === 'card_game' && <button className='flex items-center gap-1 bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-lg text-xs font-bold'><Eye size={12}/> Xem thưởng</button>}
-                    </div>
-                )})}
+                    );
+                })}
             </div>
         )}
       </div>
+
+      {showCardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <AnimatedDiv className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4">
+                <h3 className="text-xl font-black text-slate-800 text-center">Thông tin thẻ cào</h3>
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2 text-sm text-slate-700 whitespace-pre-wrap break-all">
+                   {showCardModal.content}
+                </div>
+                <button onClick={() => setShowCardModal(null)} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase hover:bg-slate-800">
+                    Đóng
+                </button>
+            </AnimatedDiv>
+        </div>
+      )}
     </div>
   );
 }
