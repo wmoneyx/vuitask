@@ -162,8 +162,8 @@ export function VerifyTaskPage() {
               <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800">1. Tại sao phải cấm VPN và Proxy?</h2>
               <p>Việc sử dụng VPN nhằm che giấu địa chỉ IP thực làm ảnh hưởng tới độ chính xác của các thuật toán phân bổ lưu lượng truy cập. Trình duyệt của bạn sẽ bị phân tích sâu hơn để đảm bảo tính minh bạch.</p>
               
-              <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800">2. Mức độ an toàn thông tin</h2>
-              <p>Chúng tôi chỉ kiểm tra độ phân giải IP và mức độ rủi ro (Fraud Score) từ địa chỉ mạng của bạn. Hệ thống hoàn toàn không thu thập thông tin định danh cá nhân ngoài mã phiên làm việc gốc (Session ID).</p>
+              <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800">2. Mức độ an toàn thông tin & Định danh</h2>
+              <p>Chúng tôi sử dụng công nghệ định danh vân tay (Fingerprint) để nhận diện thiết bị duy nhất. Điều này giúp ngăn chặn việc chia sẻ thiết bị hoặc IP nhằm gian lận hạn mức nhiệm vụ. Hệ thống chỉ kiểm tra độ phân giải IP và mức độ rủi ro (Fraud Score) từ địa chỉ mạng của bạn.</p>
             </article>
 
           </div>

@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from "@/lib/utils";
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
+
+const fpPromise = FingerprintJS.load();
 
 const TASKS = [
   { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 400, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
@@ -29,11 +32,19 @@ export function TaskPage() {
   const [currentTaskUrl, setCurrentTaskUrl] = useState<string | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [fingerprint, setFingerprint] = useState<string>('');
 
   const uuid = profile?.user_uuid;
 
   useEffect(() => {
     if (profile) fetchHistory();
+    
+    // Get Fingerprint
+    fpPromise
+      .then(fp => fp.get())
+      .then(result => {
+        setFingerprint(result.visitorId);
+      });
   }, [profile]);
 
   const fetchHistory = async () => {
@@ -267,9 +278,12 @@ export function TaskPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mb-6 text-rose-500 bg-rose-50/50 p-2.5 rounded-xl border border-rose-100/50">
-              <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mx-1"></div>
-              <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">Lưu ý: Nghiêm cấm sử dụng VPN / Proxy</span>
+            <div className="flex flex-col gap-2 mb-6 text-rose-500 bg-rose-50/50 p-4 rounded-xl border border-rose-100/50">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mx-1"></div>
+                <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">Lưu ý: Nghiêm cấm sử dụng VPN / Proxy / Fingerprint Spoofing</span>
+              </div>
+              <p className="text-[9px] font-medium text-rose-400 pl-4">Hệ thống áp dụng giới hạn theo Thiết bị & IP. Mọi hành vi gian lận sẽ bị khóa tài khoản.</p>
             </div>
 
             <button 

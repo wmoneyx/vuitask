@@ -164,7 +164,7 @@ export function LandingPage() {
            </div>
            
            <div className="flex gap-8 text-sm font-medium text-slate-600">
-              <a href="#" className="hover:text-primary transition-colors">Điều khoản</a>
+              <Link to="/terms" className="hover:text-primary transition-colors">Điều khoản</Link>
               <a href="#" className="hover:text-primary transition-colors">Chính sách bảo mật</a>
               <a href="#" className="hover:text-primary transition-colors">Liên hệ</a>
            </div>

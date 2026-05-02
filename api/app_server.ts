@@ -160,27 +160,66 @@ async function startServer() {
   });
 
   app.post("/api/tasks/generate-session", async (req, res) => {
-    const { userId, taskId, taskName, reward, auto } = req.body;
+    const { userId, taskId, taskName, reward, auto, fingerprint } = req.body;
     const sessionId = `ORDER_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
     
-    const { error } = await supabaseAdmin.from('sessions').insert({
-      id: sessionId,
-      user_uuid: userId || '00000000-0000-0000-0000-000000000000',
-      task_id: taskId,
-      task_name: taskName,
-      reward,
-      auto,
-      expires: Date.now() + 15 * 60 * 1000,
-      completed: false,
-      short_url: ''
-    });
+    // 1. IP Detection
+    const h = req.headers['x-forwarded-for'];
+    const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
 
-    if (error) {
-      console.error("Supabase Session Create Error:", error);
-      // Fallback or handle error
+    try {
+        // 2. CHECK LIMITS (IP & Fingerprint)
+        const msVN = Date.now() + 7 * 3600 * 1000;
+        const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
+        const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
+
+        // Query history for same IP or Fingerprint today for this specific task
+        const { data: historyData, error: historyError } = await supabaseAdmin
+            .from('tasks_history')
+            .select('id')
+            .eq('task_id', taskId)
+            .neq('status', 'Từ chối')
+            .gte('timestamp', midnightVN)
+            .or(`ip.eq."${ip}",fingerprint.eq."${fingerprint}"`);
+
+        if (historyError) {
+          console.error("Check limits error:", historyError);
+        }
+
+        // Fetch task config to get max_views (fallback to 2 if not found)
+        let maxViews = 2;
+        const { data: taskConfig } = await supabaseAdmin.from('tasks').select('max_views').eq('id', taskId).single();
+        if (taskConfig) maxViews = taskConfig.max_views;
+
+        if (historyData && historyData.length >= maxViews) {
+            return res.status(403).json({ 
+                error: `Giới hạn nhiệm vụ! Thiết bị hoặc IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
+            });
+        }
+
+        const { error } = await supabaseAdmin.from('sessions').insert({
+          id: sessionId,
+          user_uuid: userId || '00000000-0000-0000-0000-000000000000',
+          task_id: taskId,
+          task_name: taskName,
+          reward,
+          auto,
+          expires: Date.now() + 15 * 60 * 1000,
+          completed: false,
+          short_url: '',
+          fingerprint: fingerprint // Store fingerprint in session
+        });
+
+        if (error) {
+          console.error("Supabase Session Create Error:", error);
+          return res.status(500).json({ error: "Lỗi tạo phiên: " + error.message });
+        }
+
+        res.json({ sessionId });
+    } catch (err: any) {
+        console.error("generate-session exception:", err);
+        res.status(500).json({ error: "Lỗi hệ thống: " + err.message });
     }
-
-    res.json({ sessionId });
   });
 
   app.post("/api/tasks/update-session-url", async (req, res) => {
@@ -492,6 +531,7 @@ async function startServer() {
           status_v1: statusV1,
           status_v2: statusV1,
           ip: ip,
+          fingerprint: session.fingerprint, // Include fingerprint from session
           timestamp: Date.now()
       };
 

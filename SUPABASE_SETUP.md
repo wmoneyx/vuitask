@@ -62,12 +62,14 @@ CREATE TABLE IF NOT EXISTS public.tasks_history (
   status_v1 TEXT,
   status_v2 TEXT,
   ip TEXT,
+  fingerprint TEXT,
   timestamp BIGINT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Thêm cột nếu chưa có (Migration)
 ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS task_id TEXT;
+ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS fingerprint TEXT;
 
 -- 4. Sessions Table
 CREATE TABLE IF NOT EXISTS public.sessions (
@@ -80,8 +82,11 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   expires BIGINT NOT NULL,
   completed BOOLEAN DEFAULT false,
   short_url TEXT,
+  fingerprint TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS fingerprint TEXT;
 
 -- 5. Community Messages Table
 CREATE TABLE IF NOT EXISTS public.community_messages (

@@ -27,6 +27,7 @@ import { ModGamePage } from "./pages/ModGamePage";
 import { TaskVipPage } from "./pages/TaskVipPage";
 import { TaskPrePage } from "./pages/TaskPrePage";
 import { VerifyTaskPrePage } from "./pages/VerifyTaskPrePage";
+import { TermsPage } from "./pages/TermsPage";
 
 import { CommunityPage } from "./pages/CommunityPage";
 import { UserProvider } from "./UserContext";
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/verifytask" element={<VerifyTaskPage />} />
             <Route path="/verifytaskpro" element={<VerifyTaskProPage />} />
             <Route path="/verifytaskpre" element={<VerifyTaskPrePage />} />

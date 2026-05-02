@@ -219,7 +219,7 @@ export function RegisterPage() {
 
               <div className="pt-2">
                 <p className="text-[11px] text-gray-500 text-center mb-4 px-4 leading-relaxed">
-                  Bằng cách đăng ký, bạn đồng ý với <a href="#" className="text-primary font-medium hover:underline">Điều khoản sử dụng</a> và <a href="#" className="text-primary font-medium hover:underline">Chính sách bảo mật</a> của chúng tôi.
+                  Bằng cách đăng ký, bạn đồng ý với <Link to="/terms" className="text-primary font-medium hover:underline">Điều khoản sử dụng</Link> và <a href="#" className="text-primary font-medium hover:underline">Chính sách bảo mật</a> của chúng tôi.
                 </p>
                 <button
                    type="submit"

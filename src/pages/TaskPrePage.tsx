@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
+
+const fpPromise = FingerprintJS.load();
 
 import { useUser } from '@/UserContext';
 
@@ -15,6 +18,7 @@ export function TaskPrePage() {
   const [countdown, setCountdown] = useState(5);
   const [canSubmit, setCanSubmit] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [fingerprint, setFingerprint] = useState<string>('');
   const uuid = profile?.user_uuid;
 
   const fetchHistory = async () => {
@@ -29,6 +33,13 @@ export function TaskPrePage() {
 
   useEffect(() => {
     if (profile) fetchHistory();
+    
+    // Get Fingerprint
+    fpPromise
+      .then(fp => fp.get())
+      .then(result => {
+        setFingerprint(result.visitorId);
+      });
   }, [profile]);
 
   useEffect(() => {
@@ -65,7 +76,8 @@ export function TaskPrePage() {
           taskId: 'GMAIL_PRE',
           taskName: 'Nhiệm vụ Tạo Gmail',
           reward: 3000,
-          auto: false
+          auto: false,
+          fingerprint: fingerprint
         })
       });
       const data = await res.json();
