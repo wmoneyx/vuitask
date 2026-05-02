@@ -847,11 +847,9 @@ async function startServer() {
 
   app.get("/api/admin/stats", checkAdmin, async (req, res) => {
      try {
-       const today = new Date();
-       today.setHours(0, 0, 0, 0);
-
+       const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
        const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at, vui_coin_balance, today_balance');
+       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at, vui_coin_balance, today_balance, last_reset_day');
        const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, timestamp, task_id, status_v1');
        const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, timestamp, amount').eq('type', 'withdrawal');
 
@@ -879,7 +877,9 @@ async function startServer() {
        
        (allUsers || []).forEach(u => {
            totalRev += Number(u.vui_coin_balance || 0);
-           todayRev += Number(u.today_balance || 0);
+           if (u.last_reset_day === todayVN) {
+               todayRev += Number(u.today_balance || 0);
+           }
        });
 
        let pendingTasks = 0;
@@ -975,7 +975,7 @@ async function startServer() {
       const members = (profiles || []).map(p => {
           const userTasks = (tasks || []).filter((t: any) => t.user_uuid === p.user_uuid);
           let totalRev = Number(p.vui_coin_balance || 0);
-          let todayRev = Number(p.today_balance || 0);
+          let todayRev = p.last_reset_day === new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0] ? Number(p.today_balance || 0) : 0;
           let approved = 0;
 
           userTasks.forEach((t: any) => {

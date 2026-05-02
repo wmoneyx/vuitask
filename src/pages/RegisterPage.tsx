@@ -187,6 +187,9 @@ export function RegisterPage() {
                     className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-gray-50/50 focus:bg-white"
                     placeholder="••••••••"
                   />
+                  <p className="mt-1.5 text-[10px] text-gray-400 font-medium px-1 italic">
+                    Lưu ý: PW gồm: ABCD abcd 1234 @#&%
+                  </p>
                 </div>
               </div>
 
