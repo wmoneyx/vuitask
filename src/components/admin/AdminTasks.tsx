@@ -58,8 +58,46 @@ export function AdminTasks() {
     });
     if (data) {
       setHistory([]);
-      showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử.', type: 'success' });
+      showNotification({ title: 'Thành công', message: 'Đã xóa lịch sở.', type: 'success' });
     }
+  };
+
+  // Helper component for Long Press to copy ID
+  const WorkerCell = ({ userUuid }: { userUuid: string }) => {
+    const timerRef = React.useRef<any>(null);
+
+    const startPress = () => {
+      timerRef.current = setTimeout(() => {
+        if (userUuid) {
+          navigator.clipboard.writeText(userUuid);
+          showNotification({
+            title: 'Đã sao chép ID',
+            message: `ID người dùng: ${userUuid}`,
+            type: 'success'
+          });
+          // Trình duyệt hỗ trợ rung để báo hiệu cho mobile
+          if (navigator.vibrate) navigator.vibrate(50);
+        }
+      }, 2000);
+    };
+
+    const cancelPress = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+
+    return (
+      <td 
+        className="p-2 text-xs cursor-copy select-none active:bg-slate-100 transition-colors"
+        onMouseDown={startPress}
+        onMouseUp={cancelPress}
+        onMouseLeave={cancelPress}
+        onTouchStart={startPress}
+        onTouchEnd={cancelPress}
+        title="Nhấn giữ 2s để copy ID"
+      >
+        {userUuid?.slice(0, 8) || 'unknown'}...
+      </td>
+    );
   };
 
   return (
@@ -123,7 +161,7 @@ export function AdminTasks() {
                   <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
                      <td className="p-2 font-bold">{task.task_name}</td>
-                     <td className="p-2 text-xs">{task.user_uuid?.slice(0, 8) || 'unknown'}...</td>
+                     <WorkerCell userUuid={task.user_uuid} />
                      <td className="p-2">
                         <a href={task.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
                            LINK <ExternalLink size={12}/>
@@ -147,7 +185,7 @@ export function AdminTasks() {
                   <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
                      <td className="p-2 font-bold">{task.task_name}</td>
-                     <td className="p-2 text-xs">{task.user_uuid?.slice(0, 8) || 'unknown'}...</td>
+                     <WorkerCell userUuid={task.user_uuid} />
                      <td className="p-2">
                         <a href={task.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
                            LINK <ExternalLink size={12}/>

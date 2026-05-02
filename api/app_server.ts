@@ -178,7 +178,6 @@ async function startServer() {
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
-            .neq('status', 'Từ chối')
             .gte('timestamp', midnightVN)
             .or(`ip.eq."${ip}",fingerprint.eq."${fingerprint}"`);
 
