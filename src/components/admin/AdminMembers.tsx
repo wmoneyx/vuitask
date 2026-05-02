@@ -112,7 +112,8 @@ export function AdminMembers() {
 
   const filteredMembers = members.filter(m => 
      m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     m.email.toLowerCase().includes(searchTerm.toLowerCase())
+     m.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     m.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -234,7 +235,22 @@ export function AdminMembers() {
                           {user.name}
                           {user.suspicious && <ShieldAlert size={14} className="text-rose-500" />}
                         </div>
-                        <div className="text-[11px] text-gray-500">{user.email}</div>
+                        <div className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                          {user.email}
+                          <span className="text-[9px] text-gray-400 bg-gray-50 px-1 rounded font-mono border border-gray-100">
+                            {user.id?.slice(0, 8)}...
+                          </span>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(user.id);
+                              alert("Đã copy UUID: " + user.id);
+                            }}
+                            className="text-gray-300 hover:text-blue-500 transition-colors"
+                            title="Copy full UUID"
+                          >
+                            <Copy size={10} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </td>
