@@ -116,8 +116,8 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     } else {
         console.log(`[updateUserStats] Successfully updated balance for ${userId}. New balance: ${updates.vui_coin_balance}`);
         
-        // CHECK REFERRAL MILESTONE (100,000 VuiCoin)
-        if (updates.vui_coin_balance >= 100000) {
+        // CHECK REFERRAL MILESTONE (36,000 VuiCoin)
+        if (updates.vui_coin_balance >= 36000) {
             const { data: pendingReferrals } = await supabaseAdmin
                 .from('referrals')
                 .select('*')
@@ -126,7 +126,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
             
             if (pendingReferrals && pendingReferrals.length > 0) {
                 for (const ref of pendingReferrals) {
-                    console.log(`[ReferralMilestone] Awarding ${ref.reward_vui} to ${ref.referrer_uuid} because ${userId} reached 100k`);
+                    console.log(`[ReferralMilestone] Awarding ${ref.reward_vui} to ${ref.referrer_uuid} because ${userId} reached 36k`);
                     
                     // Mark completed
                     await supabaseAdmin.from('referrals').update({ status: 'completed' }).eq('id', ref.id);
@@ -1497,7 +1497,7 @@ async function startServer() {
               await supabaseAdmin.from('referrals').insert({
                   referrer_uuid: referrer.user_uuid,
                   referred_uuid: uuid,
-                  reward: 10000, 
+                  reward_vui: 2000, 
                   status: 'pending'
               });
           }
@@ -1520,9 +1520,9 @@ async function startServer() {
     }
 
     const updates: any = {};
-    if (reqEmail && profile.user_email !== reqEmail) updates.user_email = reqEmail;
-    if (reqUserName && profile.user_name !== reqUserName) updates.user_name = reqUserName;
-    if (reqAvatarUrl && profile.avatar_url !== reqAvatarUrl) updates.avatar_url = reqAvatarUrl;
+    if (reqEmail !== undefined && profile.user_email !== reqEmail) updates.user_email = reqEmail;
+    if (reqUserName !== undefined && profile.user_name !== reqUserName) updates.user_name = reqUserName;
+    if (reqAvatarUrl !== undefined && profile.avatar_url !== reqAvatarUrl) updates.avatar_url = reqAvatarUrl;
     
     // Auto-grant admin for specific email if not already admin
     if (profile.user_email === 'anhvuzzz09@gmail.com' && !profile.is_admin) {
@@ -1551,6 +1551,25 @@ async function startServer() {
          } else {
            console.warn("Profile update returned no data, applying updates locally. Error:", updateError?.message);
            Object.assign(profile, updates);
+         }
+         
+         // Update community messages if avatar or name changed
+         if (updates.avatar_url !== undefined || updates.user_name !== undefined) {
+             const commUpdates: any = {};
+             if (updates.avatar_url !== undefined) commUpdates.user_avatar = updates.avatar_url;
+             if (updates.user_name !== undefined) commUpdates.user_name = updates.user_name;
+             
+             // Run asynchronously so it doesn't block
+             supabaseAdmin.from('community_messages').update(commUpdates).eq('user_uuid', uuid).then(({error}) => {
+                 if (error) console.error("Failed to update community_messages:", error.message);
+             });
+             
+             // Also update reactions if name changed
+             if (updates.user_name !== undefined) {
+                 supabaseAdmin.from('reactions').update({ user_name: updates.user_name }).eq('user_uuid', uuid).then(({error}) => {
+                     if (error) console.error("Failed to update reactions name:", error.message);
+                 });
+             }
          }
        } catch (err) {
          console.error("Profile update fatal error:", err);
@@ -1716,7 +1735,7 @@ async function startServer() {
        
        let { data: profiles, error } = await supabaseAdmin
          .from('profiles')
-         .select(`user_uuid, user_name, today_balance, weekly_balance, monthly_balance`)
+         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance`)
          .order(sortCol, { ascending: false })
          .gt(sortCol, 0)
          .limit(20);
@@ -1724,7 +1743,7 @@ async function startServer() {
        if (profiles && !error) {
            profiles = profiles.map((p: any) => ({
                ...p,
-               avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
+               avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
            }));
        }
        

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
-import { BottomNav } from "./BottomNav";
 import { AnimatedDiv } from "../ui/AnimatedText";
 import { WebsiteAnnouncements } from "./WebsiteAnnouncements";
 import { useUser } from "@/UserContext";
@@ -70,12 +69,11 @@ export function Layout() {
       />
       <div className="flex-1 flex flex-col min-w-0 h-[100dvh]">
         <Header isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isAdmin={isAdmin} />
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto pb-6">
            <AnimatedDiv className="w-full h-full">
              <Outlet />
            </AnimatedDiv>
         </main>
-        <BottomNav />
       </div>
     </div>
   );

@@ -40,8 +40,21 @@ export function Logo({ showText = true }: LogoProps) {
           transition={{ duration: 0.3 }}
           className="font-bold text-2xl uppercase tracking-tighter flex items-center"
         >
-          <span className="text-slate-900">Vui</span>
-          <span className="text-amber-500 ml-1">Task</span>
+          {["V", "u", "i", "T", "a", "s", "k"].map((char, i) => (
+            <motion.span
+              key={i}
+              className={`inline-block ${i < 3 ? "text-slate-900" : "text-amber-500"} ${i === 3 ? "ml-1" : ""}`}
+              animate={{ y: [0, -3, 0] }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: i * 0.1,
+              }}
+            >
+              {char}
+            </motion.span>
+          ))}
         </motion.div>
       )}
     </div>
