@@ -19,6 +19,7 @@ export function AdminSystem() {
   const [codeReward, setCodeReward] = useState('');
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeDays, setCodeDays] = useState('');
+  const [codeBonus, setCodeBonus] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
   const [ranks, setRanks] = useState<any[]>([]);
@@ -95,10 +96,11 @@ export function AdminSystem() {
         reward: Number(codeReward), 
         max_uses: Number(codeMaxUses), 
         expiry_date: expiry,
-        type: codeType 
+        type: codeType,
+        bonus_percent: Number(codeBonus || 0)
       })
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays('');
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus('');
     fetchSystem();
   };
 
@@ -193,6 +195,16 @@ export function AdminSystem() {
                />
              </div>
              <div className="col-span-2">
+               <div className="text-xs font-bold text-slate-400 ml-1 mb-1 uppercase text-center">Tăng % Thưởng Nhiệm Vụ (TASK)</div>
+               <input 
+                 type="number" 
+                 value={codeBonus}
+                 onChange={e => setCodeBonus(e.target.value)}
+                 placeholder="VD: 5 cho 5% (Để 0 nếu không tăng)..." 
+                 className="w-full px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center font-bold text-blue-600" 
+               />
+             </div>
+             <div className="col-span-2">
                <select 
                  value={codeType}
                  onChange={e => setCodeType(e.target.value)}
@@ -233,6 +245,7 @@ export function AdminSystem() {
                       </div>
                       <div className="text-[10px] text-gray-500 flex items-center gap-1">
                         Thưởng: <span className="font-bold text-purple-600">{Number(code.reward_amount).toLocaleString()}</span>
+                        {code.bonus_percent > 0 && <span className="text-blue-600 font-bold ml-1">+ {code.bonus_percent}% TASK</span>}
                         {code.expires_at && <span> • Hết hạn: {new Date(code.expires_at).toLocaleDateString()}</span>}
                       </div>
                     </div>

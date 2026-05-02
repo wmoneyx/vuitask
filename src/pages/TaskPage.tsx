@@ -260,9 +260,16 @@ export function TaskPage() {
 
             <div className="bg-emerald-50/80 rounded-2xl p-4 flex items-center justify-between mb-4 border border-emerald-100/50">
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Phần thưởng</span>
-              <span className="font-black text-emerald-600 flex items-center gap-1.5 text-lg">
-                +{task.reward} <VuiCoin size={18} className="text-orange-500 fill-orange-50" />
-              </span>
+              <div className="flex flex-col items-end">
+                <span className="font-black text-emerald-600 flex items-center gap-1.5 text-lg">
+                  +{task.reward} <VuiCoin size={18} className="text-orange-500 fill-orange-50" />
+                </span>
+                {profile && profile.task_bonus_percent > 0 && (
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">
+                    +{profile.task_bonus_percent}% Bonus
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-5">

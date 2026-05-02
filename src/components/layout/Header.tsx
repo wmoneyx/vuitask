@@ -247,7 +247,9 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
           >
             <div className="text-right hidden sm:block">
               <div className="text-sm font-bold text-slate-900 flex items-center justify-end gap-2 text-capitalize">
-                {profile?.is_admin ? "Vui Task" : username} {profile?.is_admin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+                {profile?.is_admin ? "Vui Task" : username} 
+                {profile?.is_admin && <span className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>}
+                {profile && profile.task_bonus_percent > 0 && <span className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">+{profile.task_bonus_percent}% Bonus TASK</span>}
               </div>
               <div className="text-xs text-gray-500">{userEmail}</div>
             </div>

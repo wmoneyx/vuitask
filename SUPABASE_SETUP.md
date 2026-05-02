@@ -21,10 +21,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   last_reset_month DATE DEFAULT CURRENT_DATE,
   is_admin BOOLEAN DEFAULT false,
   is_banned BOOLEAN DEFAULT false,
+  task_bonus_percent INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Migration for existing users (Run if columns are missing):
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS task_bonus_percent INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_balance BIGINT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_turns INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS monthly_balance BIGINT DEFAULT 0;
@@ -129,12 +131,16 @@ CREATE TABLE IF NOT EXISTS public.site_notifications (
 -- 8. Gift Codes Table
 CREATE TABLE IF NOT EXISTS public.gift_codes (
   code TEXT PRIMARY KEY,
-  reward BIGINT NOT NULL,
+  reward_amount BIGINT DEFAULT 0,
+  reward_type TEXT DEFAULT 'vui_coin', -- 'vui_coin', 'coin_task'
+  bonus_percent INT DEFAULT 0,
   max_uses INT DEFAULT 1,
-  current_uses INT DEFAULT 0,
-  expiry_date TIMESTAMP WITH TIME ZONE,
+  used_count INT DEFAULT 0,
+  expires_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE public.gift_codes ADD COLUMN IF NOT EXISTS bonus_percent INT DEFAULT 0;
 
 -- 9. Attendance Logs
 CREATE TABLE IF NOT EXISTS public.attendance_logs (

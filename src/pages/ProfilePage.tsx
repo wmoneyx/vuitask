@@ -149,9 +149,17 @@ export function ProfilePage() {
                 {taskBalance.toLocaleString()} <CoinTask size={20} className="text-yellow-500" />
             </div>
         </div>
-        <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg">
+        <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden group">
             <h4 className="text-gray-400 text-xs font-bold uppercase mb-2">Trạng thái</h4>
             <div className={`text-2xl font-black ${getStatusColor()}`}>{status}</div>
+            {profile && profile.task_bonus_percent > 0 && (
+              <div className="mt-2 text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded inline-block border border-emerald-400/20">
+                +{profile.task_bonus_percent}% THƯỞNG TASK
+              </div>
+            )}
+            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+               <User size={100} />
+            </div>
         </div>
       </AnimatedDiv>
 

@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
@@ -394,13 +394,26 @@ async function startServer() {
     const isTooFast = timeTaken < 60000; // less than 1 minute
     const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
     
+    // Calculation of bonus reward
+    let baseReward = session.reward;
+    let finalReward = baseReward;
+    
+    try {
+      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+      if (prof && prof.task_bonus_percent > 0) {
+         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+      }
+    } catch (e) {
+      console.error("Error calculating bonus reward:", e);
+    }
+
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
         task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
-        reward: session.reward,
+        reward: finalReward,
         status: finalStatus,
         status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
         status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
@@ -451,13 +464,26 @@ async function startServer() {
     // No anti-spam for PRE tasks
     const finalStatus = 'Chờ duyệt';
 
+    // Calculation of bonus reward
+    let baseReward = session.reward;
+    let finalReward = baseReward;
+    
+    try {
+      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+      if (prof && prof.task_bonus_percent > 0) {
+         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+      }
+    } catch (e) {
+      console.error("Error calculating bonus reward:", e);
+    }
+
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
         user_uuid: uuid,
         task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
-        reward: session.reward,
+        reward: finalReward,
         status: finalStatus,
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
@@ -519,13 +545,26 @@ async function startServer() {
           statusV1 = 'Từ chối';
       }
 
+      // Calculation of bonus reward
+      let baseReward = session.reward;
+      let finalReward = baseReward;
+      
+      try {
+        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+        if (prof && prof.task_bonus_percent > 0) {
+           finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+        }
+      } catch (e) {
+        console.error("Error calculating bonus reward:", e);
+      }
+
       const historyEntry = {
           id: sessionId,
           user_uuid: uuid,
           task_id: session.task_id,
           task_name: session.task_name,
           url: session.short_url || 'unknown',
-          reward: session.reward,
+          reward: finalReward,
           status: finalStatus,
           status_v1: statusV1,
           status_v2: statusV1,
@@ -547,7 +586,7 @@ async function startServer() {
               await supabaseAdmin.from('site_notifications').insert({
                   id: `FAST_WARN_${Date.now()}`,
                   title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!`,
                   type: 'warning',
                   target: 'all',
                   timestamp: Date.now()
@@ -560,7 +599,7 @@ async function startServer() {
 
       // Normal processing
       if (session.auto) {
-          await updateUserStats(uuid, session.reward, true);
+          await updateUserStats(uuid, finalReward, true);
       } else {
           await updateUserStats(uuid, 0, true);
       }
@@ -1023,7 +1062,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
-      const { code, reward, max_uses, expiry_date, type } = req.body;
+      const { code, reward, max_uses, expiry_date, type, bonus_percent } = req.body;
       const newCode = {
           code: code.toUpperCase(),
           reward_amount: Number(reward),
@@ -1031,6 +1070,7 @@ async function startServer() {
           used_count: 0,
           expires_at: expiry_date,
           reward_type: type || 'vui_coin',
+          bonus_percent: Number(bonus_percent || 0),
           created_at: new Date().toISOString()
       };
       
@@ -1350,16 +1390,21 @@ async function startServer() {
     // 1. Fetch with PK Column Detection & Explicit Column Selection
     let profile: any = null;
     let pkCol = 'user_uuid';
-    // Ensure avatar_url is in SAFE_COLS
-    const SAFE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
-
+    
     try {
-      // Try primary fetch with safe columns
-      let res1 = await supabaseAdmin.from('profiles').select(SAFE_COLS).eq('user_uuid', uuid).maybeSingle();
+      // Try fetching with all columns including new ones
+      let res1 = await supabaseAdmin.from('profiles').select(SAFE_PROFILE_COLS).eq('user_uuid', uuid).maybeSingle();
       
       if (res1.error && res1.error.message.includes('column')) {
-          console.warn("SAFE_COLS fetch failed, trying absolute minimum columns...");
-          res1 = await supabaseAdmin.from('profiles').select('user_uuid, user_name, vui_coin_balance, is_admin').eq('user_uuid', uuid).maybeSingle();
+          console.warn("Retrying fetch without task_bonus_percent...");
+          // Fallback if task_bonus_percent doesn't exist yet
+          const legacyCols = SAFE_PROFILE_COLS.replace(', task_bonus_percent', '');
+          res1 = await supabaseAdmin.from('profiles').select(legacyCols).eq('user_uuid', uuid).maybeSingle();
+          
+          if (res1.error && res1.error.message.includes('column')) {
+              console.warn("Fallback to absolute minimum columns...");
+              res1 = await supabaseAdmin.from('profiles').select('user_uuid, user_name, vui_coin_balance, is_admin').eq('user_uuid', uuid).maybeSingle();
+          }
       }
 
       if (res1.data) {
@@ -1849,21 +1894,32 @@ async function startServer() {
       .single();
 
     if (usage) return res.status(400).json({ error: "Bạn đã sử dụng mã này rồi" });
-
-    const field = giftCode.reward_type === 'coin_task' ? 'coin_task_balance' : 'vui_coin_balance';
-    const { data: profile } = await supabaseAdmin.from('profiles').select(field).eq('user_uuid', uuid).single();
-    if (!profile) return res.status(404).json({ error: "Profile not found" });
-
-    if (giftCode.reward_type === 'coin_task') {
-       await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
-    } else {
-       await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+    
+    // Add bonus if exists
+    if (giftCode.bonus_percent && giftCode.bonus_percent > 0) {
+      const { data: currentProfile } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+      const newBonus = (currentProfile?.task_bonus_percent || 0) + giftCode.bonus_percent;
+      await supabaseAdmin.from('profiles').update({ task_bonus_percent: newBonus }).eq('user_uuid', uuid);
+    }
+    
+    // Original rewards: vui_coin or coin_task
+    if (giftCode.reward_amount > 0) {
+      if (giftCode.reward_type === 'coin_task') {
+         await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
+      } else {
+         await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+      }
     }
 
     await supabaseAdmin.from('gift_code_redeems').insert({ code: giftCode.code, user_uuid: uuid, reward: giftCode.reward_amount });
-    await supabaseAdmin.from('gift_codes').update({ used_count: giftCode.used_count + 1 }).eq('code', giftCode.code);
+    await supabaseAdmin.from('gift_codes').update({ used_count: (giftCode.used_count || 0) + 1 }).eq('code', giftCode.code);
 
-    res.json({ success: true, reward: giftCode.reward_amount, type: giftCode.reward_type });
+    res.json({ 
+      success: true, 
+      reward: giftCode.reward_amount, 
+      type: giftCode.reward_type,
+      bonus_percent: giftCode.bonus_percent || 0
+    });
   });
 
   // Wallet and Withdrawals

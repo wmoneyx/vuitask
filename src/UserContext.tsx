@@ -14,6 +14,7 @@ export interface UserProfile {
   is_admin: boolean;
   is_banned: boolean;
   today_turns: number;
+  task_bonus_percent: number;
 }
 
 interface UserContextType {
