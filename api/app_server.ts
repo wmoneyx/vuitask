@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
@@ -143,8 +143,21 @@ async function startServer() {
   const PORT = 3000;
 
   // API routes
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  app.post("/api/tasks/get-link", async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "Thieu URL" });
+    try {
+      const response = await fetch(url);
+      const text = await response.text();
+      res.json({ success: true, text });
+    } catch (e) {
+      console.error("Fetck shortlink err:", e);
+      res.status(500).json({ error: "Lỗi kết nối từ server" });
+    }
+  });
 
   app.post("/api/tasks/generate-session", async (req, res) => {
     const { userId, taskId, taskName, reward, auto } = req.body;
@@ -357,8 +370,8 @@ async function startServer() {
         ip: ip
     });
 
-    // No increment turns here, it will be added when approved
-    // await updateUserStats(uuid, 0, true);
+    // Increment turns
+    await updateUserStats(uuid, 0, true);
 
     if (isTooFast) {
        return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
@@ -378,7 +391,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
-    const { sessionId, uuid, email, password, note } = req.body || {};
+    const { sessionId, uuid, email, note } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -387,7 +400,7 @@ async function startServer() {
       .single();
     
     if (!session || session.expires < Date.now() || session.completed || session.user_uuid !== uuid) {
-       return res.status(400).json({ error: "Phiên không hợp lệ" });
+      return res.status(400).json({ error: "Phiên không hợp lệ" });
     }
 
     await supabaseAdmin
@@ -397,10 +410,8 @@ async function startServer() {
 
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
+    // No anti-spam for PRE tasks
     const finalStatus = 'Chờ duyệt';
-
-    // Store pre-task info as JSON in url column
-    const preData = JSON.stringify({ email, password, note });
 
     await supabaseAdmin.from('tasks_history').insert({
         id: sessionId,
@@ -412,12 +423,12 @@ async function startServer() {
         status: finalStatus,
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
-        url: preData,
+        url: email,
         ip: ip
     });
 
-    // No increment turns here, it will be added when approved
-    // await updateUserStats(uuid, 0, true);
+    // Increment turns
+    await updateUserStats(uuid, 0, true);
 
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
@@ -433,108 +444,109 @@ async function startServer() {
   });
 
   app.post("/api/tasks/complete-session", async (req, res) => {
-    const { sessionId, uuid } = req.body || {};
-    
-    const { data: session } = await supabaseAdmin
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    
-    if (!session || session.expires < Date.now() || session.completed) {
-      return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
+    try {
+      const { sessionId, uuid } = req.body || {};
+      
+      const { data: session } = await supabaseAdmin
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+      
+      if (!session || session.expires < Date.now() || session.completed) {
+        return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hoàn thành" });
+      }
+
+      if (session.user_uuid !== uuid) {
+          return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Mark completed
+      await supabaseAdmin
+        .from('sessions')
+        .update({ completed: true })
+        .eq('id', sessionId);
+      
+      const h = req.headers['x-forwarded-for'];
+      const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
+      
+      const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+      const isTooFast = timeTaken < 60000;
+
+      let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
+      let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
+      
+      if (isTooFast) {
+          finalStatus = 'Từ chối';
+          statusV1 = 'Từ chối';
+      }
+
+      const historyEntry = {
+          id: sessionId,
+          user_uuid: uuid,
+          task_id: session.task_id,
+          task_name: session.task_name,
+          url: session.short_url || 'unknown',
+          reward: session.reward,
+          status: finalStatus,
+          status_v1: statusV1,
+          status_v2: statusV1,
+          ip: ip,
+          timestamp: Date.now()
+      };
+
+      const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
+      if (insertError) {
+          console.error("Failed to insert into tasks_history:", insertError);
+      }
+
+      if (isTooFast) {
+          // Increment turns but 0 reward
+          await updateUserStats(uuid, 0, true);
+
+          if (session.auto) {
+              await supabaseAdmin.from('site_notifications').insert({
+                  id: `FAST_WARN_${Date.now()}`,
+                  title: "CẢNH BÁO SPAM NHIỆM VỤ",
+                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                  type: 'warning',
+                  target: 'all',
+                  timestamp: Date.now()
+              });
+              return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
+          } else {
+              return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
+          }
+      }
+
+      // Normal processing
+      if (session.auto) {
+          await updateUserStats(uuid, session.reward, true);
+      } else {
+          await updateUserStats(uuid, 0, true);
+      }
+
+      res.json({ status: "success", history: historyEntry });
+    } catch (e: any) {
+      console.error("complete-session err:", e);
+      res.status(500).json({ error: "Lỗi kết nối máy chủ: " + e.message });
     }
-
-    if (session.user_uuid !== uuid) {
-        return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    // Mark completed
-    await supabaseAdmin
-      .from('sessions')
-      .update({ completed: true })
-      .eq('id', sessionId);
-    
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
-    
-    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-    const isTooFast = timeTaken < 60000;
-
-    let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
-    let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
-    
-    if (isTooFast) {
-        finalStatus = 'Từ chối';
-        statusV1 = 'Từ chối';
-    }
-
-    const historyEntry = {
-        id: sessionId,
-        user_uuid: uuid,
-        task_id: session.task_id,
-        task_name: session.task_name,
-        url: session.short_url || 'unknown',
-        reward: session.reward,
-        status: finalStatus,
-        status_v1: statusV1,
-        status_v2: statusV1,
-        ip: ip,
-        timestamp: Date.now()
-    };
-
-    const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
-    if (insertError) {
-        console.error("Failed to insert into tasks_history:", insertError);
-    }
-
-    if (isTooFast) {
-        // Warning to site notifications for admin/all or specifically a user message
-        if (session.auto) {
-            // Also notify the user or admin about warning
-            await supabaseAdmin.from('site_notifications').insert({
-                id: `FAST_WARN_${Date.now()}`,
-                title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${session.reward} VuiCoin tại ${session.task_name} đã bị hủy!`,
-                type: 'warning',
-                target: 'all',
-                timestamp: Date.now()
-            });
-            return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
-        } else {
-            return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
-        }
-    }
-
-    // Normal processing
-    if (session.auto) {
-        await updateUserStats(uuid, session.reward, true);
-    } 
-    // Manual tasks will be incremented when approved via /api/admin/approve-task
-
-    res.json({ status: "success", history: historyEntry });
   });
 
-  app.post("/api/user/tasks/clear", async (req, res) => {
-    const { uuid } = req.body;
-    if (!uuid) return res.status(400).json({ error: "UUID required" });
-    await supabaseAdmin.from('tasks_history').delete().eq('user_uuid', uuid);
-    res.json({ success: true });
-  });
+  // app.post("/api/user/tasks/clear" removed because user history should not be deleted from supabase
 
   app.get("/api/tasks/history", async (req, res) => {
     const uuid = req.query.uuid as string;
     
-    // Calculate start of today in GMT+7
-    const now = new Date();
-    const nowVN = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-    const startOfTodayVN = new Date(nowVN.getFullYear(), nowVN.getMonth(), nowVN.getDate());
-    const startOfTodayUTC = new Date(startOfTodayVN.getTime() - (7 * 60 * 60 * 1000));
+    const msVN = Date.now() + 7 * 3600 * 1000;
+    const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
+    const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
 
     const { data: history, error } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000')
-      .gte('timestamp', startOfTodayUTC.getTime())
+      .gte('timestamp', midnightVN)
       .order('timestamp', { ascending: false });
     
     if (error) {
@@ -761,7 +773,7 @@ async function startServer() {
        today.setHours(0, 0, 0, 0);
 
        const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at');
+       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at, vui_coin_balance, today_balance');
        const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, timestamp, task_id, status_v1');
        const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, timestamp, amount').eq('type', 'withdrawal');
 
@@ -786,15 +798,17 @@ async function startServer() {
 
        let totalRev = 0;
        let todayRev = 0;
+       
+       (allUsers || []).forEach(u => {
+           totalRev += Number(u.vui_coin_balance || 0);
+           todayRev += Number(u.today_balance || 0);
+       });
+
        let pendingTasks = 0;
 
        (tasks || []).forEach(t => {
           const tTime = t.timestamp; // We use numeric timestamp column in tasks_history
           if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
-             totalRev += Number(t.reward || 0);
-             if (tTime >= today.getTime()) {
-                todayRev += Number(t.reward || 0);
-             }
              const day = chartData.find(d => tTime >= d.start && tTime <= d.end);
              if (day) day.revenue += Number(t.reward || 0);
           }
@@ -882,17 +896,13 @@ async function startServer() {
 
       const members = (profiles || []).map(p => {
           const userTasks = (tasks || []).filter((t: any) => t.user_uuid === p.user_uuid);
-          let totalRev = 0;
-          let todayRev = 0;
+          let totalRev = Number(p.vui_coin_balance || 0);
+          let todayRev = Number(p.today_balance || 0);
           let approved = 0;
 
           userTasks.forEach((t: any) => {
              if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
-                totalRev += Number(t.reward || 0);
                 approved++;
-                if (t.timestamp >= today.getTime()) {
-                   todayRev += Number(t.reward || 0);
-                }
              }
           });
           
@@ -1127,17 +1137,20 @@ async function startServer() {
     const { data: pending } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
-      .or('status.eq.Chờ duyệt,status.eq.Chờ duyệt L2');
+      .eq('status', 'Chờ duyệt');
     
     res.json({ pending: pending || [] });
   });
 
   app.get("/api/admin/tasks-history", async (req, res) => {
+    const { data: settings } = await supabaseAdmin.from('system_settings').select('value').eq('key', 'admin_tasks_clear_time').single();
+    const clearTime = settings?.value?.timestamp || 0;
+
     const { data: history } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .neq('status', 'Chờ duyệt')
-      .neq('status', 'Chờ duyệt L2')
+      .gt('timestamp', clearTime)
       .order('timestamp', { ascending: false })
       .limit(100);
     
@@ -1145,15 +1158,12 @@ async function startServer() {
   });
 
   app.post("/api/admin/clear-tasks-history", async (req, res) => {
-    // Xóa tất cả tasks_history trạng thái không phải chờ duyệt (đã xong/từ chối)
-    await supabaseAdmin
-      .from('tasks_history')
-      .delete()
-      .neq('status', 'Chờ duyệt');
-      
-    // Đồng thời xóa khỏi approval_history để đồng bộ
-    await supabaseAdmin.from('approval_history').delete().eq('type', 'task');
-    
+    // Preserve user tasks in supabase, just hide from admin by saving timestamp
+    await supabaseAdmin.from('system_settings').upsert({
+       key: 'admin_tasks_clear_time',
+       value: { timestamp: Date.now() },
+       updated_at: new Date().toISOString()
+    });
     res.json({ success: true });
   });
 
@@ -1172,42 +1182,21 @@ async function startServer() {
   });
 
   app.post("/api/admin/approve-task", async (req, res) => {
-    const { taskId, decision, step } = req.body; // decision: 'approve' | 'reject', step?: 1 | 2
+    const { taskId, decision } = req.body; // decision: 'approve' | 'reject'
     
     const { data: task } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('id', taskId)
+      .eq('status', 'Chờ duyệt')
       .single();
 
     if (task) {
-       // Check if its a VIP task for multi-step
-       const isVip = task.task_id && task.task_id.startsWith('vip_');
-
        if (decision === 'approve') {
-          if (isVip) {
-            if (step === 1) {
-                await supabaseAdmin
-                  .from('tasks_history')
-                  .update({ status_v1: 'Đã duyệt L1', status: 'Chờ duyệt L2' })
-                  .eq('id', taskId);
-            } else {
-                await supabaseAdmin
-                  .from('tasks_history')
-                  .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt L1', status_v2: 'Đã duyệt L2' })
-                  .eq('id', taskId);
-                
-                await updateUserStats(task.user_uuid, task.reward, true);
-            }
-          } else {
-            // Standard / Pre
-             await supabaseAdmin
-               .from('tasks_history')
-               .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
-               .eq('id', taskId);
-             
-             await updateUserStats(task.user_uuid, task.reward, true);
-          }
+          await supabaseAdmin
+            .from('tasks_history')
+            .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
+            .eq('id', taskId);
 
           // Log to approval_history
           await supabaseAdmin.from('approval_history').insert({
@@ -1216,14 +1205,15 @@ async function startServer() {
             user_uuid: task.user_uuid,
             action: 'approve',
             timestamp: Date.now(),
-            admin_note: isVip ? `Approved Step ${step}` : 'Approved'
+            admin_note: 'Approved'
           });
 
+          // Update balance using user_uuid from task record
+          await updateUserStats(task.user_uuid, task.reward, true);
        } else {
-          // Reject always marks as rejected
           await supabaseAdmin
             .from('tasks_history')
-            .update({ status: 'Từ chối', status_v1: 'Từ chối', status_v2: 'Từ chối' })
+            .update({ status: 'Từ chối', status_v1: 'Từ chối' })
             .eq('id', taskId);
 
           // Log to approval_history
@@ -1255,9 +1245,9 @@ async function startServer() {
        return res.status(400).json({ error: 'Không tìm thấy hoặc đã được xử lý.' });
     }
 
-    // Refund only the "thực nhận" (95% of the requested amount) to the user
+    // Refund amount (số tiền thực nhận) to the user
     const amount = wRecord.amount || 0;
-    const totalRefund = amount * 0.95;
+    const totalRefund = amount;
 
     await supabaseAdmin
       .from('community_messages')
@@ -1321,8 +1311,8 @@ async function startServer() {
     // 1. Fetch with PK Column Detection & Explicit Column Selection
     let profile: any = null;
     let pkCol = 'user_uuid';
-    // Remove avatar_url from SAFE_COLS as it's confirmed missing in some environments
-    const SAFE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
+    // Ensure avatar_url is in SAFE_COLS
+    const SAFE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month';
 
     try {
       // Try primary fetch with safe columns
@@ -1399,6 +1389,7 @@ async function startServer() {
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
+        avatar_url: avatarUrl || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,
@@ -1474,7 +1465,7 @@ async function startServer() {
           const profileId = newProfile.user_uuid || newProfile.id;
           const profileIdCol = newProfile.user_uuid ? 'user_uuid' : 'id';
           
-          const optionalFields = ['user_email', 'user_name', 'vui_coin_balance', 'coin_task_balance', 'today_balance', 'today_turns', 'monthly_balance', 'last_reset_day', 'last_reset_month', 'is_admin'];
+          const optionalFields = ['user_email', 'user_name', 'avatar_url', 'vui_coin_balance', 'coin_task_balance', 'today_balance', 'today_turns', 'monthly_balance', 'last_reset_day', 'last_reset_month', 'is_admin'];
           
           const updateData: any = {};
           optionalFields.forEach(f => { if (insertData[f] !== undefined) updateData[f] = insertData[f]; });
@@ -1531,6 +1522,7 @@ async function startServer() {
     const updates: any = {};
     if (reqEmail && profile.user_email !== reqEmail) updates.user_email = reqEmail;
     if (reqUserName && profile.user_name !== reqUserName) updates.user_name = reqUserName;
+    if (reqAvatarUrl && profile.avatar_url !== reqAvatarUrl) updates.avatar_url = reqAvatarUrl;
     
     // Auto-grant admin for specific email if not already admin
     if (profile.user_email === 'anhvuzzz09@gmail.com' && !profile.is_admin) {
@@ -1566,7 +1558,33 @@ async function startServer() {
        }
     }
 
-    res.json({ profile: normalize(profile) });
+    // Check if user is in suspect list
+    let is_suspected = false;
+    try {
+        const { data: susData } = await supabaseAdmin.from('system_settings').select('value').eq('key', 'suspect_users').maybeSingle();
+        if (susData && susData.value && susData.value[uuid]) {
+            is_suspected = true;
+        }
+    } catch(e) {}
+    
+    res.json({ profile: { ...normalize(profile), is_suspected } });
+  });
+
+  app.post("/api/admin/toggle-suspect", checkAdmin, async (req, res) => {
+      const { uuid } = req.body;
+      const { data: susData } = await supabaseAdmin.from('system_settings').select('value').eq('key', 'suspect_users').maybeSingle();
+      const value = susData?.value || {};
+      if (value[uuid]) {
+          delete value[uuid];
+      } else {
+          value[uuid] = true;
+      }
+      await supabaseAdmin.from('system_settings').upsert({
+          key: 'suspect_users',
+          value,
+          updated_at: new Date().toISOString()
+      });
+      res.json({ success: true, is_suspected: !!value[uuid] });
   });
 
   // ========== ADDITIONAL APIs ==========
@@ -1591,37 +1609,51 @@ async function startServer() {
   });
 
   app.post("/api/user/attendance", async (req, res) => {
-     const { uuid, day, reward } = req.body || {};
-     const today = new Date().toISOString().split('T')[0];
-     // Simple check if already done today
-     const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
-     if (logs && logs.length > 0) {
-        return res.status(400).json({ error: "Đã điểm danh hôm nay rồi" });
-     }
-     
-     await supabaseAdmin.from('attendance_logs').insert({ user_uuid: uuid, day_count: day, reward, timestamp: today });
-     // Update profile last_attendance and coin_task_balance
-     let pkCol = 'user_uuid';
-     const { data: profile1 } = await supabaseAdmin.from('profiles').select('coin_task_balance, user_uuid').eq('user_uuid', uuid).maybeSingle();
-     let currentBalance = 0;
-     if (profile1) {
-         currentBalance = profile1.coin_task_balance || 0;
-         pkCol = 'user_uuid';
-     } else {
-         const { data: profile2 } = await supabaseAdmin.from('profiles').select('coin_task_balance, id').eq('id', uuid).maybeSingle();
-         if (profile2) {
-             currentBalance = profile2.coin_task_balance || 0;
-             pkCol = 'id';
-         }
-     }
+     try {
+       const { uuid, day, reward } = req.body || {};
+       if (!uuid) return res.status(400).json({ error: "Thieu uuid" });
 
-     const newBalance = Number(currentBalance) + Number(reward);
-     await supabaseAdmin.from('profiles').update({ 
-         last_attendance: today,
-         coin_task_balance: newBalance
-     }).eq(pkCol, uuid);
-     
-     res.json({ success: true, reward, newBalance });
+       // Provide the exact VN Date
+       const msVN = new Date().getTime() + 7 * 3600 * 1000;
+       const today = new Date(msVN).toISOString().split('T')[0];
+       
+       // Simple check if already done today
+       const { data: logs } = await supabaseAdmin.from('attendance_logs').select('id').eq('user_uuid', uuid).eq('timestamp', today);
+       if (logs && logs.length > 0) {
+          return res.status(400).json({ error: "Đã điểm danh hôm nay rồi" });
+       }
+       
+       const { error: insertErr } = await supabaseAdmin.from('attendance_logs').insert({ user_uuid: uuid, day_count: day, reward, timestamp: today });
+       if (insertErr) {
+           throw insertErr;
+       }
+       
+       // Update profile last_attendance and coin_task_balance
+       let pkCol = 'user_uuid';
+       const { data: profile1 } = await supabaseAdmin.from('profiles').select('coin_task_balance, user_uuid').eq('user_uuid', uuid).maybeSingle();
+       let currentBalance = 0;
+       if (profile1) {
+           currentBalance = profile1.coin_task_balance || 0;
+           pkCol = 'user_uuid';
+       } else {
+           const { data: profile2 } = await supabaseAdmin.from('profiles').select('coin_task_balance, id').eq('id', uuid).maybeSingle();
+           if (profile2) {
+               currentBalance = profile2.coin_task_balance || 0;
+               pkCol = 'id';
+           }
+       }
+
+       const newBalance = Number(currentBalance) + Number(reward);
+       await supabaseAdmin.from('profiles').update({ 
+           last_attendance: today,
+           coin_task_balance: newBalance
+       }).eq(pkCol, uuid);
+       
+       res.json({ success: true, reward, newBalance });
+     } catch (e: any) {
+       console.error("Attendance Err:", e);
+       res.status(500).json({ error: e.message || "Lỗi điểm danh" });
+     }
   });
 
   app.get("/api/user/dashboard-stats", async (req, res) => {
@@ -1709,17 +1741,10 @@ async function startServer() {
     const type = req.query.type as string;
     if (!uuid) return res.status(400).json({ error: "Missing uuid" });
 
-    // Calculate start of today in GMT+7
-    const now = new Date();
-    const nowVN = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-    const startOfTodayVN = new Date(nowVN.getFullYear(), nowVN.getMonth(), nowVN.getDate());
-    const startOfTodayUTC = new Date(startOfTodayVN.getTime() - (7 * 60 * 60 * 1000));
-
     let query = supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid)
-      .gte('timestamp', startOfTodayUTC.getTime())
       .order('timestamp', { ascending: false })
       .limit(50);
 
@@ -1788,25 +1813,29 @@ async function startServer() {
     const { uuid, amount, method, details } = req.body || {};
     if (!amount || amount < 10000) return res.status(400).json({ error: "Số tiền tối thiểu là 10.000đ" });
 
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
-    if (!profile || profile.vui_coin_balance < amount) {
-      return res.status(400).json({ error: "Số dư không đủ" });
-    }
-
-    // Check for existing pending withdrawal
-    const { data: existingWd } = await supabaseAdmin
-      .from('community_messages')
+    // Check for pending withdrawals
+    const { data: pendingWds } = await supabaseAdmin.from('community_messages')
       .select('id')
-      .eq('user_uuid', uuid)
       .eq('type', 'withdrawal')
+      .eq('user_uuid', uuid)
       .eq('status', 'Đang chờ duyệt')
       .limit(1);
 
-    if (existingWd && existingWd.length > 0) {
-      return res.status(400).json({ error: "Bạn đang có một lệnh rút tiền đang chờ duyệt. Vui lòng chờ xử lý xong mới có thể rút tiếp." });
+    if (pendingWds && pendingWds.length > 0) {
+      return res.status(400).json({ error: "Chỉ cho phép thực hiện 1 đơn rút / lần. Vui lòng chờ đơn trước được xử lý." });
     }
 
-    await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - amount }).eq('user_uuid', uuid);
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
+    
+    // Fee 5%
+    const fee = amount * 0.05;
+    const totalDeduction = amount + fee;
+    
+    if (!profile || profile.vui_coin_balance < totalDeduction) {
+      return res.status(400).json({ error: "Số dư không đủ (đã bao gồm phí 5%)" });
+    }
+
+    await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - totalDeduction }).eq('user_uuid', uuid);
     
     // Instead of wallet_transactions, insert into community_messages
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -1829,7 +1858,36 @@ async function startServer() {
   app.post("/api/user/wallet/clear", async (req, res) => {
     const { uuid } = req.body;
     if (!uuid) return res.status(400).json({ error: "UUID required" });
-    await supabaseAdmin.from('community_messages').delete().eq('type', 'withdrawal').eq('user_uuid', uuid);
+    await supabaseAdmin.from('community_messages')
+      .delete()
+      .eq('type', 'withdrawal')
+      .eq('user_uuid', uuid)
+      .neq('status', 'Đang chờ duyệt'); // don't delete pending wds
+    res.json({ success: true });
+  });
+
+  app.post("/api/wallet/cancel", async (req, res) => {
+    const { uuid, id } = req.body;
+    if (!uuid || !id) return res.status(400).json({ error: "Invalid request" });
+
+    const { data: wd } = await supabaseAdmin.from('community_messages')
+      .select('*')
+      .eq('id', id)
+      .eq('user_uuid', uuid)
+      .single();
+
+    if (!wd || wd.status !== 'Đang chờ duyệt') {
+      return res.status(400).json({ error: "Yêu cầu không tồn tại hoặc đã được xử lý" });
+    }
+
+    // Tiền hoàn lại: Số tiền thực nhận + phí (tức là tổng số tiền bị trừ)
+    const amount = wd.amount;
+    const fee = amount * 0.05;
+    const totalRefund = amount + fee;
+
+    await supabaseAdmin.from('community_messages').update({ status: 'Đã hủy' }).eq('id', id);
+    await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: totalRefund });
+
     res.json({ success: true });
   });
 
@@ -2003,36 +2061,6 @@ async function startServer() {
      const uuid = req.query.uuid as string;
      const { data: wds } = await supabaseAdmin.from('community_messages').select('*').eq('type', 'withdrawal').eq('user_uuid', uuid).order('timestamp', { ascending: false });
      res.json({ withdrawals: wds || [] });
-  });
-
-  app.post("/api/wallet/cancel-withdraw", async (req, res) => {
-    const { uuid, withdrawalId } = req.body;
-    
-    const { data: wRecord } = await supabaseAdmin
-      .from('community_messages')
-      .select('*')
-      .eq('id', withdrawalId)
-      .eq('user_uuid', uuid)
-      .single();
-
-    if (!wRecord || wRecord.status !== 'Đang chờ duyệt') {
-       return res.status(400).json({ error: 'Không tìm thấy lệnh rút hoặc lệnh đã được xử lý.' });
-    }
-
-    const amount = wRecord.amount || 0;
-    
-    await supabaseAdmin
-      .from('community_messages')
-      .update({ status: 'Đã hủy' })
-      .eq('id', withdrawalId);
-
-    // Update balance
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
-    if (profile) {
-      await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance + amount }).eq('user_uuid', uuid);
-    }
-
-    res.json({ success: true });
   });
 
   // ===================================

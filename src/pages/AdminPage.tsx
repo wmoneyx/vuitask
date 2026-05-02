@@ -172,8 +172,8 @@ export function AdminPage() {
 
   const stats = [
     { label: "THÀNH VIÊN", value: statsData.users.toLocaleString(), icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
-    { label: "DOANH THU", value: `${statsData.totalRevenue.toLocaleString()}đ`, icon: Database, color: "text-green-500", bg: "bg-green-50" },
-    { label: "DOANH THU HÔM NAY", value: `${statsData.todayRevenue.toLocaleString()}đ`, icon: TrendingUp, color: "text-cyan-500", bg: "bg-cyan-50" },
+    { label: "SỐ DƯ VÍ", value: `${statsData.totalRevenue.toLocaleString()}đ`, icon: Database, color: "text-green-500", bg: "bg-green-50" },
+    { label: "SỐ DƯ VÍ HÔM NAY", value: `${statsData.todayRevenue.toLocaleString()}đ`, icon: TrendingUp, color: "text-cyan-500", bg: "bg-cyan-50" },
     { label: "ĐÃ RÚT", value: `${statsData.totalWithdrawn.toLocaleString()}đ`, icon: CreditCard, color: "text-purple-500", bg: "bg-purple-50" },
     { label: "YÊU CẦU RÚT", value: statsData.pendingWithdrawals.toLocaleString(), icon: History, color: "text-orange-500", bg: "bg-orange-50" },
     { label: "YÊU CẦU DUYỆT", value: statsData.pendingTasks.toLocaleString(), icon: UserCheck, color: "text-indigo-500", bg: "bg-indigo-50" },
@@ -283,9 +283,9 @@ export function AdminPage() {
             </div>
 
             {/* Charts & Recent Activity Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[420px]">
               {/* Main Chart */}
-              <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+              <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col h-full">
                 <div className="flex items-center justify-between mb-8">
                   <div className="space-y-1">
                     <h3 className="font-bold text-slate-900 text-lg">Biểu đồ tăng trưởng (LIVE)</h3>
@@ -296,7 +296,7 @@ export function AdminPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                        <span className="text-[10px] font-bold text-slate-400 font-mono">DOANH THU</span>
+                        <span className="text-[10px] font-bold text-slate-400 font-mono">SỐ DƯ VÍ</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-red-500" />
@@ -363,7 +363,7 @@ export function AdminPage() {
                         dot={false}
                         activeDot={{ r: 6, fill: '#eab308', stroke: '#fff', strokeWidth: 2 }}
                         strokeDasharray="5 5"
-                        name="Doanh thu"
+                        name="Số dư ví"
                       />
                       <Line 
                         yAxisId="right"
@@ -382,7 +382,7 @@ export function AdminPage() {
               </div>
 
               {/* Activity Sidebar */}
-              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col">
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col h-full overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-bold text-slate-900 text-lg">Hành động mới nhất</h3>
                   {statsData.recentActions.length > 0 && (

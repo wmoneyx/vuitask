@@ -119,42 +119,19 @@ export function TaskPage() {
       }
       
       showNotification({ title: 'Khởi tạo', message: `Đang lấy link từ hệ thống ${task.name}...`, type: 'info' });
-
-      let response;
-      let fetchedContent = null;
-      const proxyList = [
-        (url: string) => url, // Direct first
-        (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-        (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-        (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`
-      ];
-
-      for (let i = 0; i < proxyList.length; i++) {
-        try {
-          const currentUrl = proxyList[i](apiRequestUrl);
-          response = await fetch(currentUrl, { method: 'GET' });
-          
-          if (response.ok) {
-            const contentType = response.headers.get("content-type");
-            const text = await response.text();
-            if (contentType && contentType.includes("text/html") && (text.includes("Just a moment...") || text.includes("<title>Just a moment...</title>") || text.includes("cloudflare"))) {
-              continue; // Bỏ qua Cloudflare challenge
-            }
-            fetchedContent = text;
-            break;
-          }
-        } catch (e) {
-          console.warn(`Attempt ${i + 1} threw error:`, e);
-        }
-        if (i < proxyList.length - 1) await new Promise(r => setTimeout(r, 800));
+      
+      const serverProxyRes = await fetch('/api/tasks/get-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: apiRequestUrl })
+      });
+      const proxyData = await serverProxyRes.json();
+      
+      if (!serverProxyRes.ok || !proxyData.success) {
+        throw new Error("Lấy link thất bại qua server.");
       }
-
-      if (!response || !response.ok) {
-        throw new Error("Failed to generate link after all attempts.");
-      }
-
-      const responseText = (fetchedContent || await response.text()).trim();
+      
+      const responseText = proxyData.text.trim();
       if (!responseText) throw new Error("API returned empty response.");
 
       let result;

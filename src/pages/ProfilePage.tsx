@@ -14,7 +14,7 @@ export function ProfilePage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [status, setStatus] = useState<"AN TOÀN" | "CẢNH BÁO" | "GIAN LẬN" | "BAN">("AN TOÀN");
+  const [status, setStatus] = useState<"AN TOÀN" | "CẢNH BÁO" | "GIAN LẬN" | "BỊ GIÁM SÁT" | "BAN">("AN TOÀN");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -29,7 +29,13 @@ export function ProfilePage() {
         setAvatarUrl(profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.user_uuid}`);
         setVuiBalance(profile.vui_coin_balance || 0);
         setTaskBalance(profile.coin_task_balance || 0);
-        if (profile.is_banned) setStatus("BAN");
+        if (profile.is_banned) {
+            setStatus("BAN");
+        } else if (profile.is_suspected) {
+            setStatus("BỊ GIÁM SÁT");
+        } else {
+            setStatus("AN TOÀN");
+        }
      }
   }, [profile]);
 
@@ -53,13 +59,19 @@ export function ProfilePage() {
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setAvatarUrl(URL.createObjectURL(e.target.files[0]));
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const getStatusColor = () => {
     switch(status) {
       case "AN TOÀN": return "text-emerald-400";
+      case "BỊ GIÁM SÁT": return "text-purple-400";
       case "CẢNH BÁO": return "text-yellow-400";
       case "GIAN LẬN": return "text-orange-400";
       case "BAN": return "text-red-600";

@@ -51,8 +51,12 @@ export function AttendancePage() {
     fetchAttendanceHistory();
   }, [profile]);
 
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+
   const handleCheckIn = async (day: number) => {
+    if (isCheckingIn) return;
     if (!checkedInDays.includes(day)) {
+      setIsCheckingIn(true);
       const earned = day * 10;
       const uuid = profile?.user_uuid;
       if (uuid) {
@@ -64,18 +68,21 @@ export function AttendancePage() {
            });
            if (res.error) {
               showNotification({ title: 'Lỗi', message: res.error, type: 'error' });
+              setIsCheckingIn(false);
               return;
            }
            
            await refreshProfile();
         } catch (e) {
            showNotification({ title: 'Lỗi', message: 'Không thể điểm danh', type: 'error' });
+           setIsCheckingIn(false);
            return;
         }
       }
 
       setCheckedInDays([...checkedInDays, day]);
       showNotification({ title: 'Điểm danh', message: `Thành công ngày ${day}/${currentMonth + 1}! Nhận ${earned} CoinTask`, type: 'success' });
+      setIsCheckingIn(false);
     }
   };
 
@@ -230,8 +237,8 @@ export function AttendancePage() {
 
                  <div className="w-full">
                     {isToday && !isCheckedIn ? (
-                      <button onClick={() => handleCheckIn(day)} className="bg-blue-600 text-white py-2 rounded-xl text-[11px] font-bold w-full uppercase flex items-center justify-center gap-1 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
-                        Điểm danh
+                      <button disabled={isCheckingIn} onClick={() => handleCheckIn(day)} className="bg-blue-600 disabled:opacity-50 text-white py-2 rounded-xl text-[11px] font-bold w-full uppercase flex items-center justify-center gap-1 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+                        {isCheckingIn ? 'Đang điểm danh...' : 'Điểm danh'}
                       </button>
                     ) : isCheckedIn ? (
                       <div className="bg-emerald-500 text-white py-2 rounded-xl text-[11px] font-bold w-full uppercase flex items-center justify-center gap-1 shadow-lg shadow-emerald-600/20">

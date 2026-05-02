@@ -84,6 +84,16 @@ export function AdminMembers() {
     fetchMembers();
   };
 
+  const toggleSuspect = async (id: string) => {
+    await safeFetch('/api/admin/toggle-suspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uuid: id })
+    });
+    alert("Đã cập nhật trạng thái diện tình nghi!");
+    setDropdownOpen(null);
+  };
+
   const handleSelectAll = () => {
     if (selectedIds.length === filteredMembers.length) {
       setSelectedIds([]);
@@ -192,8 +202,8 @@ export function AdminMembers() {
                   />
                 </th>
                 <th className="p-2">Tên & Email</th>
-                <th className="p-2 text-right">Doanh thu tất cả</th>
-                <th className="p-2 text-right">Doanh thu hôm nay</th>
+                <th className="p-2 text-right">Số dư ví tất cả</th>
+                <th className="p-2 text-right">Số dư ví hôm nay</th>
                 <th className="p-2 text-center">Đã duyệt</th>
                 <th className="p-2">IP Mạng</th>
                 <th className="p-2">Ngày tham gia</th>
@@ -279,7 +289,7 @@ export function AdminMembers() {
                           <DollarSign size={16} className="text-yellow-500" />
                           Cộng/Trừ tiền thủ công
                         </button>
-                        <button className="w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 text-slate-700">
+                        <button onClick={() => toggleSuspect(user.id)} className="w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-3 text-slate-700">
                           <ShieldAlert size={16} className="text-orange-500" />
                           Đưa vào diện tình nghi
                         </button>

@@ -12,7 +12,6 @@ export function VerifyTaskPrePage() {
   const [errorMSG, setErrorMSG] = useState('');
   
   const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('Zhy99!!!');
   const [noteInput, setNoteInput] = useState('');
 
   const sessionId = searchParams.get('code');
@@ -59,13 +58,7 @@ export function VerifyTaskPrePage() {
     fetch('/api/admin/submit-pre-task', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        sessionId, 
-        uuid, 
-        email: emailInput, 
-        password: passwordInput,
-        note: noteInput 
-      })
+      body: JSON.stringify({ sessionId, uuid, email: emailInput, note: noteInput })
     })
     .then(res => res.json())
     .then(data => {
@@ -147,6 +140,9 @@ export function VerifyTaskPrePage() {
                            Tên tài khoản là tiếng Việt - Mật khẩu mặc định: <span className="text-emerald-400 underline decoration-2 underline-offset-4">Zhy99!!!</span>
                         </p>
                       </div>
+                      <div className="absolute -right-8 -bottom-8 opacity-10 rotate-12">
+                         <Mail size={120} />
+                      </div>
                    </div>
 
                    <div className="grid gap-6">
@@ -165,14 +161,14 @@ export function VerifyTaskPrePage() {
                       </div>
 
                       <div className="space-y-2">
-                         <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Mật khẩu (Xác nhận lại)</label>
+                         <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Mật khẩu mặc định (Cố định)</label>
                          <div className="relative">
-                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
                             <input 
                               type="text" 
-                              value={passwordInput}
-                              onChange={(e) => setPasswordInput(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 font-bold text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                              disabled
+                              value="Zhy99!!!"
+                              className="w-full bg-slate-100 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 font-black text-slate-400 outline-none cursor-not-allowed"
                             />
                          </div>
                       </div>
