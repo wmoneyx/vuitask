@@ -1735,7 +1735,7 @@ async function startServer() {
        
        let { data: profiles, error } = await supabaseAdmin
          .from('profiles')
-         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance`)
+         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
          .order(sortCol, { ascending: false })
          .gt(sortCol, 0)
          .limit(20);

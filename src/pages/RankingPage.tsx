@@ -6,7 +6,7 @@ import { safeFetch } from '@/lib/utils';
 import confetti from 'canvas-confetti';
 
 export function RankingPage() {
-    const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, avatar: string}>>([]);
+    const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, turns: number, avatar: string}>>([]);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState<'day' | 'week' | 'month'>('month');
 
@@ -22,6 +22,7 @@ export function RankingPage() {
                 id: item.user_uuid,
                 username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
                 score: (period === 'day' ? item.today_balance : (period === 'week' ? item.weekly_balance : item.monthly_balance)) || 0,
+                turns: (period === 'day' ? item.today_turns : item.total_tasks) || 0,
                 avatar: item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
             }));
             setRanks(fetched);
@@ -76,6 +77,7 @@ export function RankingPage() {
                            <img src={top3[1].avatar} className="w-16 h-16 rounded-full border-2 border-slate-400 mb-2 bg-white" alt="Avatar"/>
                            <div className="font-bold text-white text-xs bg-slate-800 px-2 py-0.5 rounded uppercase">{top3[1].username}</div>
                            <div className="text-emerald-400 text-xs font-bold my-1">{top3[1].score.toLocaleString()} VuiCoin</div>
+                           <div className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-tighter">{top3[1].turns.toLocaleString()} Lượt làm</div>
                            <div className="w-20 h-24 bg-gradient-to-t from-slate-600 to-slate-400 rounded-t-lg flex justify-center pt-2 shadow-inner border border-slate-500">
                                <span className="text-3xl font-black text-slate-300 drop-shadow-md">2</span>
                            </div>
@@ -87,6 +89,7 @@ export function RankingPage() {
                            <img src={top3[0].avatar} className="w-20 h-20 rounded-full border-4 border-yellow-400 mb-2 bg-white" alt="Avatar"/>
                            <div className="font-bold text-white text-sm bg-slate-800 px-3 py-1 rounded-lg uppercase">{top3[0].username}</div>
                            <div className="text-yellow-400 text-sm font-bold my-1 ">{top3[0].score.toLocaleString()} VuiCoin</div>
+                           <div className="text-yellow-400/70 text-[10px] font-bold mb-1 uppercase tracking-tighter">{top3[0].turns.toLocaleString()} Lượt làm</div>
                            <div className="w-24 h-32 bg-gradient-to-t from-yellow-600 to-yellow-400 rounded-t-lg flex justify-center pt-2 shadow-[0_0_20px_rgba(250,204,21,0.3)] border border-yellow-300">
                                <span className="text-4xl font-black text-yellow-100 drop-shadow-lg">1</span>
                            </div>
@@ -97,6 +100,7 @@ export function RankingPage() {
                            <img src={top3[2].avatar} className="w-16 h-16 rounded-full border-2 border-orange-400 mb-2 bg-white" alt="Avatar"/>
                            <div className="font-bold text-white text-xs bg-slate-800 px-2 py-0.5 rounded uppercase">{top3[2].username}</div>
                            <div className="text-emerald-400 text-xs font-bold my-1">{top3[2].score.toLocaleString()} VuiCoin</div>
+                           <div className="text-slate-400 text-[10px] font-bold mb-1 uppercase tracking-tighter">{top3[2].turns.toLocaleString()} Lượt làm</div>
                            <div className="w-20 h-20 bg-gradient-to-t from-orange-700 to-orange-500 rounded-t-lg flex justify-center pt-2 shadow-inner border border-orange-400">
                                <span className="text-3xl font-black text-orange-200 drop-shadow-md">3</span>
                            </div>
@@ -117,8 +121,13 @@ export function RankingPage() {
                                   <img src={r.avatar} className="w-10 h-10 rounded-full bg-white" />
                                   <div className="font-bold text-sm uppercase">{r.username}</div>
                                </div>
-                               <div className="font-bold text-emerald-500 flex items-center gap-1 text-sm">
-                                  {r.score.toLocaleString()} <VuiCoin size={14} className="text-orange-500"/>
+                               <div className="flex flex-col items-end">
+                                 <div className="font-bold text-emerald-500 flex items-center gap-1 text-sm leading-tight">
+                                    {r.score.toLocaleString()} <VuiCoin size={14} className="text-orange-500"/>
+                                 </div>
+                                 <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mt-0.5">
+                                    {r.turns.toLocaleString()} Lượt
+                                 </div>
                                </div>
                              </div>
                         ))}
