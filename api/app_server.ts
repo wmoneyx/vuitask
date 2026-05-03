@@ -1332,7 +1332,7 @@ async function startServer() {
 
     // Refund amount (số tiền thực nhận) to the user
     const amount = wRecord.amount || 0;
-    const totalRefund = Math.floor(amount * 0.95);
+    const totalRefund = amount;
 
     await supabaseAdmin
       .from('community_messages')
@@ -1951,7 +1951,8 @@ async function startServer() {
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
     
     // Fee 5%
-    const totalDeduction = amount;
+    const fee = amount * 0.05;
+    const totalDeduction = amount + fee;
     
     if (!profile || profile.vui_coin_balance < totalDeduction) {
       return res.status(400).json({ error: "Số dư không đủ (đã bao gồm phí 5%)" });
@@ -2002,8 +2003,10 @@ async function startServer() {
       return res.status(400).json({ error: "Yêu cầu không tồn tại hoặc đã được xử lý" });
     }
 
-    // Tiền hoàn lại: Hoàn lại 100% số tiền đã bị trừ
-    const totalRefund = wd.amount;
+    // Tiền hoàn lại: Số tiền thực nhận + phí (tức là tổng số tiền bị trừ)
+    const amount = wd.amount;
+    const fee = amount * 0.05;
+    const totalRefund = amount + fee;
 
     await supabaseAdmin.from('community_messages').update({ status: 'Đã hủy' }).eq('id', id);
     await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: totalRefund });
