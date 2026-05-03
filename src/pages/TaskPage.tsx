@@ -19,7 +19,6 @@ const TASKS = [
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'traffic68', name: 'TRAFFIC 68', maxViews: 4, reward: 449, auto: true, apiUrl: 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'linktop', name: 'LINKTOP', maxViews: 2, reward: 136, auto: false, apiUrl: 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=' },
 ];
 
 import { useUser } from '@/UserContext';
