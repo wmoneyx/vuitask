@@ -55,11 +55,10 @@ export function WalletPage() {
         return;
     }
 
-    const fee = amount * 0.05;
-    const totalDeduction = amount + fee;
+    const totalDeduction = amount;
 
     if (balance < totalDeduction) {
-      showNotification({ title: 'Số dư không đủ', message: "Ví của bạn không đủ tiền (đã tính 5% phí).", type: 'error' });
+      showNotification({ title: 'Số dư không đủ', message: "Ví của bạn không đủ tiền.", type: 'error' });
       return;
     }
 
