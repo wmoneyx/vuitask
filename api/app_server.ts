@@ -239,7 +239,11 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session", async (req, res) => {
-    const { sessionId, uuid } = req.body || {};
+    let { sessionId, uuid } = req.body || {};
+    
+    // Sanitize
+    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
+    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
@@ -275,7 +279,11 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session-pro", async (req, res) => {
-    const { sessionId, uuid } = req.body || {};
+    let { sessionId, uuid } = req.body || {};
+    
+    // Sanitize
+    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
+    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
@@ -373,7 +381,11 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pro-task", async (req, res) => {
-    const { sessionId, uuid, type, reviewUrl } = req.body || {};
+    let { sessionId, uuid, type, reviewUrl } = req.body || {};
+
+    // Sanitize
+    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
+    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -446,7 +458,11 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
-    const { sessionId, uuid, email, note } = req.body || {};
+    let { sessionId, uuid, email, note } = req.body || {};
+
+    // Sanitize
+    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
+    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
@@ -520,7 +536,11 @@ async function startServer() {
 
   app.post("/api/tasks/complete-session", async (req, res) => {
     try {
-      const { sessionId, uuid } = req.body || {};
+      let { sessionId, uuid } = req.body || {};
+
+      // Sanitize
+      if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
+      if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
       
       const { data: session } = await supabaseAdmin
         .from('sessions')

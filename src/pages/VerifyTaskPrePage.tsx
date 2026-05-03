@@ -14,8 +14,10 @@ export function VerifyTaskPrePage() {
   const [emailInput, setEmailInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
 
-  const sessionId = searchParams.get('code');
-  const uuid = searchParams.get('uuid');
+  const rawCode = searchParams.get('code') || '';
+  const rawUuid = searchParams.get('uuid') || '';
+  const sessionId = rawCode.split('/')[0].split('?')[0];
+  const uuid = rawUuid.split('/')[0].split('?')[0];
 
   useEffect(() => {
     if (!sessionId || !uuid) {
