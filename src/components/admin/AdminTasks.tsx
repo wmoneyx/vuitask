@@ -5,7 +5,7 @@ import { safeFetch } from '@/lib/utils';
 
 export function AdminTasks() {
   const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState<'task' | 'vip' | 'pre' | 'history'>('task');
+  const [activeTab, setActiveTab] = useState<'task' | 'history'>('task');
   const [tasks, setTasks] = useState<any[]>([]); // All pending tasks
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,18 @@ export function AdminTasks() {
   const isPre = (t: any) => t.task_name && t.task_name.includes('Pre');
   const isTask = (t: any) => !isVip(t) && !isPre(t);
 
-  const TaskApprovalCell = ({ task, onDecision }: { task: any, onDecision: (decision: 'approve' | 'reject') => void }) => {
+  const [confirmAction, setConfirmAction] = useState<{ decision: 'approve' | 'reject', taskId: string, userUuid: string } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    setIsProcessing(true);
+    await handleDecision(confirmAction.userUuid, confirmAction.taskId, confirmAction.decision);
+    setConfirmAction(null);
+    setIsProcessing(false);
+  }
+
+  const TaskApprovalCell = ({ task }: { task: any }) => {
     const [timeLeft, setTimeLeft] = useState(0);
 
     useEffect(() => {
@@ -74,8 +85,8 @@ export function AdminTasks() {
              </span>
            ) : (
              <>
-                <button onClick={() => onDecision('approve')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
-                <button onClick={() => onDecision('reject')} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
+                <button onClick={() => setConfirmAction({ decision: 'approve', taskId: task.id, userUuid: task.user_uuid })} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
+                <button onClick={() => setConfirmAction({ decision: 'reject', taskId: task.id, userUuid: task.user_uuid })} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
              </>
            )}
         </div>
@@ -84,8 +95,6 @@ export function AdminTasks() {
 
   const filteredTasks = tasks.filter(t => {
       if (activeTab === 'task') return isTask(t);
-      if (activeTab === 'vip') return isVip(t);
-      if (activeTab === 'pre') return isPre(t);
       return false;
   });
 
@@ -176,18 +185,6 @@ export function AdminTasks() {
             TASK ({tasks.filter(isTask).length})
           </button>
           <button 
-            onClick={() => setActiveTab('vip')}
-            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'vip' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-          >
-            VIP ({tasks.filter(isVip).length})
-          </button>
-          <button 
-            onClick={() => setActiveTab('pre')}
-            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'pre' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-          >
-            PRE ({tasks.filter(isPre).length})
-          </button>
-          <button 
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
           >
@@ -251,7 +248,7 @@ export function AdminTasks() {
                         </span>
                      </td>
                      <td className="p-2">
-                        <TaskApprovalCell task={task} onDecision={(decision) => handleDecision(task.user_uuid, task.id, decision)} />
+                        <TaskApprovalCell task={task} />
                      </td>
                   </tr>
                 ))}
@@ -290,6 +287,26 @@ export function AdminTasks() {
           </table>
         </div>
       </div>
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+                <h3 className="font-bold text-lg mb-4">Xác nhận</h3>
+                <p>Bạn có chắc chắn muốn {confirmAction.decision === 'approve' ? 'DUYỆT' : 'TỪ CHỐI'} nhiệm vụ này?</p>
+                <div className="flex gap-2 mt-6">
+                    <button 
+                      disabled={isProcessing}
+                      onClick={() => setConfirmAction(null)} 
+                      className="flex-1 py-2 rounded-lg border border-gray-200">Hủy</button>
+                    <button 
+                      disabled={isProcessing}
+                      onClick={handleConfirm} 
+                      className={`flex-1 py-2 rounded-lg text-white font-bold ${isProcessing ? 'bg-gray-400' : (confirmAction.decision === 'approve' ? 'bg-emerald-600' : 'bg-rose-600')}`}>
+                        {isProcessing ? 'Đang xử lý...' : 'Xác nhận'}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }
