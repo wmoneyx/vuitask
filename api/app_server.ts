@@ -173,16 +173,16 @@ async function startServer() {
         const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
         const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
 
-        // Query history for same IP or Fingerprint today for this specific task
+        // Query history for same IP today for this specific task
         const { data: historyData, error: historyError } = await supabaseAdmin
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
-            .or(`ip.eq."${ip}",fingerprint.eq."${fingerprint}"`);
+            .eq('ip', ip);
 
         if (historyError) {
-          console.error("Check limits error:", historyError);
+          console.error("[generate-session] Check limits query error:", JSON.stringify(historyError));
         }
 
         // Fetch task config to get max_views (fallback to 2 if not found)
@@ -192,7 +192,7 @@ async function startServer() {
 
         if (historyData && historyData.length >= maxViews) {
             return res.status(403).json({ 
-                error: `Giới hạn nhiệm vụ! Thiết bị hoặc IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
+                error: `Giới hạn nhiệm vụ! IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
             });
         }
 
@@ -205,8 +205,7 @@ async function startServer() {
           auto,
           expires: Date.now() + 15 * 60 * 1000,
           completed: false,
-          short_url: '',
-          fingerprint: fingerprint // Store fingerprint in session
+          short_url: ''
         });
 
         if (error) {
@@ -241,7 +240,7 @@ async function startServer() {
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
-      .select('*')
+      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
       .eq('id', sessionId)
       .single();
     
@@ -277,7 +276,7 @@ async function startServer() {
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
-      .select('*')
+      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
       .eq('id', sessionId)
       .single();
     
@@ -375,7 +374,7 @@ async function startServer() {
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
-      .select('*')
+      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
       .eq('id', sessionId)
       .single();
     
@@ -446,7 +445,7 @@ async function startServer() {
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
-      .select('*')
+      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
       .eq('id', sessionId)
       .single();
     
@@ -513,7 +512,7 @@ async function startServer() {
       
       const { data: session } = await supabaseAdmin
         .from('sessions')
-        .select('*')
+        .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
         .eq('id', sessionId)
         .single();
       
@@ -569,7 +568,6 @@ async function startServer() {
           status_v1: statusV1,
           status_v2: statusV1,
           ip: ip,
-          fingerprint: session.fingerprint, // Include fingerprint from session
           timestamp: Date.now()
       };
 
@@ -1267,17 +1265,54 @@ async function startServer() {
       .from('tasks_history')
       .select('*')
       .eq('id', taskId)
-      .eq('status', 'Chờ duyệt')
       .single();
 
-    if (task) {
-       if (decision === 'approve') {
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    const isVip = task.task_id === 'review_map' || task.task_id === 'review_trip';
+
+    if (decision === 'approve') {
+       if (isVip) {
+          if (task.status === 'Chờ duyệt') {
+             await supabaseAdmin
+               .from('tasks_history')
+               .update({ status: 'Đã duyệt lần 1', status_v1: 'Đã duyệt' })
+               .eq('id', taskId);
+             
+              await supabaseAdmin.from('approval_history').insert({
+                type: 'task',
+                original_id: taskId,
+                user_uuid: task.user_uuid,
+                action: 'approve_v1',
+                timestamp: Date.now(),
+                admin_note: 'Approved 1st time'
+              });
+             return res.json({ success: true, message: 'Đã duyệt lần 1' });
+          } else if (task.status === 'Đã duyệt lần 1') {
+             await supabaseAdmin
+               .from('tasks_history')
+               .update({ status: 'Hoàn thành', status_v2: 'Đã duyệt' })
+               .eq('id', taskId);
+
+              await supabaseAdmin.from('approval_history').insert({
+                type: 'task',
+                original_id: taskId,
+                user_uuid: task.user_uuid,
+                action: 'approve_v2',
+                timestamp: Date.now(),
+                admin_note: 'Approved 2nd time - Reward issued'
+              });
+
+              await updateUserStats(task.user_uuid, task.reward, true);
+              return res.json({ success: true, message: 'Đã duyệt lần 2, đã thưởng' });
+          }
+          return res.status(400).json({ error: 'Nhiệm vụ đã được xử lý hoặc không hợp lệ' });
+       } else {
           await supabaseAdmin
             .from('tasks_history')
             .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
             .eq('id', taskId);
 
-          // Log to approval_history
           await supabaseAdmin.from('approval_history').insert({
             type: 'task',
             original_id: taskId,
@@ -1287,27 +1322,25 @@ async function startServer() {
             admin_note: 'Approved'
           });
 
-          // Update balance using user_uuid from task record
           await updateUserStats(task.user_uuid, task.reward, true);
-       } else {
-          await supabaseAdmin
-            .from('tasks_history')
-            .update({ status: 'Từ chối', status_v1: 'Từ chối' })
-            .eq('id', taskId);
-
-          // Log to approval_history
-          await supabaseAdmin.from('approval_history').insert({
-            type: 'task',
-            original_id: taskId,
-            user_uuid: task.user_uuid,
-            action: 'reject',
-            timestamp: Date.now(),
-            admin_note: 'Rejected'
-          });
+          return res.json({ success: true });
        }
+    } else {
+       await supabaseAdmin
+         .from('tasks_history')
+         .update({ status: 'Từ chối', status_v1: 'Từ chối', status_v2: 'Từ chối' })
+         .eq('id', taskId);
+
+       await supabaseAdmin.from('approval_history').insert({
+         type: 'task',
+         original_id: taskId,
+         user_uuid: task.user_uuid,
+         action: 'reject',
+         timestamp: Date.now(),
+         admin_note: 'Rejected'
+       });
        return res.json({ success: true });
     }
-    res.status(404).json({ error: "Task not found" });
   });
 
   app.post("/api/admin/reject-withdrawal", async (req, res) => {

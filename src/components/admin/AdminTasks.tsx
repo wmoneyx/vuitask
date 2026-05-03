@@ -5,8 +5,8 @@ import { safeFetch } from '@/lib/utils';
 
 export function AdminTasks() {
   const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
-  const [pending, setPending] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'task' | 'vip' | 'pre' | 'history'>('task');
+  const [tasks, setTasks] = useState<any[]>([]); // All pending tasks
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -19,10 +19,21 @@ export function AdminTasks() {
     setLoading(true);
     const data = await safeFetch('/api/admin/pending-tasks');
     if (data) {
-      setPending(data.pending || []);
+      setTasks(data.pending || []);
     }
     setLoading(false);
   };
+
+  const isVip = (t: any) => t.task_id === 'review_map' || t.task_id === 'review_trip';
+  const isPre = (t: any) => t.task_name && t.task_name.includes('Pre');
+  const isTask = (t: any) => !isVip(t) && !isPre(t);
+
+  const filteredTasks = tasks.filter(t => {
+      if (activeTab === 'task') return isTask(t);
+      if (activeTab === 'vip') return isVip(t);
+      if (activeTab === 'pre') return isPre(t);
+      return false;
+  });
 
   const fetchHistory = async () => {
     const data = await safeFetch('/api/admin/tasks-history');
@@ -39,7 +50,7 @@ export function AdminTasks() {
     });
     
     if (data) {
-      setPending(prev => prev.filter(p => p.id !== taskId));
+      setTasks(prev => prev.filter(p => p.id !== taskId));
       fetchHistory();
       showNotification({ 
         title: decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
@@ -105,20 +116,32 @@ export function AdminTasks() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-2">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setActiveTab('pending')}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'pending' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('task')}
+            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'task' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Duyệt nhiệm vụ ({pending.length})
+            TASK ({tasks.filter(isTask).length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('vip')}
+            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'vip' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            VIP ({tasks.filter(isVip).length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('pre')}
+            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'pre' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            PRE ({tasks.filter(isPre).length})
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Lịch sử duyệt ({history.length})
+            Lịch sử ({history.length})
           </button>
         </div>
         
-        {activeTab === 'pending' && (
+        {activeTab !== 'history' && (
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
@@ -157,7 +180,7 @@ export function AdminTasks() {
                {loading && (
                  <tr><td colSpan={7} className="p-4 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" /></td></tr>
                )}
-                 {!loading && activeTab === 'pending' && pending.map((task, idx) => (
+                 {!loading && activeTab !== 'history' && filteredTasks.map((task, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
                      <td className="p-2 font-bold">{task.task_name}</td>
@@ -202,9 +225,9 @@ export function AdminTasks() {
                      </td>
                   </tr>
                 ))}
-               {!loading && activeTab === 'pending' && pending.length === 0 && (
+               {!loading && activeTab !== 'history' && filteredTasks.length === 0 && (
                  <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt.</td>
+                    <td colSpan={7} className="p-4 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt ở mục này.</td>
                  </tr>
                )}
                {!loading && activeTab === 'history' && history.length === 0 && (

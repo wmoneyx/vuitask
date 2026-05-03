@@ -114,7 +114,8 @@ export function TaskPage() {
               taskId: task.id,
               taskName: task.name,
               reward: task.reward,
-              auto: task.auto
+              auto: task.auto,
+              fingerprint: fingerprint
           })
       });
       
@@ -124,9 +125,19 @@ export function TaskPage() {
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
       
-      let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
+      let apiRequestUrl = task.apiUrl;
+      const encodedDest = encodeURIComponent(destinationUrl);
+      
       if (task.id === 'timmap') {
-        apiRequestUrl += '&url2=' + encodeURIComponent(destinationUrl);
+        // If apiUrl ends with &url=
+        if (apiRequestUrl.endsWith('&url=')) {
+          apiRequestUrl += encodedDest + '&url_phu=' + encodedDest;
+        } else {
+          // Fallback if URL is missing &url=
+          apiRequestUrl += (apiRequestUrl.includes('?') ? '&' : '?') + 'url=' + encodedDest + '&url_phu=' + encodedDest;
+        }
+      } else {
+        apiRequestUrl += encodedDest;
       }
       
       showNotification({ title: 'Khởi tạo', message: `Đang lấy link từ hệ thống ${task.name}...`, type: 'info' });
