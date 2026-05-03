@@ -181,13 +181,17 @@ export function TaskPage() {
       let link = 
         result.shortenedUrl || 
         result.url || 
-        result.bbmktsUrl || 
         result.short_url ||
+        result.short_link ||
+        result.link ||
+        result.html ||
+        result.bbmktsUrl || 
         result.data?.short_url ||
         result.data?.url ||
+        result.data?.link ||
         result.result; 
 
-      const isSuccess = result.status === "success" || result.success === true || !!link;
+      const isSuccess = result.status === "success" || result.success === true || result.status === 1 || !!link;
 
       if (isSuccess && link) {
         // Cập nhật session URL trên server
