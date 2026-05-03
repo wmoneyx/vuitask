@@ -156,9 +156,9 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
 INSERT INTO public.tasks (id, name, type, reward, auto, api_url, max_views, tutorial_url) VALUES
 ('layma', 'LAYMA', 'shortlink', 600, true, 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=', 2, NULL),
 ('link4m', 'LINK4M', 'shortlink', 300, true, 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=', 2, NULL),
-('utl_3step', 'UTL 3 STEP', 'shortlink', 463, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
-('utl_2step', 'UTL 2 STEP', 'shortlink', 449, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
-('utl_1step', 'UTL 1 STEP', 'shortlink', 385, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
+('utl_3step', 'UTL 3 STEP', 'shortlink', 463, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=', 999, NULL),
+('utl_2step', 'UTL 2 STEP', 'shortlink', 449, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=', 999, NULL),
+('utl_1step', 'UTL 1 STEP', 'shortlink', 385, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=', 999, NULL),
 ('traffic68', 'TRAFFIC68', 'shortlink', 449, true, 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=', 4, NULL),
 ('linktot', 'LINKTOT', 'shortlink', 400, true, 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 4, NULL),
 ('timmap', 'TIMMAP', 'shortlink', 200, true, 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 2, NULL),

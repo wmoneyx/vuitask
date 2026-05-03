@@ -1938,11 +1938,26 @@ async function startServer() {
     }
     
     // Original rewards: vui_coin or coin_task
+    console.log("Gift code reward processing:", { id: giftCode.code, reward_type: giftCode.reward_type, reward_amount: giftCode.reward_amount });
     if (giftCode.reward_amount > 0) {
-      if (giftCode.reward_type === 'coin_task') {
-         await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
-      } else {
-         await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+      try {
+        if (giftCode.reward_type === 'coin_task') {
+           console.log("Incrementing coin_task for user:", uuid);
+           const { data: prof } = await supabaseAdmin.from('profiles').select('coin_task_balance').eq('user_uuid', uuid).single();
+           if (prof) {
+             const { error: updErr } = await supabaseAdmin.from('profiles').update({ coin_task_balance: (prof.coin_task_balance || 0) + giftCode.reward_amount }).eq('user_uuid', uuid);
+             if (updErr) console.error("Update coin_task error:", updErr);
+             else console.log("Successfully updated coin_task");
+           } else {
+             console.error("Profile not found for user:", uuid);
+           }
+        } else {
+           console.log("Incrementing vui_coin for user:", uuid);
+           const { error: rpcErr } = await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+           if (rpcErr) console.error("RPC vui_coin error:", rpcErr);
+        }
+      } catch (e) {
+        console.error("RPC exception:", e);
       }
     }
 
