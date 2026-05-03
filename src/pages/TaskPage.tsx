@@ -172,10 +172,10 @@ export function TaskPage() {
             let extractedUrl = scriptMatch[1];
             if (extractedUrl.startsWith('/')) extractedUrl = "https://linktot.net" + extractedUrl;
             result = { status: "success", shortenedUrl: extractedUrl };
-          } else if (urlMatch && urlMatch[0]) {
+          } else if (urlMatch && urlMatch[0] && !urlMatch[0].includes('cloudflare')) {
             result = { status: "success", shortenedUrl: urlMatch[0] };
           } else {
-            throw new Error("API trả về định dạng dữ liệu không hợp lệ.");
+            throw new Error("API hệ thống đang lỗi (Cloudflare/HTML).");
           }
         }
       }
@@ -191,7 +191,7 @@ export function TaskPage() {
 
       if (!link && result.html) {
         const urlMatch = result.html.match(/https?:\/\/[^\s"']+/);
-        if (urlMatch) link = urlMatch[0];
+        if (urlMatch && !urlMatch[0].includes('cloudflare')) link = urlMatch[0];
       }
 
       const isSuccess = result.status === "success" || result.success === true || !!link;

@@ -15,6 +15,7 @@ export interface UserProfile {
   is_banned: boolean;
   today_turns: number;
   task_bonus_percent: number;
+  task_bonus_expires_at?: string | null;
 }
 
 interface UserContextType {

@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
@@ -179,8 +179,7 @@ async function startServer() {
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
-            .eq('ip', ip)
-            .neq('status', 'Từ chối');
+            .eq('ip', ip);
 
         if (historyError) {
           console.error("[generate-session] Check limits query error:", JSON.stringify(historyError));
@@ -336,9 +335,8 @@ async function startServer() {
         linkPath = text.trim();
       }
 
-      if (!linkPath || linkPath.includes("cloudflare.com")) {
-        console.error("Provider returned error page:", linkPath);
-        return res.status(502).json({ error: "Nhà cung cấp link đang gặp lỗi (5xx). Vui lòng thử lại sau." });
+      if (!linkPath) {
+        return res.status(500).json({ error: "Không phản hồi link từ nhà cung cấp" });
       }
 
       // Cleanup link from possible double quotes or extra text if it was trimmed
@@ -470,9 +468,13 @@ async function startServer() {
     let finalReward = baseReward;
     
     try {
-      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent, task_bonus_expires_at').eq('user_uuid', uuid).maybeSingle();
       if (prof && prof.task_bonus_percent > 0) {
-         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+         if (!prof.task_bonus_expires_at || new Date(prof.task_bonus_expires_at).getTime() > Date.now()) {
+            finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+         } else {
+            await supabaseAdmin.from('profiles').update({ task_bonus_percent: 0, task_bonus_expires_at: null }).eq('user_uuid', uuid);
+         }
       }
     } catch (e) {
       console.error("Error calculating bonus reward:", e);
@@ -551,9 +553,13 @@ async function startServer() {
       let finalReward = baseReward;
       
       try {
-        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
+        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent, task_bonus_expires_at').eq('user_uuid', uuid).maybeSingle();
         if (prof && prof.task_bonus_percent > 0) {
-           finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+           if (!prof.task_bonus_expires_at || new Date(prof.task_bonus_expires_at).getTime() > Date.now()) {
+              finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+           } else {
+              await supabaseAdmin.from('profiles').update({ task_bonus_percent: 0, task_bonus_expires_at: null }).eq('user_uuid', uuid);
+           }
         }
       } catch (e) {
         console.error("Error calculating bonus reward:", e);
@@ -1267,54 +1273,17 @@ async function startServer() {
       .from('tasks_history')
       .select('*')
       .eq('id', taskId)
+      .eq('status', 'Chờ duyệt')
       .single();
 
-    if (!task) return res.status(404).json({ error: "Task not found" });
-
-    const isVip = task.task_id === 'review_map' || task.task_id === 'review_trip';
-
-    if (decision === 'approve') {
-       if (isVip) {
-          if (task.status === 'Chờ duyệt') {
-             await supabaseAdmin
-               .from('tasks_history')
-               .update({ status: 'Đã duyệt lần 1', status_v1: 'Đã duyệt' })
-               .eq('id', taskId);
-             
-              await supabaseAdmin.from('approval_history').insert({
-                type: 'task',
-                original_id: taskId,
-                user_uuid: task.user_uuid,
-                action: 'approve_v1',
-                timestamp: Date.now(),
-                admin_note: 'Approved 1st time'
-              });
-             return res.json({ success: true, message: 'Đã duyệt lần 1' });
-          } else if (task.status === 'Đã duyệt lần 1') {
-             await supabaseAdmin
-               .from('tasks_history')
-               .update({ status: 'Hoàn thành', status_v2: 'Đã duyệt' })
-               .eq('id', taskId);
-
-              await supabaseAdmin.from('approval_history').insert({
-                type: 'task',
-                original_id: taskId,
-                user_uuid: task.user_uuid,
-                action: 'approve_v2',
-                timestamp: Date.now(),
-                admin_note: 'Approved 2nd time - Reward issued'
-              });
-
-              await updateUserStats(task.user_uuid, task.reward, true);
-              return res.json({ success: true, message: 'Đã duyệt lần 2, đã thưởng' });
-          }
-          return res.status(400).json({ error: 'Nhiệm vụ đã được xử lý hoặc không hợp lệ' });
-       } else {
+    if (task) {
+       if (decision === 'approve') {
           await supabaseAdmin
             .from('tasks_history')
             .update({ status: 'Hoàn thành', status_v1: 'Đã duyệt' })
             .eq('id', taskId);
 
+          // Log to approval_history
           await supabaseAdmin.from('approval_history').insert({
             type: 'task',
             original_id: taskId,
@@ -1324,25 +1293,27 @@ async function startServer() {
             admin_note: 'Approved'
           });
 
+          // Update balance using user_uuid from task record
           await updateUserStats(task.user_uuid, task.reward, true);
-          return res.json({ success: true });
-       }
-    } else {
-       await supabaseAdmin
-         .from('tasks_history')
-         .update({ status: 'Từ chối', status_v1: 'Từ chối', status_v2: 'Từ chối' })
-         .eq('id', taskId);
+       } else {
+          await supabaseAdmin
+            .from('tasks_history')
+            .update({ status: 'Từ chối', status_v1: 'Từ chối' })
+            .eq('id', taskId);
 
-       await supabaseAdmin.from('approval_history').insert({
-         type: 'task',
-         original_id: taskId,
-         user_uuid: task.user_uuid,
-         action: 'reject',
-         timestamp: Date.now(),
-         admin_note: 'Rejected'
-       });
+          // Log to approval_history
+          await supabaseAdmin.from('approval_history').insert({
+            type: 'task',
+            original_id: taskId,
+            user_uuid: task.user_uuid,
+            action: 'reject',
+            timestamp: Date.now(),
+            admin_note: 'Rejected'
+          });
+       }
        return res.json({ success: true });
     }
+    res.status(404).json({ error: "Task not found" });
   });
 
   app.post("/api/admin/reject-withdrawal", async (req, res) => {
@@ -1934,30 +1905,18 @@ async function startServer() {
     if (giftCode.bonus_percent && giftCode.bonus_percent > 0) {
       const { data: currentProfile } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
       const newBonus = (currentProfile?.task_bonus_percent || 0) + giftCode.bonus_percent;
-      await supabaseAdmin.from('profiles').update({ task_bonus_percent: newBonus }).eq('user_uuid', uuid);
+      await supabaseAdmin.from('profiles').update({ 
+        task_bonus_percent: newBonus,
+        task_bonus_expires_at: giftCode.expires_at || null
+      }).eq('user_uuid', uuid);
     }
     
     // Original rewards: vui_coin or coin_task
-    console.log("Gift code reward processing:", { id: giftCode.code, reward_type: giftCode.reward_type, reward_amount: giftCode.reward_amount });
     if (giftCode.reward_amount > 0) {
-      try {
-        if (giftCode.reward_type === 'coin_task') {
-           console.log("Incrementing coin_task for user:", uuid);
-           const { data: prof } = await supabaseAdmin.from('profiles').select('coin_task_balance').eq('user_uuid', uuid).single();
-           if (prof) {
-             const { error: updErr } = await supabaseAdmin.from('profiles').update({ coin_task_balance: (prof.coin_task_balance || 0) + giftCode.reward_amount }).eq('user_uuid', uuid);
-             if (updErr) console.error("Update coin_task error:", updErr);
-             else console.log("Successfully updated coin_task");
-           } else {
-             console.error("Profile not found for user:", uuid);
-           }
-        } else {
-           console.log("Incrementing vui_coin for user:", uuid);
-           const { error: rpcErr } = await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
-           if (rpcErr) console.error("RPC vui_coin error:", rpcErr);
-        }
-      } catch (e) {
-        console.error("RPC exception:", e);
+      if (giftCode.reward_type === 'coin_task') {
+         await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
+      } else {
+         await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
       }
     }
 

@@ -5,10 +5,12 @@ import { safeFetch } from '@/lib/utils';
 
 export function AdminTasks() {
   const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState<'task' | 'history'>('task');
-  const [tasks, setTasks] = useState<any[]>([]); // All pending tasks
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
+  const [pending, setPending] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{userId: string, taskId: string, decision: 'approve' | 'reject'} | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     fetchPending();
@@ -19,84 +21,10 @@ export function AdminTasks() {
     setLoading(true);
     const data = await safeFetch('/api/admin/pending-tasks');
     if (data) {
-      setTasks(data.pending || []);
+      setPending(data.pending || []);
     }
     setLoading(false);
   };
-
-  const isVip = (t: any) => t.task_id === 'review_map' || t.task_id === 'review_trip';
-  const isPre = (t: any) => t.task_name && t.task_name.includes('Pre');
-  const isTask = (t: any) => !isVip(t) && !isPre(t);
-
-  const [confirmAction, setConfirmAction] = useState<{ decision: 'approve' | 'reject', taskId: string, userUuid: string } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleConfirm = async () => {
-    if (!confirmAction) return;
-    setIsProcessing(true);
-    await handleDecision(confirmAction.userUuid, confirmAction.taskId, confirmAction.decision);
-    setConfirmAction(null);
-    setIsProcessing(false);
-  }
-
-  const TaskApprovalCell = ({ task }: { task: any }) => {
-    const [timeLeft, setTimeLeft] = useState(0);
-
-    useEffect(() => {
-        const calculateTimeLeft = () => {
-            const now = Date.now();
-            const created = new Date(task.timestamp).getTime();
-            let duration = 0;
-            if (isVip(task)) duration = 10 * 24 * 3600 * 1000; // 10 days
-            else if (isPre(task)) duration = 2 * 24 * 3600 * 1000; // 2 days
-            else duration = 10 * 1000; // 10 seconds
-
-            const elapsed = now - created;
-            return Math.max(0, duration - elapsed);
-        };
-
-        setTimeLeft(calculateTimeLeft());
-        const timer = setInterval(() => {
-            const nextTime = calculateTimeLeft();
-            setTimeLeft(nextTime);
-            if (nextTime <= 0) clearInterval(timer);
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [task]);
-
-    const isLocked = timeLeft > 0;
-    
-    const formatTime = (ms: number) => {
-        const seconds = Math.floor(ms / 1000);
-        if (seconds < 60) return `${seconds}s`;
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h`;
-        return `${Math.floor(hours / 24)}d`;
-    };
-
-    return (
-        <div className="flex items-center justify-center gap-1.5">
-           {isLocked ? (
-             <span className="text-xs text-orange-500 font-bold bg-orange-50 px-2 py-1 rounded">
-               {formatTime(timeLeft)}
-             </span>
-           ) : (
-             <>
-                <button onClick={() => setConfirmAction({ decision: 'approve', taskId: task.id, userUuid: task.user_uuid })} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
-                <button onClick={() => setConfirmAction({ decision: 'reject', taskId: task.id, userUuid: task.user_uuid })} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
-             </>
-           )}
-        </div>
-    );
-  };
-
-  const filteredTasks = tasks.filter(t => {
-      if (activeTab === 'task') return isTask(t);
-      return false;
-  });
 
   const fetchHistory = async () => {
     const data = await safeFetch('/api/admin/tasks-history');
@@ -105,7 +33,11 @@ export function AdminTasks() {
     }
   };
 
-  const handleDecision = async (userId: string, taskId: string, decision: 'approve' | 'reject') => {
+  const confirmDecision = async () => {
+    if (!confirmModal || isProcessing) return;
+    setIsProcessing(true);
+    const { userId, taskId, decision } = confirmModal;
+
     const data = await safeFetch('/api/admin/approve-task', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -113,7 +45,7 @@ export function AdminTasks() {
     });
     
     if (data) {
-      setTasks(prev => prev.filter(p => p.id !== taskId));
+      setPending(prev => prev.filter(p => p.id !== taskId));
       fetchHistory();
       showNotification({ 
         title: decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
@@ -123,6 +55,13 @@ export function AdminTasks() {
     } else {
       showNotification({ title: 'Lỗi', message: "Lỗi xử lý duyệt nhiệm vụ", type: 'error' });
     }
+    
+    setIsProcessing(false);
+    setConfirmModal(null);
+  };
+
+  const handleDecision = (userId: string, taskId: string, decision: 'approve' | 'reject') => {
+    setConfirmModal({ userId, taskId, decision });
   };
 
   const handleClearHistory = async () => {
@@ -179,20 +118,20 @@ export function AdminTasks() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-2">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setActiveTab('task')}
-            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'task' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+            onClick={() => setActiveTab('pending')}
+            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'pending' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            TASK ({tasks.filter(isTask).length})
+            Duyệt nhiệm vụ ({pending.length})
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`px-6 py-2.5 rounded-full font-bold text-sm transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Lịch sử ({history.length})
+            Lịch sử duyệt ({history.length})
           </button>
         </div>
         
-        {activeTab !== 'history' && (
+        {activeTab === 'pending' && (
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
@@ -231,7 +170,7 @@ export function AdminTasks() {
                {loading && (
                  <tr><td colSpan={7} className="p-4 text-center"><Loader2 className="animate-spin mx-auto text-slate-400" /></td></tr>
                )}
-                 {!loading && activeTab !== 'history' && filteredTasks.map((task, idx) => (
+                 {!loading && activeTab === 'pending' && pending.map((task, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                      <td className="p-2 font-mono text-xs">{task.id.slice(-6)}</td>
                      <td className="p-2 font-bold">{task.task_name}</td>
@@ -248,7 +187,10 @@ export function AdminTasks() {
                         </span>
                      </td>
                      <td className="p-2">
-                        <TaskApprovalCell task={task} />
+                        <div className="flex items-center justify-center gap-1.5">
+                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'approve')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
+                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'reject')} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
+                        </div>
                      </td>
                   </tr>
                 ))}
@@ -273,9 +215,9 @@ export function AdminTasks() {
                      </td>
                   </tr>
                 ))}
-               {!loading && activeTab !== 'history' && filteredTasks.length === 0 && (
+               {!loading && activeTab === 'pending' && pending.length === 0 && (
                  <tr>
-                    <td colSpan={7} className="p-4 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt ở mục này.</td>
+                    <td colSpan={7} className="p-4 text-center text-gray-400 font-medium">Chưa có nhiệm vụ nào cần duyệt.</td>
                  </tr>
                )}
                {!loading && activeTab === 'history' && history.length === 0 && (
@@ -287,24 +229,31 @@ export function AdminTasks() {
           </table>
         </div>
       </div>
-      {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
-                <h3 className="font-bold text-lg mb-4">Xác nhận</h3>
-                <p>Bạn có chắc chắn muốn {confirmAction.decision === 'approve' ? 'DUYỆT' : 'TỪ CHỐI'} nhiệm vụ này?</p>
-                <div className="flex gap-2 mt-6">
-                    <button 
-                      disabled={isProcessing}
-                      onClick={() => setConfirmAction(null)} 
-                      className="flex-1 py-2 rounded-lg border border-gray-200">Hủy</button>
-                    <button 
-                      disabled={isProcessing}
-                      onClick={handleConfirm} 
-                      className={`flex-1 py-2 rounded-lg text-white font-bold ${isProcessing ? 'bg-gray-400' : (confirmAction.decision === 'approve' ? 'bg-emerald-600' : 'bg-rose-600')}`}>
-                        {isProcessing ? 'Đang xử lý...' : 'Xác nhận'}
-                    </button>
-                </div>
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
+            <p className="text-sm text-gray-500">
+              Bạn có chắc chắn muốn {confirmModal.decision === 'approve' ? 'DUYỆT' : 'TỪ CHỐI'} nhiệm vụ này không?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                disabled={isProcessing}
+                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={confirmDecision}
+                disabled={isProcessing}
+                className={`px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 ${confirmModal.decision === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}
+              >
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                Xác nhận
+              </button>
             </div>
+          </div>
         </div>
       )}
     </div>
