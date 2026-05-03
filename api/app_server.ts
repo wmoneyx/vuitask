@@ -1068,7 +1068,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
-      const { code, reward, max_uses, expiry_date, type, bonus_percent } = req.body;
+      const { code, reward, max_uses, expiry_date, type, bonus_percent, bonus_expires_at } = req.body;
       const newCode = {
           code: code.toUpperCase(),
           reward_amount: Number(reward),
@@ -1077,6 +1077,7 @@ async function startServer() {
           expires_at: expiry_date,
           reward_type: type || 'vui_coin',
           bonus_percent: Number(bonus_percent || 0),
+          bonus_expires_at: bonus_expires_at || null,
           created_at: new Date().toISOString()
       };
       
@@ -1907,7 +1908,7 @@ async function startServer() {
       const newBonus = (currentProfile?.task_bonus_percent || 0) + giftCode.bonus_percent;
       await supabaseAdmin.from('profiles').update({ 
         task_bonus_percent: newBonus,
-        task_bonus_expires_at: giftCode.expires_at || null
+        task_bonus_expires_at: giftCode.bonus_expires_at || null
       }).eq('user_uuid', uuid);
     }
     

@@ -22,6 +22,9 @@ export function WalletPage() {
   const [loading, setLoading] = useState(false);
   const [showCardModal, setShowCardModal] = useState<any | null>(null);
 
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
+
   useEffect(() => {
     if (profile) {
         setBalance(profile.vui_coin_balance || 0);
@@ -35,6 +38,34 @@ export function WalletPage() {
        const data = await safeFetch(`/api/wallet/history?uuid=${profile.user_uuid}`);
        if (data && data.transactions) setHistory(data.transactions);
     } catch(e) {}
+  };
+
+  const executeAction = async () => {
+    if (!confirmModal || isProcessing) return;
+    setIsProcessing(true);
+    const { action, payload } = confirmModal;
+    
+    try {
+      if (action === 'clearHistory') {
+          await safeFetch('/api/user/wallet/clear', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uuid: profile?.user_uuid })
+          });
+          fetchWithdrawals();
+      } else if (action === 'cancelWithdrawal') {
+          await safeFetch('/api/wallet/cancel', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uuid: profile?.user_uuid, id: payload.id })
+          });
+          fetchWithdrawals();
+          refreshProfile();
+      }
+    } finally {
+      setIsProcessing(false);
+      setConfirmModal(null);
+    }
   };
 
   const handleConfirmWithdraw = async () => {
@@ -182,15 +213,7 @@ export function WalletPage() {
             <h3 className="font-bold text-slate-800 uppercase text-sm">Lịch sử rút thưởng</h3>
             {history.length > 0 && (
                 <button 
-                    onClick={async () => {
-                        if (!window.confirm("Xóa tất cả lịch sử rút thưởng của bạn?")) return;
-                        await safeFetch('/api/user/wallet/clear', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uuid: profile?.user_uuid })
-                        });
-                        fetchWithdrawals();
-                    }}
+                    onClick={() => setConfirmModal({ action: 'clearHistory', payload: null })}
                     className="text-xs font-bold text-rose-500 uppercase hover:underline"
                 >
                     Xóa tất cả
@@ -247,16 +270,7 @@ export function WalletPage() {
                             
                             {statusInfo.label === 'Chờ duyệt' && (
                                 <button 
-                                    onClick={async () => {
-                                        if (!window.confirm("Bạn muốn hủy lệnh rút tiền này? Tiền sẽ được hoàn lại.")) return;
-                                        await safeFetch('/api/wallet/cancel', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ uuid: profile?.user_uuid, id: h.id })
-                                        });
-                                        fetchWithdrawals();
-                                        refreshProfile();
-                                    }}
+                                    onClick={() => setConfirmModal({ action: 'cancelWithdrawal', payload: { id: h.id } })}
                                     className='mt-2 flex items-center justify-center gap-2 bg-rose-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-rose-600 transition'
                                 >
                                     Hủy lệnh rút tiền
@@ -289,6 +303,34 @@ export function WalletPage() {
                     Đóng
                 </button>
             </AnimatedDiv>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
+            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
+            <p className="text-sm text-gray-500">
+              {confirmModal.action === 'clearHistory' && 'Xóa tất cả lịch sử rút thưởng của bạn?'}
+              {confirmModal.action === 'cancelWithdrawal' && 'Bạn muốn hủy lệnh rút tiền này? Tiền sẽ được hoàn lại.'}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                disabled={isProcessing}
+                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={executeAction}
+                disabled={isProcessing}
+                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
+              >
+                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

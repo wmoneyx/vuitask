@@ -71,8 +71,23 @@ export function RegisterPage() {
       if (data.user) {
         localStorage.setItem('userUUID', data.user.id);
         
-        // Sync profile immediately using UserContext
+        // Sync profile immediately
         try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const sessionToken = session?.access_token;
+
+          await fetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {})
+            },
+            body: JSON.stringify({ 
+              uuid: data.user.id, 
+              email: email,
+              userName: name
+            })
+          });
           await refreshProfile();
         } catch (err) {
           console.error("Immediate Sync Error:", err);

@@ -59,6 +59,9 @@ export function AdminPage() {
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [loadingOnline, setLoadingOnline] = useState(false);
+  
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{action: string} | null>(null);
 
   const fetchDuplicates = async () => {
     setLoadingDuplicates(true);
@@ -67,6 +70,17 @@ export function AdminPage() {
       setDuplicates(data.duplicates);
     }
     setLoadingDuplicates(false);
+  };
+
+  const executeAction = async () => {
+    if (!confirmModal || isProcessing) return;
+    setIsProcessing(true);
+    if (confirmModal.action === 'clearRecentActions') {
+       await safeFetch('/api/admin/recent-actions/clear', { method: 'POST' });
+       fetchStats();
+    }
+    setIsProcessing(false);
+    setConfirmModal(null);
   };
 
   const fetchOnlineUsers = async () => {
@@ -387,11 +401,7 @@ export function AdminPage() {
                   <h3 className="font-bold text-slate-900 text-lg">Hành động mới nhất</h3>
                   {statsData.recentActions.length > 0 && (
                     <button 
-                      onClick={async () => {
-                        if (!window.confirm("Xóa tất cả hành động gần đây?")) return;
-                        await safeFetch('/api/admin/recent-actions/clear', { method: 'POST' });
-                        fetchStats();
-                      }}
+                      onClick={() => setConfirmModal({ action: 'clearRecentActions' })}
                       className="text-[10px] font-bold text-rose-500 uppercase hover:underline"
                     >
                       Xóa tất cả
@@ -592,6 +602,33 @@ export function AdminPage() {
                </button>
             </div>
           </AnimatedDiv>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
+            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
+            <p className="text-sm text-gray-500">
+              Bạn có chắc chắn muốn xóa tất cả hành động gần đây không?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                disabled={isProcessing}
+                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={executeAction}
+                disabled={isProcessing}
+                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
+              >
+                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </GenericPage>
