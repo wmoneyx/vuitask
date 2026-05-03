@@ -90,7 +90,7 @@ export function VerifyTaskProPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="w-full mx-auto px-6 md:px-12 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-indigo-600 font-black text-xl tracking-tight">
             <ShieldCheck size={28} />
             PROVERIFY
@@ -103,7 +103,7 @@ export function VerifyTaskProPage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
+      <main className="flex-1 w-full mx-auto px-6 md:px-12 py-8 grid grid-cols-1 md:grid-cols-[1fr_350px] gap-8">
         <div className="space-y-6">
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             

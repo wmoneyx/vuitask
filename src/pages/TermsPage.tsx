@@ -5,8 +5,8 @@ import { AnimatedDiv } from '@/components/ui/AnimatedText';
 
 export function TermsPage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-12 px-6 md:px-12 lg:px-20 font-sans">
+      <div className="w-full mx-auto max-w-[1200px]">
         <div className="flex justify-between items-center mb-8">
            <Link to="/" className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
               <ArrowLeft size={16} /> QUAY LẠI
