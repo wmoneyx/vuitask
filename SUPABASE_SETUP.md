@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS public.tasks_history (
 -- Thêm cột nếu chưa có (Migration)
 ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS task_id TEXT;
 ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS fingerprint TEXT;
+ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS start_timestamp BIGINT;
+ALTER TABLE public.tasks_history ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 -- 4. Sessions Table
 CREATE TABLE IF NOT EXISTS public.sessions (
@@ -165,7 +167,6 @@ INSERT INTO public.tasks (id, name, type, reward, auto, api_url, max_views, tuto
 ('linktot', 'LINKTOT', 'shortlink', 400, true, 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 4, NULL),
 ('timmap', 'TIMMAP', 'shortlink', 200, true, 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 2, NULL),
 ('bbmkts', 'BBMKTS', 'shortlink', 300, true, 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=', 1, NULL),
-('linkngon', 'LINKNGON', 'shortlink', 250, true, 'https://linkngon.top/api?api=iDqggiRIz7r9280v8NsD8jZS&url=', 2, NULL),
 ('linktop', 'LINKTOP', 'shortlink', 150, true, 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=', 2, NULL),
 ('traffictop', 'TRAFFICTOP', 'shortlink', 200, true, 'https://traffictop.net/api?api=OrKX4KckO50XBo29N0cCVBUW&url=', 999, NULL),
 ('review_map', 'Review Map', 'review', 1200, false, 'https://linktot.net/api_rv_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 10, 'https://youtube.com/shorts/MMwsAjJ9aYU?si=JSBTiReY3-HF8Bne'),

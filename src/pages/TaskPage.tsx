@@ -19,7 +19,6 @@ const TASKS = [
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'traffic68', name: 'TRAFFIC 68', maxViews: 4, reward: 449, auto: true, apiUrl: 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'linkngon', name: 'LINK NGON', maxViews: 2, reward: 185, auto: false, apiUrl: 'https://linkngon.top/api?api=iDqggiRIz7r9280v8NsD8jZS&url=' },
   { id: 'linktop', name: 'LINKTOP', maxViews: 2, reward: 136, auto: false, apiUrl: 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=' },
 ];
 
@@ -172,10 +171,10 @@ export function TaskPage() {
             let extractedUrl = scriptMatch[1];
             if (extractedUrl.startsWith('/')) extractedUrl = "https://linktot.net" + extractedUrl;
             result = { status: "success", shortenedUrl: extractedUrl };
-          } else if (urlMatch && urlMatch[0] && !urlMatch[0].includes('cloudflare')) {
+          } else if (urlMatch && urlMatch[0]) {
             result = { status: "success", shortenedUrl: urlMatch[0] };
           } else {
-            throw new Error("API hệ thống đang lỗi (Cloudflare/HTML).");
+            throw new Error("Hệ thống không tìm thấy link. Vui lòng quay lại sau!");
           }
         }
       }
@@ -188,11 +187,6 @@ export function TaskPage() {
         result.data?.short_url ||
         result.data?.url ||
         result.result; 
-
-      if (!link && result.html) {
-        const urlMatch = result.html.match(/https?:\/\/[^\s"']+/);
-        if (urlMatch && !urlMatch[0].includes('cloudflare')) link = urlMatch[0];
-      }
 
       const isSuccess = result.status === "success" || result.success === true || !!link;
 
