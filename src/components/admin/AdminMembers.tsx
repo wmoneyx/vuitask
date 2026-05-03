@@ -14,9 +14,6 @@ export function AdminMembers() {
   const [showDuplicateIps, setShowDuplicateIps] = useState(false);
   const [duplicateIps, setDuplicateIps] = useState<any[]>([]);
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
-
   const fetchMembers = async () => {
      setLoading(true);
      const data = await safeFetch('/api/admin/members');
@@ -34,49 +31,7 @@ export function AdminMembers() {
      fetchMembers();
   }, []);
 
-  const executeAction = async () => {
-    if (!confirmModal || isProcessing) return;
-    setIsProcessing(true);
-    const { action, payload } = confirmModal;
-
-    try {
-      if (action === 'deleteAccount') {
-        await safeFetch('/api/admin/members/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: payload.id })
-        });
-        fetchMembers();
-        setDropdownOpen(null);
-      } else if (action === 'deleteIpRecord') {
-        const { ip, userUuid } = payload;
-        await safeFetch('/api/admin/delete-ip', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ip, user_uuid: userUuid })
-        });
-        fetchMembers();
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Có lỗi xảy ra');
-    } finally {
-      setIsProcessing(false);
-      setConfirmModal(null);
-    }
-  };
-
-  const deleteAccount = (id: string) => {
-    setConfirmModal({ action: 'deleteAccount', payload: { id } });
-  };
-
-  const deleteIpRecord = (ip: string, userUuid: string) => {
-    setConfirmModal({ action: 'deleteIpRecord', payload: { ip, userUuid } });
-  };
-
   const toggleBan = async (id: string, is_banned: boolean) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
     await safeFetch('/api/admin/members/ban', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -84,12 +39,9 @@ export function AdminMembers() {
     });
     fetchMembers(); // refresh
     setDropdownOpen(null);
-    setIsProcessing(false);
   };
 
   const toggleAdmin = async (id: string, is_admin: boolean) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
     await safeFetch('/api/admin/members/set-admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -97,12 +49,21 @@ export function AdminMembers() {
     });
     fetchMembers(); // refresh
     setDropdownOpen(null);
-    setIsProcessing(false);
+  };
+
+  const deleteAccount = async (id: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa tài khoản này? Hành động này không thể hoàn tác.")) return;
+    await safeFetch('/api/admin/members/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchMembers(); // refresh
+    setDropdownOpen(null);
   };
 
   const handleAdjustBalance = async () => {
-    if (!showAdjModal || !adjAmount || isProcessing) return;
-    setIsProcessing(true);
+    if (!showAdjModal || !adjAmount) return;
     await safeFetch('/api/admin/members/adjust-balance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -111,12 +72,19 @@ export function AdminMembers() {
     setAdjAmount('');
     setShowAdjModal(null);
     fetchMembers();
-    setIsProcessing(false);
+  };
+
+  const deleteIpRecord = async (ip: string, userUuid: string) => {
+    if (!window.confirm(`Xóa bản ghi IP ${ip} cho người dùng này?`)) return;
+    await safeFetch('/api/admin/delete-ip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip, user_uuid: userUuid })
+    });
+    fetchMembers();
   };
 
   const toggleSuspect = async (id: string) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
     await safeFetch('/api/admin/toggle-suspect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -124,7 +92,6 @@ export function AdminMembers() {
     });
     alert("Đã cập nhật trạng thái diện tình nghi!");
     setDropdownOpen(null);
-    setIsProcessing(false);
   };
 
   const handleSelectAll = () => {
@@ -400,34 +367,6 @@ export function AdminMembers() {
                  </div>
               </div>
            </div>
-        </div>
-      )}
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              {confirmModal.action === 'deleteAccount' && 'Bạn có chắc chắn muốn XÓA tài khoản này? Hành động này không thể hoàn tác.'}
-              {confirmModal.action === 'deleteIpRecord' && `Bạn có chắc chắn muốn XÓA bản ghi IP ${confirmModal.payload?.ip} của người dùng này?`}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={executeAction}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-              >
-                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

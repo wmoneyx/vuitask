@@ -14,17 +14,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const [confirmModal, setConfirmModal] = useState<{action: string} | null>(null);
 
   const resetAllData = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
-
-  const executeAction = () => {
-    if (confirmModal?.action === 'resetAllData') {
-      resetAllData();
+    if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu phiên cũ? Hành động này sẽ yêu cầu bạn đăng nhập lại.")) {
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -230,7 +224,7 @@ export function LoginPage() {
                  <p className="text-center text-xs text-gray-500 mb-4">Trang web gặp lỗi treo hoặc nghẽn mạng?</p>
                  <button 
                     type="button" 
-                    onClick={() => setConfirmModal({ action: 'resetAllData' })}
+                    onClick={resetAllData}
                     className="w-full py-2.5 px-4 border-2 border-dashed border-gray-200 text-gray-400 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-[10px] uppercase tracking-widest"
                  >
                     Xóa Cache & Reset Phiên
@@ -240,31 +234,6 @@ export function LoginPage() {
           </div>
         </AnimatedDiv>
       </div>
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              Bạn có chắc chắn muốn xóa toàn bộ dữ liệu phiên cũ? Hành động này sẽ yêu cầu bạn đăng nhập lại.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={executeAction}
-                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-              >
-                Xác nhận
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

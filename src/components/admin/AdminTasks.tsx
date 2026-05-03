@@ -9,7 +9,7 @@ export function AdminTasks() {
   const [pending, setPending] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: 'approve' | 'reject' | 'clearHistory', userId?: string, taskId?: string} | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{userId: string, taskId: string, decision: 'approve' | 'reject'} | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -36,34 +36,24 @@ export function AdminTasks() {
   const confirmDecision = async () => {
     if (!confirmModal || isProcessing) return;
     setIsProcessing(true);
-    const { action, userId, taskId } = confirmModal;
+    const { userId, taskId, decision } = confirmModal;
 
-    if (action === 'clearHistory') {
-      const data = await safeFetch('/api/admin/clear-tasks-history', {
-        method: 'POST'
+    const data = await safeFetch('/api/admin/approve-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, taskId, decision })
+    });
+    
+    if (data) {
+      setPending(prev => prev.filter(p => p.id !== taskId));
+      fetchHistory();
+      showNotification({ 
+        title: decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
+        message: `Nhiệm vụ #${taskId.slice(-6)} đã được xử lý.`, 
+        type: decision === 'approve' ? 'success' : 'info' 
       });
-      if (data) {
-        setHistory([]);
-        showNotification({ title: 'Thành công', message: 'Đã xóa lịch sở duyệt.', type: 'success' });
-      }
     } else {
-      const data = await safeFetch('/api/admin/approve-task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, taskId, decision: action })
-      });
-      
-      if (data) {
-        setPending(prev => prev.filter(p => p.id !== taskId));
-        fetchHistory();
-        showNotification({ 
-          title: action === 'approve' ? 'Đã duyệt' : 'Đã từ chối', 
-          message: `Nhiệm vụ #${taskId?.slice(-6)} đã được xử lý.`, 
-          type: action === 'approve' ? 'success' : 'info' 
-        });
-      } else {
-        showNotification({ title: 'Lỗi', message: "Lỗi xử lý duyệt nhiệm vụ", type: 'error' });
-      }
+      showNotification({ title: 'Lỗi', message: "Lỗi xử lý duyệt nhiệm vụ", type: 'error' });
     }
     
     setIsProcessing(false);
@@ -71,11 +61,18 @@ export function AdminTasks() {
   };
 
   const handleDecision = (userId: string, taskId: string, decision: 'approve' | 'reject') => {
-    setConfirmModal({ action: decision, userId, taskId });
+    setConfirmModal({ userId, taskId, decision });
   };
 
-  const handleClearHistory = () => {
-    setConfirmModal({ action: 'clearHistory' });
+  const handleClearHistory = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt nhiệm vụ? Hành động này không thể hoàn tác.')) return;
+    const data = await safeFetch('/api/admin/clear-tasks-history', {
+      method: 'POST'
+    });
+    if (data) {
+      setHistory([]);
+      showNotification({ title: 'Thành công', message: 'Đã xóa lịch sở.', type: 'success' });
+    }
   };
 
   // Helper component for Long Press to copy ID
@@ -234,12 +231,10 @@ export function AdminTasks() {
       </div>
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
             <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
             <p className="text-sm text-gray-500">
-              {confirmModal.action === 'approve' && 'Bạn có chắc chắn muốn DUYỆT nhiệm vụ này không?'}
-              {confirmModal.action === 'reject' && 'Bạn có chắc chắn muốn TỪ CHỐI nhiệm vụ này không?'}
-              {confirmModal.action === 'clearHistory' && 'Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt nhiệm vụ? Hành động này không thể hoàn tác.'}
+              Bạn có chắc chắn muốn {confirmModal.decision === 'approve' ? 'DUYỆT' : 'TỪ CHỐI'} nhiệm vụ này không?
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button 
@@ -252,9 +247,7 @@ export function AdminTasks() {
               <button 
                 onClick={confirmDecision}
                 disabled={isProcessing}
-                className={`px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 ${
-                  confirmModal.action === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'
-                }`}
+                className={`px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 ${confirmModal.decision === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}
               >
                 {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
                 Xác nhận

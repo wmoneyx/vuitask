@@ -13,9 +13,6 @@ export function AdminNotifications() {
   const [target, setTarget] = useState('all');
   const [history, setHistory] = useState<any[]>([]);
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
-
   const fetchHistory = async () => {
     const data = await safeFetch('/api/notifications');
     if (data && data.notifications) {
@@ -29,43 +26,22 @@ export function AdminNotifications() {
     }
   }, [activeTab]);
 
-  const executeAction = async () => {
-    if (!confirmModal || isProcessing) return;
-    setIsProcessing(true);
-    const { action, payload } = confirmModal;
-    
-    try {
-      if (action === 'delete') {
-        await safeFetch('/api/admin/notifications/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: payload.id })
-        });
-        fetchHistory();
-      } else if (action === 'clearAll') {
-        await safeFetch('/api/admin/notifications/clear', { method: 'POST' });
-        fetchHistory();
-      }
-    } catch (e) {
-      console.error(e);
-      showNotification({ title: 'Lỗi', message: 'Có lỗi xảy ra', type: 'error' });
-    } finally {
-      setIsProcessing(false);
-      setConfirmModal(null);
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    setConfirmModal({ action: 'delete', payload: { id } });
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Xóa thông báo này?")) return;
+    await safeFetch('/api/admin/notifications/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchHistory();
   };
 
   const handleSend = async () => {
-    if (!title || !content || isProcessing) {
+    if (!title || !content) {
       showNotification({ title: 'Thiếu thông tin', message: "Vui lòng điền đủ Tiêu đề và Nội dung", type: 'warning' });
       return;
     }
     
-    setIsProcessing(true);
     const data = await safeFetch('/api/admin/notifications/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,7 +55,6 @@ export function AdminNotifications() {
       fetchHistory();
       setActiveTab('history');
     }
-    setIsProcessing(false);
   };
 
   return (
@@ -102,7 +77,11 @@ export function AdminNotifications() {
         
         {activeTab === 'history' && history.length > 0 && (
           <button 
-            onClick={() => setConfirmModal({ action: 'clearAll', payload: null })}
+            onClick={async () => {
+              if (!window.confirm("Bạn có chắc chắn xóa TẤT CẢ thông báo không?")) return;
+              await safeFetch('/api/admin/notifications/clear', { method: 'POST' });
+              fetchHistory();
+            }}
             className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-sm transition-colors"
           >
             Xóa tất cả
@@ -225,34 +204,6 @@ export function AdminNotifications() {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              {confirmModal.action === 'delete' && 'Bạn có chắc chắn muốn XÓA thông báo này?'}
-              {confirmModal.action === 'clearAll' && 'Bạn có chắc chắn muốn XÓA TẤT CẢ thông báo? Hành động này không thể hoàn tác.'}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={executeAction}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-              >
-                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
-              </button>
-            </div>
           </div>
         </div>
       )}

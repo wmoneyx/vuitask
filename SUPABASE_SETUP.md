@@ -143,7 +143,6 @@ CREATE TABLE IF NOT EXISTS public.gift_codes (
 );
 
 ALTER TABLE public.gift_codes ADD COLUMN IF NOT EXISTS bonus_percent INT DEFAULT 0;
-ALTER TABLE public.gift_codes ADD COLUMN IF NOT EXISTS bonus_expires_at TIMESTAMP WITH TIME ZONE;
 
 -- 9. Attendance Logs
 CREATE TABLE IF NOT EXISTS public.attendance_logs (

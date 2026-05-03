@@ -5,8 +5,6 @@ import { safeFetch } from '@/lib/utils';
 export function AdminHistory() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState(false);
 
   const fetchLogs = async () => {
      const data = await safeFetch('/api/admin/history');
@@ -17,15 +15,6 @@ export function AdminHistory() {
   useEffect(() => {
      fetchLogs();
   }, []);
-
-  const handleClear = async () => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-    await safeFetch('/api/admin/history/clear', { method: 'POST' });
-    fetchLogs();
-    setIsProcessing(false);
-    setConfirmModal(false);
-  };
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 w-full">
@@ -40,7 +29,11 @@ export function AdminHistory() {
         <div className="ml-auto">
           {logs.length > 0 && (
             <button 
-              onClick={() => setConfirmModal(true)}
+              onClick={async () => {
+                 if (!window.confirm("Xóa tất cả lịch sử hệ thống?")) return;
+                 await safeFetch('/api/admin/history/clear', { method: 'POST' });
+                 fetchLogs();
+              }}
               className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold text-sm transition-colors"
             >
               Xóa tất cả
@@ -79,33 +72,6 @@ export function AdminHistory() {
           <div className="p-8 text-center text-gray-400 font-medium">Chưa có lịch sử.</div>
         )}
       </div>
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              Bạn có chắc chắn muốn xóa tất cả lịch sử hệ thống?
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(false)}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={handleClear}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-              >
-                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -20,7 +20,6 @@ export function AdminSystem() {
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeExpiry, setCodeExpiry] = useState('');
   const [codeBonus, setCodeBonus] = useState('');
-  const [codeBonusExpiry, setCodeBonusExpiry] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
   const [ranks, setRanks] = useState<any[]>([]);
@@ -29,9 +28,6 @@ export function AdminSystem() {
     const code = 'VUI' + Math.random().toString(36).substring(2, 7).toUpperCase();
     setCodeName(code);
   };
-
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
 
   const fetchSystem = async () => {
      const data = await safeFetch('/api/admin/system');
@@ -52,42 +48,7 @@ export function AdminSystem() {
      fetchSystem();
   }, []);
 
-  const executeAction = async () => {
-    if (!confirmModal || isProcessing) return;
-    setIsProcessing(true);
-    const { action, payload } = confirmModal;
-
-    try {
-      if (action === 'deleteMod') {
-        await safeFetch('/api/admin/system/mods/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: payload.id })
-        });
-        fetchSystem();
-      } else if (action === 'deleteGiftcode') {
-        await safeFetch('/api/admin/system/giftcodes/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: payload.id })
-        });
-        fetchSystem();
-      } else if (action === 'clearRanks') {
-        await safeFetch('/api/admin/leaderboard/clear', { method: 'POST' });
-        fetchSystem();
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Có lỗi xảy ra');
-    } finally {
-      setIsProcessing(false);
-      setConfirmModal(null);
-    }
-  };
-
   const handleMaintenanceToggle = async () => {
-      if (isProcessing) return;
-      setIsProcessing(true);
       const nextState = !isMaintenance;
       setIsMaintenance(nextState);
       await safeFetch('/api/admin/system', {
@@ -95,12 +56,10 @@ export function AdminSystem() {
          headers: {'Content-Type': 'application/json'},
          body: JSON.stringify({ key: 'maintenance_mode', value: String(nextState) })
       });
-      setIsProcessing(false);
   };
 
   const handleCreateMod = async () => {
-      if (!modName || !modPrice || !modLink || isProcessing) return;
-      setIsProcessing(true);
+      if (!modName || !modPrice || !modLink) return;
       await safeFetch('/api/admin/system/mods', {
          method: 'POST',
          headers: {'Content-Type': 'application/json'},
@@ -108,23 +67,23 @@ export function AdminSystem() {
       });
       setModName(''); setModPrice(''); setModLink(''); setModUrl('');
       fetchSystem();
-      setIsProcessing(false);
   };
 
-  const handleDeleteMod = (id: string) => {
-    setConfirmModal({ action: 'deleteMod', payload: { id } });
+  const handleDeleteMod = async (id: string) => {
+    if (!window.confirm("Xóa bản Mod này?")) return;
+    await safeFetch('/api/admin/system/mods/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchSystem();
   };
 
   const handleCreateGiftcode = async () => {
-    if (!codeName || !codeReward || !codeMaxUses || isProcessing) return;
-    setIsProcessing(true);
+    if (!codeName || !codeReward || !codeMaxUses) return;
     let expiry = null;
-    let bonusExpiry = null;
     if (codeExpiry) {
       expiry = new Date(codeExpiry).toISOString();
-    }
-    if (codeBonusExpiry) {
-      bonusExpiry = new Date(codeBonusExpiry).toISOString();
     }
     
     await safeFetch('/api/admin/system/giftcodes', {
@@ -136,27 +95,32 @@ export function AdminSystem() {
         max_uses: Number(codeMaxUses), 
         expiry_date: expiry,
         type: codeType,
-        bonus_percent: Number(codeBonus || 0),
-        bonus_expires_at: bonusExpiry
+        bonus_percent: Number(codeBonus || 0)
       })
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeExpiry(''); setCodeBonus(''); setCodeBonusExpiry('');
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeExpiry(''); setCodeBonus('');
     fetchSystem();
-    setIsProcessing(false);
   };
 
 
-  const handleDeleteGiftcode = (id: string) => {
-    setConfirmModal({ action: 'deleteGiftcode', payload: { id } });
+  const handleDeleteGiftcode = async (id: string) => {
+    if (!window.confirm("Xóa mã Giftcode này?")) return;
+    await safeFetch('/api/admin/system/giftcodes/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    fetchSystem();
   };
 
-  const handleClearRanks = () => {
-    setConfirmModal({ action: 'clearRanks', payload: null });
+  const handleClearRanks = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn XÓA TOÀN BỘ dữ liệu xếp hạng ? (Tất cả điểm số trong ngày, tuần, tháng sẽ bị reset về 0)")) return;
+    await safeFetch('/api/admin/leaderboard/clear', { method: 'POST' });
+    fetchSystem();
   };
 
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       
       {/* 1. Maintenance */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 col-span-1 md:col-span-2 lg:col-span-1">
@@ -230,22 +194,13 @@ export function AdminSystem() {
              </div>
              <div className="col-span-2">
                <div className="text-xs font-bold text-slate-400 ml-1 mb-1 uppercase text-center">Tăng % Thưởng Nhiệm Vụ (TASK)</div>
-               <div className="flex gap-2">
-                 <input 
-                   type="number" 
-                   value={codeBonus}
-                   onChange={e => setCodeBonus(e.target.value)}
-                   placeholder="VD: 5 cho 5% (Để 0 nếu không tăng)..." 
-                   className="w-1/2 px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center font-bold text-blue-600" 
-                 />
-                 <input 
-                   type="datetime-local" 
-                   value={codeBonusExpiry}
-                   onChange={e => setCodeBonusExpiry(e.target.value)}
-                   title="Thời gian hết hạn của Tăng % Thưởng"
-                   className="w-1/2 px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-600" 
-                 />
-               </div>
+               <input 
+                 type="number" 
+                 value={codeBonus}
+                 onChange={e => setCodeBonus(e.target.value)}
+                 placeholder="VD: 5 cho 5% (Để 0 nếu không tăng)..." 
+                 className="w-full px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center font-bold text-blue-600" 
+               />
              </div>
              <div className="col-span-2">
                <select 
@@ -388,36 +343,5 @@ export function AdminSystem() {
       </div>
 
     </div>
-
-    {confirmModal && (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-          <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-          <p className="text-sm text-gray-500">
-            {confirmModal.action === 'deleteMod' && 'Bạn có chắc chắn muốn XÓA bản Mod này?'}
-            {confirmModal.action === 'deleteGiftcode' && 'Bạn có chắc chắn muốn XÓA mã Giftcode này?'}
-            {confirmModal.action === 'clearRanks' && 'Khôi phục mọi điểm xếp hạng trong NGÀY, TUẦN, THÁNG về 0?'}
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <button 
-              onClick={() => setConfirmModal(null)}
-              disabled={isProcessing}
-              className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-            >
-              Hủy
-            </button>
-            <button 
-              onClick={executeAction}
-              disabled={isProcessing}
-              className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-            >
-              {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    </>
   );
 }

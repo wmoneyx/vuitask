@@ -89,9 +89,6 @@ export function AdminWithdrawals() {
   const [showInfoModal, setShowInfoModal] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({ serial: '', code: '' });
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
-
   useEffect(() => {
     fetchWithdrawals();
     const interval = setInterval(fetchWithdrawals, 10000); // Poll every 10s instead of 3s
@@ -108,66 +105,43 @@ export function AdminWithdrawals() {
 
   const displayedList = activeSubTab === 'pending' ? pending : history;
 
-  const executeAction = async () => {
-    if (!confirmModal || isProcessing) return;
-    setIsProcessing(true);
-    const { action, payload } = confirmModal;
-
-    try {
-      if (action === 'approve') {
-        const { id, amount, cardData } = payload;
-        const actualAmount = amount * 0.95;
-        let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
-        if (cardData) {
-            confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
-        }
-        const data = await safeFetch('/api/community/admin-reply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
-        });
-        if (data) {
-            fetchWithdrawals();
-            showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
-            setShowInfoModal(null);
-        }
-      } else if (action === 'reject') {
-        const { id, amount } = payload;
-        const data = await safeFetch('/api/admin/reject-withdrawal', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ withdrawalId: id })
-        });
-        if (data && data.success) {
-            fetchWithdrawals();
-            showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
-        }
-      } else if (action === 'clearHistory') {
-        const data = await safeFetch('/api/admin/clear-withdrawals-history', { method: 'POST' });
-        if (data) {
-            fetchWithdrawals();
-            showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử duyệt rút tiền.', type: 'success' });
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      showNotification({ title: 'Lỗi', message: 'Có lỗi xảy ra', type: 'error' });
-    } finally {
-      setIsProcessing(false);
-      setConfirmModal(null);
+  const handleApprove = async (id: string, amount: number, cardData?: {serial: string, code: string}) => {
+    const actualAmount = amount * 0.95;
+    let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
+    if (cardData) {
+        confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
+    }
+    const data = await safeFetch('/api/community/admin-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
+    });
+    if (data) {
+        fetchWithdrawals();
+        showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
     }
   };
 
-  const handleApprove = (id: string, amount: number, cardData?: {serial: string, code: string}) => {
-    setConfirmModal({ action: 'approve', payload: { id, amount, cardData } });
+  const handleReject = async (id: string, amount: number) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`)) return;
+    const data = await safeFetch('/api/admin/reject-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id })
+    });
+    if (data && data.success) {
+        fetchWithdrawals();
+        showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
+    }
   };
 
-  const handleReject = (id: string, amount: number) => {
-    setConfirmModal({ action: 'reject', payload: { id, amount } });
-  };
-
-  const handleClearHistory = () => {
-    setConfirmModal({ action: 'clearHistory', payload: {} });
+  const handleClearHistory = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt rút tiền? Hành động này không thể hoàn tác.')) return;
+    const data = await safeFetch('/api/admin/clear-withdrawals-history', { method: 'POST' });
+    if (data) {
+        fetchWithdrawals();
+        showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử duyệt rút tiền.', type: 'success' });
+    }
   };
 
   return (
@@ -367,38 +341,6 @@ export function AdminWithdrawals() {
          </div>
          );
       })()}
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              {confirmModal.action === 'approve' && 'Bạn có chắc chắn muốn DUYỆT yêu cầu rút tiền này?'}
-              {confirmModal.action === 'reject' && 'Bạn có chắc chắn muốn TỪ CHỐI và hoàn lại tiền?'}
-              {confirmModal.action === 'clearHistory' && 'Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt rút tiền? Hành động này không thể hoàn tác.'}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={executeAction}
-                disabled={isProcessing}
-                className={`px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 ${
-                  confirmModal.action === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 
-                  'bg-rose-500 hover:bg-rose-600'
-                }`}
-              >
-                {isProcessing ? 'Đang xử lý...' : 'Xác nhận'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

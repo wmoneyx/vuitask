@@ -22,9 +22,6 @@ export function WalletPage() {
   const [loading, setLoading] = useState(false);
   const [showCardModal, setShowCardModal] = useState<any | null>(null);
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{action: string, payload: any} | null>(null);
-
   useEffect(() => {
     if (profile) {
         setBalance(profile.vui_coin_balance || 0);
@@ -38,34 +35,6 @@ export function WalletPage() {
        const data = await safeFetch(`/api/wallet/history?uuid=${profile.user_uuid}`);
        if (data && data.transactions) setHistory(data.transactions);
     } catch(e) {}
-  };
-
-  const executeAction = async () => {
-    if (!confirmModal || isProcessing) return;
-    setIsProcessing(true);
-    const { action, payload } = confirmModal;
-    
-    try {
-      if (action === 'clearHistory') {
-          await safeFetch('/api/user/wallet/clear', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ uuid: profile?.user_uuid })
-          });
-          fetchWithdrawals();
-      } else if (action === 'cancelWithdrawal') {
-          await safeFetch('/api/wallet/cancel', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ uuid: profile?.user_uuid, id: payload.id })
-          });
-          fetchWithdrawals();
-          refreshProfile();
-      }
-    } finally {
-      setIsProcessing(false);
-      setConfirmModal(null);
-    }
   };
 
   const handleConfirmWithdraw = async () => {
@@ -124,6 +93,8 @@ export function WalletPage() {
     }
   };
 
+  const hasPendingWithdraw = history.some(h => h.status === 'Chờ duyệt' || (!['Đã thanh toán', 'Từ chối', 'Đã hủy'].includes(h.status)));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 text-slate-800 mb-6">
@@ -141,19 +112,39 @@ export function WalletPage() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button onClick={() => { setSelectedType('bank'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <Banknote className="text-blue-500" />
-                <span className="font-bold text-sm uppercase">Bank</span>
-            </button>
-            <button onClick={() => { setSelectedType('zalopay'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <Banknote className="text-sky-500" />
-                <span className="font-bold text-sm uppercase">ZaloPay</span>
-            </button>
-            <button onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <CreditCard className="text-rose-500" />
-                <span className="font-bold text-sm uppercase">Thẻ Cào</span>
-            </button>
+        <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <button 
+                    disabled={hasPendingWithdraw}
+                    onClick={() => { setSelectedType('bank'); setInfo({}); }} 
+                    className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdraw ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-500'}`}
+                >
+                    <Banknote className="text-blue-500" />
+                    <span className="font-bold text-sm uppercase">Bank</span>
+                </button>
+                <button 
+                    disabled={hasPendingWithdraw}
+                    onClick={() => { setSelectedType('zalopay'); setInfo({}); }} 
+                    className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdraw ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-500'}`}
+                >
+                    <Banknote className="text-sky-500" />
+                    <span className="font-bold text-sm uppercase">ZaloPay</span>
+                </button>
+                <button 
+                    disabled={hasPendingWithdraw}
+                    onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} 
+                    className={`bg-white border-2 border-gray-100 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all ${hasPendingWithdraw ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-500'}`}
+                >
+                    <CreditCard className="text-rose-500" />
+                    <span className="font-bold text-sm uppercase">Thẻ Cào</span>
+                </button>
+            </div>
+            {hasPendingWithdraw && (
+                <div className="text-[10px] text-rose-500 font-bold bg-rose-50 p-2 rounded-lg border border-rose-100 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    Hệ thống đang xử lý lệnh rút cũ. Vui lòng đợi hoặc hủy lệnh cũ để rút tiếp.
+                </div>
+            )}
         </div>
       </AnimatedDiv>
 
@@ -213,7 +204,15 @@ export function WalletPage() {
             <h3 className="font-bold text-slate-800 uppercase text-sm">Lịch sử rút thưởng</h3>
             {history.length > 0 && (
                 <button 
-                    onClick={() => setConfirmModal({ action: 'clearHistory', payload: null })}
+                    onClick={async () => {
+                        if (!window.confirm("Xóa tất cả lịch sử rút thưởng của bạn?")) return;
+                        await safeFetch('/api/user/wallet/clear', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uuid: profile?.user_uuid })
+                        });
+                        fetchWithdrawals();
+                    }}
                     className="text-xs font-bold text-rose-500 uppercase hover:underline"
                 >
                     Xóa tất cả
@@ -270,7 +269,16 @@ export function WalletPage() {
                             
                             {statusInfo.label === 'Chờ duyệt' && (
                                 <button 
-                                    onClick={() => setConfirmModal({ action: 'cancelWithdrawal', payload: { id: h.id } })}
+                                    onClick={async () => {
+                                        if (!window.confirm("Bạn muốn hủy lệnh rút tiền này? Tiền sẽ được hoàn lại.")) return;
+                                        await safeFetch('/api/wallet/cancel', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ uuid: profile?.user_uuid, id: h.id })
+                                        });
+                                        fetchWithdrawals();
+                                        refreshProfile();
+                                    }}
                                     className='mt-2 flex items-center justify-center gap-2 bg-rose-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-rose-600 transition'
                                 >
                                     Hủy lệnh rút tiền
@@ -303,34 +311,6 @@ export function WalletPage() {
                     Đóng
                 </button>
             </AnimatedDiv>
-        </div>
-      )}
-
-      {confirmModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900">Xác nhận Hành Động</h3>
-            <p className="text-sm text-gray-500">
-              {confirmModal.action === 'clearHistory' && 'Xóa tất cả lịch sử rút thưởng của bạn?'}
-              {confirmModal.action === 'cancelWithdrawal' && 'Bạn muốn hủy lệnh rút tiền này? Tiền sẽ được hoàn lại.'}
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button 
-                onClick={() => setConfirmModal(null)}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-gray-500 font-bold hover:bg-gray-100 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={executeAction}
-                disabled={isProcessing}
-                className="px-4 py-2 rounded-xl text-white font-bold disabled:opacity-50 flex items-center gap-2 bg-rose-500 hover:bg-rose-600"
-              >
-                {isProcessing ? 'Đang xử lý...' : 'Xác nhận xóa'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
