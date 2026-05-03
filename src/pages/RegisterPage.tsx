@@ -87,6 +87,7 @@ export function RegisterPage() {
               referralCode: referral
             })
           });
+          window.dispatchEvent(new Event('balanceUpdated'));
         } catch (err) {
           console.error("Immediate Sync Error:", err);
         }
