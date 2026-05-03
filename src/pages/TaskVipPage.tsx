@@ -24,6 +24,50 @@ export function TaskVipPage() {
     }
   };
 
+  const isVip = (t: any) => t.task_id === 'review_map' || t.task_id === 'review_trip';
+  const isPre = (t: any) => t.task_name && t.task_name.includes('Pre');
+
+  const CountdownCell = ({ task }: { task: any }) => {
+    const [timeLeft, setTimeLeft] = useState(0);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            const now = Date.now();
+            const created = new Date(task.timestamp).getTime();
+            let duration = 0;
+            if (isVip(task)) duration = 10 * 24 * 3600 * 1000; // 10 days
+            else if (isPre(task)) duration = 2 * 24 * 3600 * 1000; // 2 days
+            else duration = 10 * 1000; // 10 seconds
+
+            const elapsed = now - created;
+            return Math.max(0, duration - elapsed);
+        };
+
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            const nextTime = calculateTimeLeft();
+            setTimeLeft(nextTime);
+            if (nextTime <= 0) clearInterval(timer);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [task]);
+
+    if (timeLeft <= 0) return <span className="text-xs text-emerald-500 font-bold">Hoàn tất</span>;
+    
+    const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h`;
+        return `${Math.floor(hours / 24)}d`;
+    };
+
+    return <span className="text-xs text-orange-500 font-bold bg-orange-50 px-2 py-1 rounded">{formatTime(timeLeft)}</span>;
+  };
+
   useEffect(() => {
     if (profile) fetchHistory();
   }, [profile]);
@@ -146,14 +190,13 @@ export function TaskVipPage() {
                 <th className="p-4">Dịch vụ</th>
                 <th className="p-4 text-center">Thưởng</th>
                 <th className="p-4 text-center">Trạng thái</th>
-                <th className="p-4 text-center">Duyệt V1</th>
-                <th className="p-4 text-center">Duyệt V2</th>
+                <th className="p-4 text-center">Kết quả</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
                {history.length === 0 ? (
                  <tr>
-                   <td colSpan={6} className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest opacity-40 italic">Chưa có dữ liệu nhiệm vụ VIP.</td>
+                   <td colSpan={5} className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest opacity-40 italic">Chưa có dữ liệu nhiệm vụ VIP.</td>
                  </tr>
                ) : (
                  history.map((record, idx) => (
@@ -175,14 +218,11 @@ export function TaskVipPage() {
                         </span>
                      </td>
                      <td className="p-4 text-center">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${record.status_v1 === 'Đã duyệt' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                           {record.status_v1 || 'N/A'}
-                        </span>
-                     </td>
-                     <td className="p-4 text-center">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${record.status_v2 === 'Đã duyệt' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'}`}>
-                           {record.status_v2 || 'N/A'}
-                        </span>
+                        {record.status_v2 === 'Đã duyệt' ? (
+                          <span className="text-[9px] font-black bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full uppercase">DUYỆT 10 DAY</span>
+                        ) : (
+                          <CountdownCell task={record} />
+                        )}
                      </td>
                    </tr>
                  ))

@@ -28,6 +28,60 @@ export function AdminTasks() {
   const isPre = (t: any) => t.task_name && t.task_name.includes('Pre');
   const isTask = (t: any) => !isVip(t) && !isPre(t);
 
+  const TaskApprovalCell = ({ task, onDecision }: { task: any, onDecision: (decision: 'approve' | 'reject') => void }) => {
+    const [timeLeft, setTimeLeft] = useState(0);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            const now = Date.now();
+            const created = new Date(task.timestamp).getTime();
+            let duration = 0;
+            if (isVip(task)) duration = 10 * 24 * 3600 * 1000; // 10 days
+            else if (isPre(task)) duration = 2 * 24 * 3600 * 1000; // 2 days
+            else duration = 10 * 1000; // 10 seconds
+
+            const elapsed = now - created;
+            return Math.max(0, duration - elapsed);
+        };
+
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            const nextTime = calculateTimeLeft();
+            setTimeLeft(nextTime);
+            if (nextTime <= 0) clearInterval(timer);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [task]);
+
+    const isLocked = timeLeft > 0;
+    
+    const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h`;
+        return `${Math.floor(hours / 24)}d`;
+    };
+
+    return (
+        <div className="flex items-center justify-center gap-1.5">
+           {isLocked ? (
+             <span className="text-xs text-orange-500 font-bold bg-orange-50 px-2 py-1 rounded">
+               {formatTime(timeLeft)}
+             </span>
+           ) : (
+             <>
+                <button onClick={() => onDecision('approve')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
+                <button onClick={() => onDecision('reject')} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
+             </>
+           )}
+        </div>
+    );
+  };
+
   const filteredTasks = tasks.filter(t => {
       if (activeTab === 'task') return isTask(t);
       if (activeTab === 'vip') return isVip(t);
@@ -197,10 +251,7 @@ export function AdminTasks() {
                         </span>
                      </td>
                      <td className="p-2">
-                        <div className="flex items-center justify-center gap-1.5">
-                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'approve')} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><CheckCircle size={16}/></button>
-                           <button onClick={() => handleDecision(task.user_uuid, task.id, 'reject')} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100"><XCircle size={16}/></button>
-                        </div>
+                        <TaskApprovalCell task={task} onDecision={(decision) => handleDecision(task.user_uuid, task.id, decision)} />
                      </td>
                   </tr>
                 ))}

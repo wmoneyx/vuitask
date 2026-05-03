@@ -31,6 +31,47 @@ export function TaskPrePage() {
     }
   };
 
+  const isPre = (t: any) => t.task_id === 'GMAIL_PRE';
+
+  const CountdownCell = ({ task }: { task: any }) => {
+    const [timeLeft, setTimeLeft] = useState(0);
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            const now = Date.now();
+            const created = new Date(task.timestamp).getTime();
+            // Pre tasks: 2 days (as admin said: "DUYỆTTASK PRE : DUYỆT 1 LẦN 2 NGÀY MỚI MỞ KHÓA...")
+            const duration = 2 * 24 * 3600 * 1000; 
+
+            const elapsed = now - created;
+            return Math.max(0, duration - elapsed);
+        };
+
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            const nextTime = calculateTimeLeft();
+            setTimeLeft(nextTime);
+            if (nextTime <= 0) clearInterval(timer);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [task]);
+
+    if (timeLeft <= 0) return <span className="text-xs text-emerald-500 font-bold">Hoàn tất</span>;
+    
+    const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h`;
+        return `${Math.floor(hours / 24)}d`;
+    };
+
+    return <span className="text-xs text-orange-500 font-bold bg-orange-50 px-2 py-1 rounded">{formatTime(timeLeft)}</span>;
+  };
+
   useEffect(() => {
     if (profile) fetchHistory();
     
@@ -244,12 +285,13 @@ export function TaskPrePage() {
                 <th className="p-4">Email / Mật khẩu</th>
                 <th className="p-4 text-center">Thưởng</th>
                 <th className="p-4 text-center">Trạng thái</th>
+                <th className="p-4 text-center">Kết quả</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
                {history.length === 0 ? (
                  <tr>
-                   <td colSpan={5} className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest opacity-40 italic">Chưa có dữ liệu nhiệm vụ Pre.</td>
+                   <td colSpan={6} className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest opacity-40 italic">Chưa có dữ liệu nhiệm vụ Pre.</td>
                  </tr>
                ) : (
                  history.map((record, idx) => (
@@ -273,6 +315,9 @@ export function TaskPrePage() {
                              record.status === 'Từ chối' ? 'bg-rose-100 text-rose-700' : 'bg-orange-100 text-orange-700'}`}>
                            {record.status}
                         </span>
+                     </td>
+                     <td className="p-4 text-center">
+                        <CountdownCell task={record} />
                      </td>
                    </tr>
                  ))

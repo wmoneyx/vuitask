@@ -179,7 +179,8 @@ async function startServer() {
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
-            .eq('ip', ip);
+            .eq('ip', ip)
+            .neq('status', 'Từ chối');
 
         if (historyError) {
           console.error("[generate-session] Check limits query error:", JSON.stringify(historyError));
@@ -335,8 +336,9 @@ async function startServer() {
         linkPath = text.trim();
       }
 
-      if (!linkPath) {
-        return res.status(500).json({ error: "Không phản hồi link từ nhà cung cấp" });
+      if (!linkPath || linkPath.includes("cloudflare.com")) {
+        console.error("Provider returned error page:", linkPath);
+        return res.status(502).json({ error: "Nhà cung cấp link đang gặp lỗi (5xx). Vui lòng thử lại sau." });
       }
 
       // Cleanup link from possible double quotes or extra text if it was trimmed

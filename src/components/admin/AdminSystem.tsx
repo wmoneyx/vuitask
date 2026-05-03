@@ -19,6 +19,8 @@ export function AdminSystem() {
   const [codeReward, setCodeReward] = useState('');
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeDays, setCodeDays] = useState('');
+  const [codeHour, setCodeHour] = useState('');
+  const [codeMinute, setCodeMinute] = useState('');
   const [codeBonus, setCodeBonus] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
@@ -82,9 +84,11 @@ export function AdminSystem() {
   const handleCreateGiftcode = async () => {
     if (!codeName || !codeReward || !codeMaxUses) return;
     let expiry = null;
-    if (codeDays) {
+    if (codeDays || codeHour || codeMinute) {
       const d = new Date();
-      d.setDate(d.getDate() + Number(codeDays));
+      if (codeDays) d.setDate(d.getDate() + Number(codeDays));
+      if (codeHour) d.setHours(d.getHours() + Number(codeHour));
+      if (codeMinute) d.setMinutes(d.getMinutes() + Number(codeMinute));
       expiry = d.toISOString();
     }
     
@@ -100,7 +104,7 @@ export function AdminSystem() {
         bonus_percent: Number(codeBonus || 0)
       })
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus('');
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeHour(''); setCodeMinute(''); setCodeBonus('');
     fetchSystem();
   };
 
