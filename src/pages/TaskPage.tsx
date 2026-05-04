@@ -86,8 +86,8 @@ export function TaskPage() {
     const taskCount = getTodayTaskCount(task.id);
     if (taskCount >= task.maxViews) {
       showNotification({ 
-        title: 'Hết lượt', 
-        message: `Bạn đã hết lượt làm nhiệm vụ ${task.name} hôm nay.`, 
+        title: 'Thông báo', 
+        message: 'BẠN ĐÃ LÀM NHIỆM VỤ NÀY RỒI ! VUI LÒNG QUAY LẠI VÀO NGÀY MAI.', 
         type: 'warning' 
       });
       return;
@@ -115,12 +115,13 @@ export function TaskPage() {
               taskId: task.id,
               taskName: task.name,
               reward: task.reward,
-              auto: task.auto
+              auto: task.auto,
+              fingerprint: fingerprint
           })
       });
       
       const sessionId = sessionData?.sessionId;
-      if (!sessionId) throw new Error("Không thể tạo phiên nhiệm vụ. Thử lại sau!");
+      if (!sessionId) throw new Error(sessionData?.error || "Không thể tạo phiên nhiệm vụ. Thử lại sau!");
 
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;

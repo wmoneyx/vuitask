@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Bell, X } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
+import { useUser } from '@/UserContext';
 
 export function WebsiteAnnouncements() {
+  const { profile } = useUser();
   const location = useLocation();
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
   // Fetch announcements periodically
   useEffect(() => {
     const fetchAnnouncements = async () => {
-      const data = await safeFetch('/api/notifications');
+      const uuid = profile?.user_uuid;
+      const data = await safeFetch(`/api/notifications${uuid ? `?uuid=${uuid}` : ''}`);
       
       if (data && data.notifications && data.notifications.length > 0) {
          const readIds = JSON.parse(localStorage.getItem('read_announcements') || '[]');
@@ -28,7 +31,7 @@ export function WebsiteAnnouncements() {
     fetchAnnouncements();
     const interval = setInterval(fetchAnnouncements, 30000); // Check every 30s instead of 10s
     return () => clearInterval(interval);
-  }, []);
+  }, [profile?.user_uuid]);
 
   // Hide on Task and Attendance pages (as requested)
   // assuming task pages are task, task-vip, task-pre, attendance

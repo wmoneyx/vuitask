@@ -48,8 +48,8 @@ export function RefPage() {
              <Share2 size={28} />
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">Kiếm thêm hoa hồng</h2>
-          <p className="text-gray-500 text-sm text-center flex items-center justify-center gap-1 flex-wrap">
-            Bạn sẽ nhận được 2.000 <VuiCoin size={14} className="text-orange-500 fill-orange-50" /> khi bạn bè của bạn đạt số dư 36.000 <VuiCoin size={14} className="text-orange-500 fill-orange-50" />
+          <p className="text-gray-500 text-[13px] text-center font-bold uppercase tracking-tight flex items-center justify-center gap-1 flex-wrap px-4">
+            Bạn sẽ nhận được <span className="text-purple-600">THƯỞNG 2% VUICOIN</span> CHO MỖI NHIỆM VỤ khi bạn bè của BẠN HOÀN THÀNH (KHÔNG TÍNH CỦA BẠN)
           </p>
         </div>
 
@@ -100,7 +100,7 @@ export function RefPage() {
                 </li>
                 <li className="flex gap-2">
                    <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">3</span>
-                   Khi bạn bè đạt số dư 36.000 VuiCoin, bạn sẽ nhận được 2.000 VuiCoin thưởng.
+                   Bạn nhận được 2% hoa hồng mỗi khi bạn bè hoàn thành một nhiệm vụ.
                 </li>
                 <li className="flex gap-2">
                    <span className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center shrink-0 text-[10px]">4</span>

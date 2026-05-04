@@ -31,7 +31,8 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const data = await safeFetch('/api/notifications');
+        const uuid = profile?.user_uuid;
+        const data = await safeFetch(`/api/notifications${uuid ? `?uuid=${uuid}` : ''}`);
         if (data && data.notifications) {
            const formattedNotifs = data.notifications.map((n: any) => ({
              id: n.id,
@@ -51,7 +52,7 @@ export function Header({ isSidebarOpen, toggleSidebar, isAdmin = false }: Header
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [profile?.user_uuid]);
 
   useEffect(() => {
     const handleNewNotification = () => {

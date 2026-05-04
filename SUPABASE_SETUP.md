@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   last_reset_month DATE DEFAULT CURRENT_DATE,
   is_admin BOOLEAN DEFAULT false,
   is_banned BOOLEAN DEFAULT false,
+  total_refs INT DEFAULT 0,
   task_bonus_percent INT DEFAULT 0,
   task_bonus_expires_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -34,6 +35,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_turns INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS monthly_balance BIGINT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_reset_day DATE DEFAULT CURRENT_DATE;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_reset_month DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_refs INT DEFAULT 0;
 
 -- Note: In case the table already exists, migrate to user_uuid as PK if needed
 -- ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_pkey;

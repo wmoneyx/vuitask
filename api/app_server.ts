@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks, total_refs';
 
 async function getActiveBonusPercent(uuid: string): Promise<number> {
     try {
@@ -24,6 +24,39 @@ async function getActiveBonusPercent(uuid: string): Promise<number> {
         return prof.task_bonus_percent;
     } catch(e) {
         return 0;
+    }
+}
+
+async function getReferrer(userId: string): Promise<string | null> {
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('referrals')
+            .select('referrer_uuid')
+            .eq('referred_uuid', userId)
+            .maybeSingle();
+        
+        if (error || !data) return null;
+        return data.referrer_uuid;
+    } catch (e) {
+        console.error("[getReferrer] Error:", e);
+        return null;
+    }
+}
+
+async function awardReferralBonus(referredId: string, baseReward: number) {
+    if (baseReward <= 0) return;
+    
+    try {
+        const referrerId = await getReferrer(referredId);
+        if (referrerId) {
+            const bonusAmount = Math.floor(baseReward * 0.02); // 2% bonus
+            if (bonusAmount > 0) {
+                console.log(`[ReferralBonus] Awarding ${bonusAmount} to referrer ${referrerId} for task by ${referredId}`);
+                await updateUserStats(referrerId, bonusAmount, false, false);
+            }
+        }
+    } catch (e) {
+        console.error("[awardReferralBonus] Error:", e);
     }
 }
 
@@ -152,7 +185,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
                     // Mark completed
                     await supabaseAdmin.from('referrals').update({ status: 'completed' }).eq('id', ref.id);
                     // Award referrer
-                    await updateUserStats(ref.referrer_uuid, ref.reward_vui, false);
+                    await updateUserStats(ref.referrer_uuid, ref.reward, false);
                 }
             }
         }
@@ -189,18 +222,22 @@ async function startServer() {
     const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
 
     try {
-        // 2. CHECK LIMITS (IP & Fingerprint)
+        // 2. CHECK LIMITS (IP, Fingerprint, UserID)
         const msVN = Date.now() + 7 * 3600 * 1000;
         const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
         const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
 
-        // Query history for same IP or Fingerprint today for this specific task
+        // Dynamic OR filter to avoid issues with missing values
+        const orConditions = [`ip.eq."${ip}"`];
+        if (fingerprint && fingerprint !== 'undefined') orConditions.push(`fingerprint.eq."${fingerprint}"`);
+        if (userId && userId !== 'undefined') orConditions.push(`user_uuid.eq."${userId}"`);
+
         const { data: historyData, error: historyError } = await supabaseAdmin
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
-            .or(`ip.eq."${ip}",fingerprint.eq."${fingerprint}"`);
+            .or(orConditions.join(','));
 
         if (historyError) {
           console.error("Check limits error:", historyError);
@@ -208,7 +245,7 @@ async function startServer() {
 
         // Fetch task config to get max_views (fallback to 2 if not found)
         let maxViews = 2;
-        const { data: taskConfig } = await supabaseAdmin.from('tasks').select('max_views').eq('id', taskId).single();
+        const { data: taskConfig } = await supabaseAdmin.from('tasks').select('max_views').eq('id', taskId).maybeSingle();
         if (taskConfig) {
             maxViews = taskConfig.max_views;
         } else if (taskId === 'yeumoney') {
@@ -223,7 +260,7 @@ async function startServer() {
 
         if (historyData && historyData.length >= maxViews) {
             return res.status(403).json({ 
-                error: `Giới hạn nhiệm vụ! Thiết bị hoặc IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
+                error: "BẠN ĐÃ LÀM NHIỆM VỤ NÀY RỒI ! VUI LÒNG QUAY LẠI VÀO NGÀY MAI." 
             });
         }
 
@@ -619,7 +656,7 @@ async function startServer() {
                   title: "CẢNH BÁO SPAM NHIỆM VỤ",
                   content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!  <span class="text-rose-600 font-bold">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (0 / 5)</span>`,
                   type: 'warning',
-                  target: 'all',
+                  target: 'admin',
                   timestamp: Date.now()
               });
               return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
@@ -631,6 +668,8 @@ async function startServer() {
       // Normal processing
       if (session.auto) {
           await updateUserStats(uuid, finalReward, true);
+          // Award 2% bonus to referrer
+          await awardReferralBonus(uuid, baseReward);
       } else {
           await updateUserStats(uuid, 0, true);
       }
@@ -838,12 +877,24 @@ async function startServer() {
 
   // ========== NOTIFICATION API ==========
   app.get("/api/notifications", async (req, res) => {
+    const uuid = req.query.uuid as string;
+    let isAdmin = false;
+    if (uuid) {
+        const { data: prof } = await supabaseAdmin.from('profiles').select('is_admin').eq('user_uuid', uuid).maybeSingle();
+        if (prof?.is_admin) isAdmin = true;
+    }
+
     const { data: notifications } = await supabaseAdmin
       .from('site_notifications')
       .select('*')
       .order('timestamp', { ascending: false })
       .limit(50);
-    res.json({ notifications: notifications || [] });
+    
+    const filtered = (notifications || []).filter((n: any) => {
+        if (n.target === 'admin') return isAdmin;
+        return true;
+    });
+    res.json({ notifications: filtered });
   });
 
   app.post("/api/admin/notifications", async (req, res) => {
@@ -1356,6 +1407,8 @@ async function startServer() {
 
           // Update balance using user_uuid from task record (Do not increment turns, they were already incremented)
           await updateUserStats(task.user_uuid, task.reward, true, false);
+          // Award 2% bonus to referrer
+          await awardReferralBonus(task.user_uuid, task.reward);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -1641,16 +1694,31 @@ async function startServer() {
       // 3. Handle Referral
       if (referralCode && referralCode.length > 0) {
           // Find referrer by first part of UUID (standard in our app)
-          const { data: referrers } = await supabaseAdmin.from('profiles').select('user_uuid').order('created_at', { ascending: true });
+          const { data: referrers } = await supabaseAdmin.from('profiles').select('user_uuid, total_refs').order('created_at', { ascending: true });
           const referrer = referrers?.find(p => p.user_uuid.startsWith(referralCode));
           
           if (referrer && referrer.user_uuid !== uuid) {
-              await supabaseAdmin.from('referrals').insert({
-                  referrer_uuid: referrer.user_uuid,
-                  referred_uuid: uuid,
-                  reward_vui: 2000, 
-                  status: 'pending'
-              });
+              // Check if referral record already exists
+              const { data: existingRef } = await supabaseAdmin.from('referrals').select('id').eq('referred_uuid', uuid).maybeSingle();
+              
+              if (!existingRef) {
+                  // Create referral record
+                  await supabaseAdmin.from('referrals').insert({
+                      referrer_uuid: referrer.user_uuid,
+                      referred_uuid: uuid,
+                      reward: 2000, 
+                      status: 'pending'
+                  });
+
+                  // Increment total_refs count for referrer
+                  try {
+                      await supabaseAdmin.from('profiles').update({ 
+                          total_refs: Number(referrer.total_refs || 0) + 1 
+                      }).eq('user_uuid', referrer.user_uuid);
+                  } catch (e) {
+                      console.warn("Failed to increment total_refs, column might be missing:", e);
+                  }
+              }
           }
       }
 
@@ -2101,24 +2169,29 @@ async function startServer() {
         });
     }
 
+    const totalWithdrawn = (transactions || [])
+        .filter(t => t.status === 'Đã thanh toán')
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
     const enhancedTransactions = transactions.map(t => ({
         ...t,
         admin_reply: replyMap[t.id] || null
     }));
 
-    res.json({ transactions: enhancedTransactions });
+    res.json({ transactions: enhancedTransactions, totalWithdrawn });
   });
 
   // Referrals
   app.get("/api/user/referral/stats", async (req, res) => {
     const uuid = req.query.uuid as string;
+    const { data: profile } = await supabaseAdmin.from('profiles').select('total_refs').eq('user_uuid', uuid).maybeSingle();
     const { data: refs } = await supabaseAdmin.from('referrals').select('*, referred_profile:profiles!referrals_referred_uuid_fkey(user_name, user_email)').eq('referrer_uuid', uuid).order('timestamp', { ascending: false });
-    const { data: totalEarnings } = await supabaseAdmin.from('referrals').select('reward_vui').eq('referrer_uuid', uuid);
+    const { data: totalEarnings } = await supabaseAdmin.from('referrals').select('reward').eq('referrer_uuid', uuid).eq('status', 'completed');
     
-    const earnings = totalEarnings?.reduce((sum, r) => sum + Number(r.reward_vui || 0), 0) || 0;
+    const earnings = totalEarnings?.reduce((sum, r) => sum + Number(r.reward || 0), 0) || 0;
 
     res.json({
-      total: refs?.length || 0,
+      total: profile?.total_refs !== undefined ? profile.total_refs : (refs?.length || 0),
       earnings: earnings,
       history: refs || []
     });

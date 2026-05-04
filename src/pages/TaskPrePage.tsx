@@ -81,6 +81,12 @@ export function TaskPrePage() {
         })
       });
       const data = await res.json();
+      
+      if (!res.ok) {
+        showNotification({ title: 'Thông báo', message: data.error || "Không thể tạo phiên nhiệm vụ. Thử lại sau!", type: 'warning' });
+        return;
+      }
+
       if (data.sessionId) {
         await refreshProfile();
         window.location.href = `/verifytaskpre?code=${data.sessionId}&uuid=${uuid}`;

@@ -15,6 +15,7 @@ export function WalletPage() {
   const { showNotification } = useNotification();
   const { profile, refreshProfile } = useUser();
   const [balance, setBalance] = useState(0);
+  const [totalWithdrawn, setTotalWithdrawn] = useState(0);
   const [selectedType, setSelectedType] = useState<WithdrawType | null>(null);
   const [amount, setAmount] = useState(15000);
   const [info, setInfo] = useState({ bankName: '', holderName: '', accountNumber: '', cardType: CARD_TYPES[0] });
@@ -35,7 +36,10 @@ export function WalletPage() {
     if (!profile?.user_uuid) return;
     try {
        const data = await safeFetch(`/api/wallet/history?uuid=${profile.user_uuid}`);
-       if (data && data.transactions) setHistory(data.transactions);
+       if (data) {
+           if (data.transactions) setHistory(data.transactions);
+           if (data.totalWithdrawn !== undefined) setTotalWithdrawn(data.totalWithdrawn);
+       }
     } catch(e) {}
   };
 
@@ -105,26 +109,38 @@ export function WalletPage() {
       </div>
 
       <AnimatedDiv delay={0.2} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-center">
-            <div className="text-gray-400 uppercase text-xs font-bold tracking-widest mb-2">Số dư hiện tại</div>
-            <div className="text-4xl font-black text-emerald-400 flex items-center gap-2">
-                {balance.toLocaleString()} <VuiCoin size={24} className="text-orange-500 fill-orange-50" />
+        <div className="space-y-4">
+            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-center">
+                <div className="text-gray-400 uppercase text-xs font-bold tracking-widest mb-2">Số dư hiện tại</div>
+                <div className="text-4xl font-black text-emerald-400 flex items-center gap-2">
+                    {balance.toLocaleString()} <VuiCoin size={24} className="text-orange-500 fill-orange-50" />
+                </div>
+            </div>
+            
+            <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-center">
+                <div className="text-blue-200 uppercase text-xs font-bold tracking-widest mb-2">Số dư đã rút</div>
+                <div className="text-3xl font-black text-white flex items-center gap-2">
+                    {totalWithdrawn.toLocaleString()} <span className="text-sm font-bold opacity-80">đ</span>
+                </div>
             </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button onClick={() => { setSelectedType('bank'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <Banknote className="text-blue-500" />
-                <span className="font-bold text-sm uppercase">Bank</span>
-            </button>
-            <button onClick={() => { setSelectedType('zalopay'); setInfo({}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <Banknote className="text-sky-500" />
-                <span className="font-bold text-sm uppercase">ZaloPay</span>
-            </button>
-            <button onClick={() => { setSelectedType('card_game'); setInfo({ cardType: CARD_TYPES[0] }); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center gap-2 transition-all">
-                <CreditCard className="text-rose-500" />
-                <span className="font-bold text-sm uppercase">Thẻ Cào</span>
-            </button>
+        <div className="flex flex-col gap-4">
+            <div className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Phương thức rút</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                <button onClick={() => { setSelectedType('bank'); setInfo({...info, bankName: '', holderName: '', accountNumber: ''}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all shadow-sm">
+                    <Banknote className="text-blue-500" />
+                    <span className="font-bold text-xs uppercase">Ngân hàng</span>
+                </button>
+                <button onClick={() => { setSelectedType('zalopay'); setInfo({...info, holderName: '', accountNumber: ''}); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all shadow-sm">
+                    <Banknote className="text-sky-500" />
+                    <span className="font-bold text-xs uppercase">ZaloPay</span>
+                </button>
+                <button onClick={() => { setSelectedType('card_game'); setInfo({ ...info, cardType: CARD_TYPES[0] }); }} className="bg-white border-2 border-gray-100 hover:border-blue-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all shadow-sm">
+                    <CreditCard className="text-rose-500" />
+                    <span className="font-bold text-xs uppercase">Thẻ Cào</span>
+                </button>
+            </div>
         </div>
       </AnimatedDiv>
 

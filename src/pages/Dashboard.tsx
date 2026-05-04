@@ -19,7 +19,7 @@ export function Dashboard() {
       
       const [statsData, notifyData] = await Promise.all([
          safeFetch(`/api/user/dashboard-stats?uuid=${uuid}`),
-         safeFetch('/api/notifications')
+         safeFetch(`/api/notifications?uuid=${uuid}`)
       ]);
 
       if (statsData) setStats(statsData);
@@ -28,7 +28,7 @@ export function Dashboard() {
       setLoading(false);
     };
     fetchStats();
-  }, []);
+  }, [profile?.user_uuid]);
 
   if (loading) {
     return (
@@ -69,6 +69,7 @@ export function Dashboard() {
             </div>
           </div>
         </AnimatedDiv>
+
 
         <AnimatedDiv delay={0.3} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-5">
           <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">

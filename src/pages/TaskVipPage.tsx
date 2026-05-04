@@ -4,6 +4,9 @@ import { Map, Plane, ExternalLink, ShieldCheck, Loader2, RefreshCw } from 'lucid
 import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
+
+const fpPromise = FingerprintJS.load();
 
 import { useUser } from '@/UserContext';
 
@@ -12,6 +15,7 @@ export function TaskVipPage() {
   const { showNotification } = useNotification();
   const [doingTask, setDoingTask] = useState<'map' | 'trip' | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [fingerprint, setFingerprint] = useState<string>('');
   const uuid = profile?.user_uuid;
 
   const fetchHistory = async () => {
@@ -26,6 +30,13 @@ export function TaskVipPage() {
 
   useEffect(() => {
     if (profile) fetchHistory();
+    
+    // Get Fingerprint
+    fpPromise
+      .then(fp => fp.get())
+      .then(result => {
+        setFingerprint(result.visitorId);
+      });
   }, [profile]);
 
   const startTask = async (type: 'map' | 'trip') => {
@@ -52,10 +63,18 @@ export function TaskVipPage() {
                   taskId: `vip_${type}`,
                   taskName: type === 'map' ? 'REVIEW MAP' : 'REVIEW TRIP',
                   reward: type === 'map' ? 1200 : 2900,
-                  auto: false
+                  auto: false,
+                  fingerprint: fingerprint
               })
           });
           const sessionData = await sessionRes.json();
+          
+          if (!sessionRes.ok) {
+             showNotification({ title: 'Thông báo', message: sessionData.error || "Không thể tạo phiên nhiệm vụ. Thử lại sau!", type: 'warning' });
+             setDoingTask(null);
+             return;
+          }
+
           const sessionId = sessionData.sessionId;
 
           const destinationUrl = `${window.location.origin}/verifytaskpro?code=${sessionId}&uuid=${uuid}`;
