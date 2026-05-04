@@ -54,7 +54,7 @@ export function RankingPage() {
                 </div>
                 <div className="flex bg-slate-100 rounded-full p-1 border border-slate-200">
                     {(['day', 'week', 'month'] as const).map(p => (
-                        <button key={p} onClick={() => setView(p)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition ${view === p ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
+                        <button key={p} disabled={loading} onClick={() => setView(p)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition disabled:opacity-50 ${view === p ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
                             {p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : 'Tháng'}
                         </button>
                     ))}

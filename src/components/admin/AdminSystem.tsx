@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2 } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 export function AdminSystem() {
   const [isMaintenance, setIsMaintenance] = useState(false);
@@ -20,9 +21,11 @@ export function AdminSystem() {
   const [codeMaxUses, setCodeMaxUses] = useState('');
   const [codeDays, setCodeDays] = useState('');
   const [codeBonus, setCodeBonus] = useState('');
+  const [codeBonusHours, setCodeBonusHours] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
   const [ranks, setRanks] = useState<any[]>([]);
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   const generateRandomCode = () => {
     const code = 'VUI' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -48,82 +51,127 @@ export function AdminSystem() {
      fetchSystem();
   }, []);
 
-  const handleMaintenanceToggle = async () => {
-      const nextState = !isMaintenance;
-      setIsMaintenance(nextState);
-      await safeFetch('/api/admin/system', {
-         method: 'POST',
-         headers: {'Content-Type': 'application/json'},
-         body: JSON.stringify({ key: 'maintenance_mode', value: String(nextState) })
-      });
+  const handleMaintenanceToggle = () => {
+    const nextState = !isMaintenance;
+    setConfirmState({
+       isOpen: true,
+       message: nextState ? 'Bạn có chắc chắn muốn BẬT CHẾ ĐỘ BẢO TRÌ? (Người dùng sẽ không thể truy cập web)' : 'Bạn có chắc chắn muốn TẮT CHẾ ĐỘ BẢO TRÌ?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         setIsMaintenance(nextState);
+         await safeFetch('/api/admin/system', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ key: 'maintenance_mode', value: String(nextState) })
+         });
+       }
+    });
   };
 
-  const handleCreateMod = async () => {
+  const handleCreateMod = () => {
       if (!modName || !modPrice || !modLink) return;
-      await safeFetch('/api/admin/system/mods', {
-         method: 'POST',
-         headers: {'Content-Type': 'application/json'},
-         body: JSON.stringify({ name: modName, price: Number(modPrice), link: modLink, image_url: modUrl })
+      setConfirmState({
+         isOpen: true,
+         message: 'Bạn có chắc chắn muốn tạo Mod/Tool này?',
+         onConfirm: async () => {
+           setConfirmState({ ...confirmState, isOpen: false });
+           await safeFetch('/api/admin/system/mods', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ name: modName, price: Number(modPrice), link: modLink, image_url: modUrl })
+           });
+           setModName(''); setModPrice(''); setModLink(''); setModUrl('');
+           fetchSystem();
+         }
       });
-      setModName(''); setModPrice(''); setModLink(''); setModUrl('');
-      fetchSystem();
   };
 
-  const handleDeleteMod = async (id: string) => {
-    if (!window.confirm("Xóa bản Mod này?")) return;
-    await safeFetch('/api/admin/system/mods/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+  const handleDeleteMod = (id: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn xóa bản Mod này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/system/mods/delete', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id })
+         });
+         fetchSystem();
+       }
     });
-    fetchSystem();
   };
 
-  const handleCreateGiftcode = async () => {
+  const handleCreateGiftcode = () => {
     if (!codeName || !codeReward || !codeMaxUses) return;
-    let expiry = null;
-    if (codeDays) {
-      const d = new Date();
-      d.setDate(d.getDate() + Number(codeDays));
-      expiry = d.toISOString();
-    }
-    
-    await safeFetch('/api/admin/system/giftcodes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        code: codeName.toUpperCase(), 
-        reward: Number(codeReward), 
-        max_uses: Number(codeMaxUses), 
-        expiry_date: expiry,
-        type: codeType,
-        bonus_percent: Number(codeBonus || 0)
-      })
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn tạo mã Giftcode này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         let expiry = null;
+         if (codeDays) {
+           const d = new Date();
+           d.setDate(d.getDate() + Number(codeDays));
+           expiry = d.toISOString();
+         }
+         
+         await safeFetch('/api/admin/system/giftcodes', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ 
+             code: codeName.toUpperCase(), 
+             reward: Number(codeReward), 
+             max_uses: Number(codeMaxUses), 
+             expiry_date: expiry,
+             type: codeType,
+             bonus_percent: Number(codeBonus || 0),
+             bonus_hours: Number(codeBonusHours || 0)
+           })
+         });
+         setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus(''); setCodeBonusHours('');
+         fetchSystem();
+       }
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus('');
-    fetchSystem();
   };
 
 
-  const handleDeleteGiftcode = async (id: string) => {
-    if (!window.confirm("Xóa mã Giftcode này?")) return;
-    await safeFetch('/api/admin/system/giftcodes/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+  const handleDeleteGiftcode = (id: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Xóa mã Giftcode này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/system/giftcodes/delete', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id })
+         });
+         fetchSystem();
+       }
     });
-    fetchSystem();
   };
 
-  const handleClearRanks = async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn XÓA TOÀN BỘ dữ liệu xếp hạng ? (Tất cả điểm số trong ngày, tuần, tháng sẽ bị reset về 0)")) return;
-    await safeFetch('/api/admin/leaderboard/clear', { method: 'POST' });
-    fetchSystem();
+  const handleClearRanks = () => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn XÓA TOÀN BỘ dữ liệu xếp hạng ? (Tất cả điểm số trong ngày, tuần, tháng sẽ bị reset về 0)',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/leaderboard/clear', { method: 'POST' });
+         fetchSystem();
+       }
+    });
   };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      
+      <ConfirmModal 
+        isOpen={confirmState.isOpen} 
+        message={confirmState.message} 
+        onConfirm={confirmState.onConfirm} 
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} 
+      />
       {/* 1. Maintenance */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 col-span-1 md:col-span-2 lg:col-span-1">
         <div className="flex items-center gap-4 mb-6">
@@ -194,13 +242,23 @@ export function AdminSystem() {
                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
                />
              </div>
-             <div className="col-span-2">
-               <div className="text-xs font-bold text-slate-400 ml-1 mb-1 uppercase text-center">Tăng % Thưởng Nhiệm Vụ (TASK)</div>
+             <div className="col-span-1">
+               <div className="text-xs font-bold text-slate-400 ml-1 mb-1 uppercase text-center">% Thưởng Task</div>
                <input 
                  type="number" 
                  value={codeBonus}
                  onChange={e => setCodeBonus(e.target.value)}
-                 placeholder="VD: 5 cho 5% (Để 0 nếu không tăng)..." 
+                 placeholder="0 %" 
+                 className="w-full px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center font-bold text-blue-600" 
+               />
+             </div>
+             <div className="col-span-1">
+               <div className="text-xs font-bold text-slate-400 ml-1 mb-1 uppercase text-center">Giờ duy trì</div>
+               <input 
+                 type="number" 
+                 value={codeBonusHours}
+                 onChange={e => setCodeBonusHours(e.target.value)}
+                 placeholder="0 h" 
                  className="w-full px-4 py-2 border border-blue-200 bg-blue-50/50 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center font-bold text-blue-600" 
                />
              </div>
@@ -245,7 +303,7 @@ export function AdminSystem() {
                       </div>
                       <div className="text-[10px] text-gray-500 flex items-center gap-1">
                         Thưởng: <span className="font-bold text-purple-600">{Number(code.reward_amount).toLocaleString()}</span>
-                        {code.bonus_percent > 0 && <span className="text-blue-600 font-bold ml-1">+ {code.bonus_percent}% TASK</span>}
+                        {code.bonus_percent > 0 && <span className="text-blue-600 font-bold ml-1">+ {code.bonus_percent}% TASK {code.bonus_hours > 0 ? `(${code.bonus_hours}h)` : ''}</span>}
                         {code.expires_at && <span> • Hết hạn: {new Date(code.expires_at).toLocaleDateString()}</span>}
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarCheck, Lock, CheckCircle2, Gift } from 'lucide-react';
+import { CalendarCheck, Lock, CheckCircle2, Gift, Loader2 } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { CoinTask } from "@/components/ui/CoinTask";
@@ -52,6 +52,7 @@ export function AttendancePage() {
   }, [profile]);
 
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [loadingChest, setLoadingChest] = useState<number | null>(null);
 
   const handleCheckIn = async (day: number) => {
     if (isCheckingIn) return;
@@ -140,6 +141,8 @@ export function AttendancePage() {
       }
     }
 
+    setLoadingChest(type);
+
     // Process on server (mocking the cost deduction logic here or assume server handles it)
     // For now keeping client side optimistic balance visual and then refreshing
     const uuid = profile?.user_uuid;
@@ -192,6 +195,7 @@ export function AttendancePage() {
     window.dispatchEvent(new CustomEvent('newNotification'));
     
     showNotification({ title: 'Phần thưởng', message: `Đã gửi Hòm Bí Ẩn ${type} vào hộp thông báo!`, type: 'success' });
+    setLoadingChest(null);
   };
 
   return (
@@ -238,6 +242,7 @@ export function AttendancePage() {
                  <div className="w-full">
                     {isToday && !isCheckedIn ? (
                       <button disabled={isCheckingIn} onClick={() => handleCheckIn(day)} className="bg-blue-600 disabled:opacity-50 text-white py-2 rounded-xl text-[11px] font-bold w-full uppercase flex items-center justify-center gap-1 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+                        {isCheckingIn && <Loader2 className="animate-spin" size={14} />}
                         {isCheckingIn ? 'Đang điểm danh...' : 'Điểm danh'}
                       </button>
                     ) : isCheckedIn ? (
@@ -288,8 +293,8 @@ export function AttendancePage() {
                   <div className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Chỉ tiêu: 1,000 task</div>
                 </div>
 
-                <button onClick={() => handleOpenChest('chest1', 1)} disabled={openedChests.chest1 >= 1} className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-900 py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(234,179,8,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                  10,000 <CoinTask size={20} className="text-slate-800" />
+                <button onClick={() => handleOpenChest('chest1', 1)} disabled={openedChests.chest1 >= 1 || !!loadingChest} className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-900 py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(234,179,8,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                  {loadingChest === 1 && <Loader2 className="animate-spin" size={20} />} 10,000 <CoinTask size={20} className="text-slate-800" />
                 </button>
               </div>
             </div>
@@ -316,8 +321,8 @@ export function AttendancePage() {
                   <div className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Chỉ tiêu: {(2500 + (openedChests.chest2 * 10)).toLocaleString()} task</div>
                 </div>
 
-                <button onClick={() => handleOpenChest('chest2', 2)} disabled={openedChests.chest2 >= 10} className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-900 py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(234,179,8,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                  36,000 <CoinTask size={20} className="text-slate-800" />
+                <button onClick={() => handleOpenChest('chest2', 2)} disabled={openedChests.chest2 >= 10 || !!loadingChest} className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 text-slate-900 py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(234,179,8,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                  {loadingChest === 2 && <Loader2 className="animate-spin" size={20} />} 36,000 <CoinTask size={20} className="text-slate-800" />
                 </button>
               </div>
             </div>
@@ -344,8 +349,8 @@ export function AttendancePage() {
                   <div className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Chỉ tiêu: {(10000 + (openedChests.chest3 * 20)).toLocaleString()} task</div>
                 </div>
 
-                <button onClick={() => handleOpenChest('chest3', 3)} disabled={openedChests.chest3 >= 100} className="w-full bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                  1,800,000 <VuiCoin size={20} className="text-orange-200 fill-orange-50/20 drop-shadow-md" />
+                <button onClick={() => handleOpenChest('chest3', 3)} disabled={openedChests.chest3 >= 100 || !!loadingChest} className="w-full bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                  {loadingChest === 3 && <Loader2 className="animate-spin" size={20} />} 1,800,000 <VuiCoin size={20} className="text-orange-200 fill-orange-50/20 drop-shadow-md" />
                 </button>
               </div>
             </div>

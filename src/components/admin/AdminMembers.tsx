@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Users, AlertTriangle, MoreVertical, Ban, DollarSign, Trash2, ShieldAlert, CheckCircle, Copy, ShieldCheck } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 export function AdminMembers() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,6 +14,7 @@ export function AdminMembers() {
   const [adjType, setAdjType] = useState<'add' | 'subtract'>('add');
   const [showDuplicateIps, setShowDuplicateIps] = useState(false);
   const [duplicateIps, setDuplicateIps] = useState<any[]>([]);
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   const fetchMembers = async () => {
      setLoading(true);
@@ -31,38 +33,58 @@ export function AdminMembers() {
      fetchMembers();
   }, []);
 
-  const toggleBan = async (id: string, is_banned: boolean) => {
-    await safeFetch('/api/admin/members/ban', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, is_banned })
+  const toggleBan = (id: string, is_banned: boolean) => {
+    setConfirmState({
+       isOpen: true,
+       message: is_banned ? 'Bạn có chắc chắn muốn BỎ CẤM tài khoản này?' : 'Bạn có chắc chắn muốn CẤM TÀI KHOẢN này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/members/ban', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id, is_banned })
+         });
+         fetchMembers(); // refresh
+         setDropdownOpen(null);
+       }
     });
-    fetchMembers(); // refresh
-    setDropdownOpen(null);
   };
 
-  const toggleAdmin = async (id: string, is_admin: boolean) => {
-    await safeFetch('/api/admin/members/set-admin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, is_admin })
+  const toggleAdmin = (id: string, is_admin: boolean) => {
+    setConfirmState({
+       isOpen: true,
+       message: is_admin ? 'Bạn có chắc chắn muốn XÓA DOCK ADMIN của tài khoản này?' : 'Bạn có chắc chắn muốn CẤP QUYỀN ADMIN cho tài khoản này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/members/set-admin', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id, is_admin })
+         });
+         fetchMembers(); // refresh
+         setDropdownOpen(null);
+       }
     });
-    fetchMembers(); // refresh
-    setDropdownOpen(null);
   };
 
-  const deleteAccount = async (id: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa tài khoản này? Hành động này không thể hoàn tác.")) return;
-    await safeFetch('/api/admin/members/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+  const deleteAccount = (id: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn XÓA TÀI KHOẢN này? Hành động này không thể hoàn tác.',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/members/delete', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id })
+         });
+         fetchMembers(); // refresh
+         setDropdownOpen(null);
+       }
     });
-    fetchMembers(); // refresh
-    setDropdownOpen(null);
   };
 
-  const handleAdjustBalance = async () => {
+  const executeAdjustBalance = async () => {
     if (!showAdjModal || !adjAmount) return;
     await safeFetch('/api/admin/members/adjust-balance', {
       method: 'POST',
@@ -74,24 +96,48 @@ export function AdminMembers() {
     fetchMembers();
   };
 
-  const deleteIpRecord = async (ip: string, userUuid: string) => {
-    if (!window.confirm(`Xóa bản ghi IP ${ip} cho người dùng này?`)) return;
-    await safeFetch('/api/admin/delete-ip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip, user_uuid: userUuid })
+  const handleAdjustBalance = () => {
+    setConfirmState({
+       isOpen: true,
+       message: `Bạn có chắc chắn muốn ${adjType === 'add' ? 'CỘNG' : 'TRỪ'} ${adjAmount} VuiCoin cho tài khoản này?`,
+       onConfirm: () => {
+         executeAdjustBalance();
+         setConfirmState({ ...confirmState, isOpen: false });
+       }
     });
-    fetchMembers();
   };
 
-  const toggleSuspect = async (id: string) => {
-    await safeFetch('/api/admin/toggle-suspect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid: id })
+  const deleteIpRecord = (ip: string, userUuid: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: `Xóa bản ghi IP ${ip} cho người dùng này?`,
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/delete-ip', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ ip, user_uuid: userUuid })
+         });
+         fetchMembers();
+       }
     });
-    alert("Đã cập nhật trạng thái diện tình nghi!");
-    setDropdownOpen(null);
+  };
+
+  const toggleSuspect = (id: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn đưa người dùng này vào TIỆN TÌNH NGHI?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/toggle-suspect', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ uuid: id })
+         });
+         alert("Đã cập nhật trạng thái diện tình nghi!");
+         setDropdownOpen(null);
+       }
+    });
   };
 
   const handleSelectAll = () => {
@@ -118,6 +164,12 @@ export function AdminMembers() {
 
   return (
     <div className="space-y-6">
+      <ConfirmModal 
+        isOpen={confirmState.isOpen} 
+        message={confirmState.message} 
+        onConfirm={confirmState.onConfirm} 
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} 
+      />
       {/* Action Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
         <div className="relative flex-1 max-w-md">

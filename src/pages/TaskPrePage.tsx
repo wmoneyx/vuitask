@@ -26,7 +26,7 @@ export function TaskPrePage() {
     const data = await safeFetch(`/api/tasks/history?uuid=${uuid}`);
     if (data && data.history) {
         // Filter for Pre tasks
-        const preHistory = data.history.filter((h: any) => h.task_id === 'GMAIL_PRE');
+        const preHistory = data.history.filter((h: any) => h.task_id === 'GMAIL_PRE' || (h.task_name || '').toUpperCase().includes('GMAIL'));
         setHistory(preHistory);
     }
   };

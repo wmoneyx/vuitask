@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Send, Trash2, Edit } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 export function AdminNotifications() {
   const { showNotification } = useNotification();
@@ -12,6 +13,7 @@ export function AdminNotifications() {
   const [type, setType] = useState('system');
   const [target, setTarget] = useState('all');
   const [history, setHistory] = useState<any[]>([]);
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   const fetchHistory = async () => {
     const data = await safeFetch('/api/notifications');
@@ -26,39 +28,58 @@ export function AdminNotifications() {
     }
   }, [activeTab]);
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Xóa thông báo này?")) return;
-    await safeFetch('/api/admin/notifications/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+  const handleDelete = (id: string) => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn XÓA thông báo này?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         await safeFetch('/api/admin/notifications/delete', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ id })
+         });
+         fetchHistory();
+       }
     });
-    fetchHistory();
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!title || !content) {
       showNotification({ title: 'Thiếu thông tin', message: "Vui lòng điền đủ Tiêu đề và Nội dung", type: 'warning' });
       return;
     }
     
-    const data = await safeFetch('/api/admin/notifications/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, type, target })
-    });
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn GỬI thông báo này ngay bây giờ?',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         const data = await safeFetch('/api/admin/notifications/send', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ title, content, type, target })
+         });
 
-    if (data && data.success) {
-      showNotification({ title: 'Đã gửi', message: "Thông báo đã được đẩy tới hệ thống thành công!", type: 'success' });
-      setTitle('');
-      setContent('');
-      fetchHistory();
-      setActiveTab('history');
-    }
+         if (data && data.success) {
+           showNotification({ title: 'Đã gửi', message: "Thông báo đã được đẩy tới hệ thống thành công!", type: 'success' });
+           setTitle('');
+           setContent('');
+           fetchHistory();
+           setActiveTab('history');
+         }
+       }
+    });
   };
 
   return (
     <div className="space-y-6">
+      <ConfirmModal 
+        isOpen={confirmState.isOpen} 
+        message={confirmState.message} 
+        onConfirm={confirmState.onConfirm} 
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} 
+      />
       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
         <div className="flex items-center gap-2">
           <button 

@@ -6,10 +6,29 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, warning_count, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
-async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
-    console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
+async function getActiveBonusPercent(uuid: string): Promise<number> {
+    try {
+        const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent, task_bonus_expires_at').eq('user_uuid', uuid).maybeSingle();
+        if (!prof || !prof.task_bonus_percent) return 0;
+        
+        if (prof.task_bonus_expires_at) {
+            const expiresAt = new Date(prof.task_bonus_expires_at).getTime();
+            if (Date.now() > expiresAt) {
+                // Expired, reset to 0
+                await supabaseAdmin.from('profiles').update({ task_bonus_percent: 0, task_bonus_expires_at: null }).eq('user_uuid', uuid);
+                return 0;
+            }
+        }
+        return prof.task_bonus_percent;
+    } catch(e) {
+        return 0;
+    }
+}
+
+async function updateUserStats(userId: string, amount: number, isTask: boolean = true, incrementTurn: boolean = true) {
+    console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}, incrementTurn: ${incrementTurn}`);
     
     // 1. Find the profile column and existing data
     let profile: any = null;
@@ -90,8 +109,10 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
             updates.weekly_balance = currentWeeklyBalance + Number(amount);
         }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
-        updates.today_turns = currentTodayTurns + 1;
-        updates.total_tasks = Number(profile.total_tasks || 0) + 1;
+        if (incrementTurn) {
+            updates.today_turns = currentTodayTurns + 1;
+            updates.total_tasks = Number(profile.total_tasks || 0) + 1;
+        }
     }
     
     // Final check to remove columns that definitely don't exist based on the profile we fetched
@@ -188,7 +209,17 @@ async function startServer() {
         // Fetch task config to get max_views (fallback to 2 if not found)
         let maxViews = 2;
         const { data: taskConfig } = await supabaseAdmin.from('tasks').select('max_views').eq('id', taskId).single();
-        if (taskConfig) maxViews = taskConfig.max_views;
+        if (taskConfig) {
+            maxViews = taskConfig.max_views;
+        } else if (taskId === 'yeumoney') {
+            maxViews = 3;
+        } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap') {
+            maxViews = 2;
+        } else if (taskId === 'linktot' || taskId === 'traffic68') {
+            maxViews = 4;
+        } else if (taskId.startsWith('utl') || taskId === 'y1s') {
+            maxViews = 999;
+        }
 
         if (historyData && historyData.length >= maxViews) {
             return res.status(403).json({ 
@@ -399,9 +430,9 @@ async function startServer() {
     let finalReward = baseReward;
     
     try {
-      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
-      if (prof && prof.task_bonus_percent > 0) {
-         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+      const bonusPercent = await getActiveBonusPercent(uuid);
+      if (bonusPercent > 0) {
+         finalReward = Math.floor(baseReward * (1 + bonusPercent / 100));
       }
     } catch (e) {
       console.error("Error calculating bonus reward:", e);
@@ -469,9 +500,9 @@ async function startServer() {
     let finalReward = baseReward;
     
     try {
-      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
-      if (prof && prof.task_bonus_percent > 0) {
-         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+      const bonusPercent = await getActiveBonusPercent(uuid);
+      if (bonusPercent > 0) {
+         finalReward = Math.floor(baseReward * (1 + bonusPercent / 100));
       }
     } catch (e) {
       console.error("Error calculating bonus reward:", e);
@@ -487,7 +518,7 @@ async function startServer() {
         status: finalStatus,
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
-        url: email,
+        url: note ? `${email}|||${note}` : email,
         ip: ip
     });
 
@@ -550,9 +581,9 @@ async function startServer() {
       let finalReward = baseReward;
       
       try {
-        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
-        if (prof && prof.task_bonus_percent > 0) {
-           finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
+        const bonusPercent = await getActiveBonusPercent(uuid);
+        if (bonusPercent > 0) {
+           finalReward = Math.floor(baseReward * (1 + bonusPercent / 100));
         }
       } catch (e) {
         console.error("Error calculating bonus reward:", e);
@@ -583,14 +614,27 @@ async function startServer() {
           await updateUserStats(uuid, 0, true);
 
           if (session.auto) {
+              const { data: prof } = await supabaseAdmin.from('profiles').select('warning_count').eq('user_uuid', uuid).maybeSingle();
+              const newWarnCount = (prof?.warning_count || 0) + 1;
+              
+              const updateData: any = { warning_count: newWarnCount };
+              if (newWarnCount >= 5) {
+                  updateData.is_banned = true;
+              }
+              await supabaseAdmin.from('profiles').update(updateData).eq('user_uuid', uuid);
+
               await supabaseAdmin.from('site_notifications').insert({
-                  id: `FAST_WARN_${Date.now()}`,
+                  id: `FAST_WARN_${Date.now()}_${uuid.slice(0, 4)}`,
                   title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!  <span class="text-rose-600 font-bold">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (0 / 5)</span>`,
+                  content: `Hệ thống phát hiện [${uuid.slice(0, 8)}...] vượt captcha quá nhanh. Phần thưởng [${finalReward}] VuiCoin tại [${session.task_name}] đã bị hủy! <span class="text-rose-600 font-bold block mt-1">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (${newWarnCount}/ 5) SẼ KHÓA TÀI KHOẢN</span>`,
                   type: 'warning',
                   target: 'all',
                   timestamp: Date.now()
               });
+              
+              if (newWarnCount >= 5) {
+                  return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa do vi phạm chính sách quá 5 lần." });
+              }
               return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
           } else {
               return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
@@ -807,9 +851,11 @@ async function startServer() {
 
   // ========== NOTIFICATION API ==========
   app.get("/api/notifications", async (req, res) => {
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
     const { data: notifications } = await supabaseAdmin
       .from('site_notifications')
       .select('*')
+      .gte('timestamp', twentyFourHoursAgo)
       .order('timestamp', { ascending: false })
       .limit(50);
     res.json({ notifications: notifications || [] });
@@ -1062,7 +1108,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
-      const { code, reward, max_uses, expiry_date, type, bonus_percent } = req.body;
+      const { code, reward, max_uses, expiry_date, type, bonus_percent, bonus_hours } = req.body;
       const newCode = {
           code: code.toUpperCase(),
           reward_amount: Number(reward),
@@ -1071,6 +1117,7 @@ async function startServer() {
           expires_at: expiry_date,
           reward_type: type || 'vui_coin',
           bonus_percent: Number(bonus_percent || 0),
+          bonus_hours: Number(bonus_hours || 0),
           created_at: new Date().toISOString()
       };
       
@@ -1216,7 +1263,25 @@ async function startServer() {
     const { data: pending } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
-      .eq('status', 'Chờ duyệt');
+      .eq('status', 'Chờ duyệt')
+      .order('timestamp', { ascending: false });
+
+    if (pending && pending.length > 0) {
+      const sessionIds = pending.map(p => p.id);
+      const { data: sessions } = await supabaseAdmin
+        .from('sessions')
+        .select('*')
+        .in('id', sessionIds);
+      
+      if (sessions) {
+         pending.forEach(p => {
+            const s = sessions.find(sess => sess.id === p.id);
+            if (s) {
+               p.session_data = s;
+            }
+         });
+      }
+    }
     
     res.json({ pending: pending || [] });
   });
@@ -1232,6 +1297,23 @@ async function startServer() {
       .gt('timestamp', clearTime)
       .order('timestamp', { ascending: false })
       .limit(100);
+
+    if (history && history.length > 0) {
+      const sessionIds = history.map(p => p.id);
+      const { data: sessions } = await supabaseAdmin
+        .from('sessions')
+        .select('*')
+        .in('id', sessionIds);
+      
+      if (sessions) {
+         history.forEach(p => {
+            const s = sessions.find(sess => sess.id === p.id);
+            if (s) {
+               p.session_data = s;
+            }
+         });
+      }
+    }
     
     res.json({ history: history || [] });
   });
@@ -1287,8 +1369,8 @@ async function startServer() {
             admin_note: 'Approved'
           });
 
-          // Update balance using user_uuid from task record
-          await updateUserStats(task.user_uuid, task.reward, true);
+          // Update balance using user_uuid from task record (Do not increment turns, they were already incremented)
+          await updateUserStats(task.user_uuid, task.reward, true, false);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -1897,9 +1979,13 @@ async function startServer() {
     
     // Add bonus if exists
     if (giftCode.bonus_percent && giftCode.bonus_percent > 0) {
-      const { data: currentProfile } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
-      const newBonus = (currentProfile?.task_bonus_percent || 0) + giftCode.bonus_percent;
-      await supabaseAdmin.from('profiles').update({ task_bonus_percent: newBonus }).eq('user_uuid', uuid);
+      const currentBonus = await getActiveBonusPercent(uuid);
+      const newBonus = currentBonus + giftCode.bonus_percent;
+      let updatePayload: any = { task_bonus_percent: newBonus };
+      if (giftCode.bonus_hours && giftCode.bonus_hours > 0) {
+         updatePayload.task_bonus_expires_at = new Date(Date.now() + giftCode.bonus_hours * 3600000).toISOString();
+      }
+      await supabaseAdmin.from('profiles').update(updatePayload).eq('user_uuid', uuid);
     }
     
     // Original rewards: vui_coin or coin_task
@@ -1936,7 +2022,7 @@ async function startServer() {
       .limit(1);
 
     if (pendingWds && pendingWds.length > 0) {
-      return res.status(400).json({ error: "Chỉ cho phép thực hiện 1 đơn rút / lần. Vui lòng chờ đơn trước được xử lý." });
+      return res.status(400).json({ error: `BẠN CÓ ĐƠN RÚT [${pendingWds[0].id}] CHƯA THANH TOÁN.` });
     }
 
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
@@ -1994,10 +2080,9 @@ async function startServer() {
       return res.status(400).json({ error: "Yêu cầu không tồn tại hoặc đã được xử lý" });
     }
 
-    // Tiền hoàn lại: Số tiền thực nhận + phí (tức là tổng số tiền bị trừ)
+    // Tiền hoàn lại: Số tiền thực nhận đã trừ phí 5%
     const amount = wd.amount;
-    const fee = amount * 0.05;
-    const totalRefund = amount + fee;
+    const totalRefund = amount * 0.95;
 
     await supabaseAdmin.from('community_messages').update({ status: 'Đã hủy' }).eq('id', id);
     await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: totalRefund });

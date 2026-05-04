@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, Copy, CheckCircle, XCircle, Gamepad2, Send } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
+import { ConfirmModal } from './ConfirmModal';
 
 // 1. XỬ LÝ NGÂN HÀNG (BANK) - TẠO QR & DATA THANH TOÁN
 export const processBankLogic = (order: any) => {
@@ -88,6 +89,7 @@ export function AdminWithdrawals() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [showInfoModal, setShowInfoModal] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({ serial: '', code: '' });
+  const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   useEffect(() => {
     fetchWithdrawals();
@@ -105,7 +107,7 @@ export function AdminWithdrawals() {
 
   const displayedList = activeSubTab === 'pending' ? pending : history;
 
-  const handleApprove = async (id: string, amount: number, cardData?: {serial: string, code: string}) => {
+  const executeApprove = async (id: string, amount: number, cardData?: {serial: string, code: string}) => {
     const actualAmount = amount * 0.95;
     let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
     if (cardData) {
@@ -122,30 +124,59 @@ export function AdminWithdrawals() {
     }
   };
 
-  const handleReject = async (id: string, amount: number) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`)) return;
-    const data = await safeFetch('/api/admin/reject-withdrawal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalId: id })
-    });
-    if (data && data.success) {
-        fetchWithdrawals();
-        showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
-    }
+  const handleApprove = (id: string, amount: number, cardData?: {serial: string, code: string}) => {
+     setConfirmState({
+       isOpen: true,
+       message: `Bạn có chắc chắn muốn XÁC NHẬN ĐÃ THANH TOÁN đơn rút này?`,
+       onConfirm: () => {
+         executeApprove(id, amount, cardData);
+         setConfirmState({ ...confirmState, isOpen: false });
+       }
+     });
   };
 
-  const handleClearHistory = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt rút tiền? Hành động này không thể hoàn tác.')) return;
-    const data = await safeFetch('/api/admin/clear-withdrawals-history', { method: 'POST' });
-    if (data) {
-        fetchWithdrawals();
-        showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử duyệt rút tiền.', type: 'success' });
-    }
+  const handleReject = (id: string, amount: number) => {
+    setConfirmState({
+       isOpen: true,
+       message: `Bạn có chắc chắn muốn TỪ CHỐI và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`,
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         const data = await safeFetch('/api/admin/reject-withdrawal', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ withdrawalId: id })
+         });
+         if (data && data.success) {
+             fetchWithdrawals();
+             showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
+         }
+       }
+    });
+  };
+
+  const handleClearHistory = () => {
+    setConfirmState({
+       isOpen: true,
+       message: 'Bạn có chắc chắn muốn xóa TẤT CẢ lịch sử duyệt rút tiền? Hành động này không thể hoàn tác.',
+       onConfirm: async () => {
+         setConfirmState({ ...confirmState, isOpen: false });
+         const data = await safeFetch('/api/admin/clear-withdrawals-history', { method: 'POST' });
+         if (data) {
+             fetchWithdrawals();
+             showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử duyệt rút tiền.', type: 'success' });
+         }
+       }
+    });
   };
 
   return (
     <div className="space-y-6">
+      <ConfirmModal 
+        isOpen={confirmState.isOpen} 
+        message={confirmState.message} 
+        onConfirm={confirmState.onConfirm} 
+        onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} 
+      />
       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
         <div className="flex items-center gap-2">
           <button 

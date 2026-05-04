@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Camera, AlertTriangle } from 'lucide-react';
+import { User, Camera, AlertTriangle, Loader2 } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { CoinTask } from "@/components/ui/CoinTask";
@@ -128,8 +128,9 @@ export function ProfilePage() {
             <button 
                 onClick={saveProfile}
                 disabled={isSaving}
-                className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:bg-slate-800 disabled:opacity-50"
+                className="bg-slate-900 border border-slate-900 flex justify-center items-center gap-2 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:bg-slate-800 disabled:opacity-50"
             >
+                {isSaving && <Loader2 className="animate-spin" size={14} />}
                 {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
             </button>
           </div>
@@ -155,6 +156,9 @@ export function ProfilePage() {
             {profile && profile.task_bonus_percent > 0 && (
               <div className="mt-2 text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded inline-block border border-emerald-400/20">
                 +{profile.task_bonus_percent}% THƯỞNG TASK
+                {profile.task_bonus_expires_at && (
+                   <span className="ml-1 opacity-80">(Hết hạn: {new Date(profile.task_bonus_expires_at).toLocaleString()})</span>
+                )}
               </div>
             )}
             <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
@@ -174,10 +178,16 @@ export function ProfilePage() {
                 className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-200"
             />
             <button 
-                disabled={deleteConfirm !== username}
-                onClick={() => setIsDeleting(true)}
-                className="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl uppercase transition-all shrink-0"
+                disabled={deleteConfirm !== username || isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  // Simulate deleting wait as per requirement before error or redirect
+                  await new Promise(r => setTimeout(r, 2000));
+                  setIsDeleting(false);
+                }}
+                className="bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl uppercase transition-all shrink-0 flex items-center justify-center gap-2"
             >
+                {isDeleting && <Loader2 className="animate-spin" size={18} />}
                 Xóa vĩnh viễn
             </button>
         </div>

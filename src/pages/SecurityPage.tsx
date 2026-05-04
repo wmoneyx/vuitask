@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Lock, MapPin, Users, Wifi, UserCheck } from 'lucide-react';
+import { Shield, Lock, MapPin, Users, Wifi, UserCheck, Loader2 } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 
 export function SecurityPage() {
   const [ips, setIps] = useState<any[]>([]);
+  const [isChangingPass, setIsChangingPass] = useState(false);
 
   useEffect(() => {
      const uuid = localStorage.getItem('userUUID');
@@ -42,7 +43,18 @@ export function SecurityPage() {
             <div className="space-y-4">
                 <input type="password" placeholder="Mật khẩu cũ" className="w-full bg-gray-50 rounded-xl p-3 border-none" />
                 <input type="password" placeholder="Mật khẩu mới" className="w-full bg-gray-50 rounded-xl p-3 border-none" />
-                <button className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase">Xác nhận</button>
+                <button 
+                  disabled={isChangingPass}
+                  onClick={async () => {
+                     setIsChangingPass(true);
+                     await new Promise(r => setTimeout(r, 1000));
+                     setIsChangingPass(false);
+                  }}
+                  className="w-full bg-slate-900 text-white font-bold py-3 flex items-center justify-center gap-2 rounded-xl uppercase disabled:opacity-50"
+                >
+                  {isChangingPass && <Loader2 className="animate-spin" size={20} />}
+                  Xác nhận
+                </button>
             </div>
         </div>
 

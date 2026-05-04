@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wallet, Banknote, CreditCard, Eye, AlertCircle } from 'lucide-react';
+import { Wallet, Banknote, CreditCard, Eye, AlertCircle, Loader2 } from 'lucide-react';
 import { AnimatedDiv, AnimatedText } from "@/components/ui/AnimatedText";
 import { VuiCoin } from "@/components/ui/VuiCoin";
 import { useNotification } from '../context/NotificationContext';
@@ -20,6 +20,8 @@ export function WalletPage() {
   const [info, setInfo] = useState({ bankName: '', holderName: '', accountNumber: '', cardType: CARD_TYPES[0] });
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingClear, setLoadingClear] = useState(false);
+  const [loadingCancelId, setLoadingCancelId] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState<any | null>(null);
 
   useEffect(() => {
@@ -77,8 +79,8 @@ export function WalletPage() {
             })
         });
 
-        if (res.error) {
-            showNotification({ title: 'Thất bại', message: res.error, type: 'error' });
+        if (!res || res.error) {
+            showNotification({ title: 'Thất bại', message: res?.error || "Lỗi xử lý hệ thống", type: 'error' });
             return;
         }
 
@@ -171,8 +173,11 @@ export function WalletPage() {
                     <AlertCircle size={14}/> Phí rút 5% : {(amount * 0.05).toLocaleString()} VuiCoin. Bạn sẽ nhận được: {(amount * 0.95).toLocaleString()} VuiCoin
                 </div>
 
-                <button onClick={handleConfirmWithdraw} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase">Xác nhận rút</button>
-                <button onClick={() => setSelectedType(null)} className="text-gray-400 text-sm w-full text-center hover:text-gray-600">Đóng</button>
+                <button onClick={handleConfirmWithdraw} disabled={loading} className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl uppercase flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {loading && <Loader2 className="animate-spin" size={20} />}
+                    Xác nhận rút
+                </button>
+                <button onClick={() => setSelectedType(null)} disabled={loading} className="text-gray-400 text-sm w-full text-center hover:text-gray-600 disabled:opacity-50">Đóng</button>
             </div>
         </AnimatedDiv>
       )}
@@ -184,15 +189,19 @@ export function WalletPage() {
                 <button 
                     onClick={async () => {
                         if (!window.confirm("Xóa tất cả lịch sử rút thưởng của bạn?")) return;
+                        setLoadingClear(true);
                         await safeFetch('/api/user/wallet/clear', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ uuid: profile?.user_uuid })
                         });
-                        fetchWithdrawals();
+                        await fetchWithdrawals();
+                        setLoadingClear(false);
                     }}
-                    className="text-xs font-bold text-rose-500 uppercase hover:underline"
+                    disabled={loadingClear}
+                    className="flex justify-center items-center gap-1 text-xs font-bold text-rose-500 uppercase hover:underline disabled:opacity-50"
                 >
+                    {loadingClear && <Loader2 className="animate-spin" size={14} />}
                     Xóa tất cả
                 </button>
             )}
@@ -218,30 +227,80 @@ export function WalletPage() {
                     const netAmount = amount - fee;
                     const methodIcon = isCard ? <CreditCard size={18}/> : <Banknote size={18}/>;
                     
+                    let parsedDetails: any = null;
+                    if (h.content && h.content.includes('Chi tiết: ')) {
+                        const jsonStr = h.content.split('Chi tiết: ')[1];
+                        try {
+                            parsedDetails = JSON.parse(jsonStr);
+                        } catch(e) {}
+                    }
+
                     return (
                         <div key={i} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <div className='flex items-center gap-3'>
-                                    <div className='p-2 bg-white rounded-lg shadow-sm text-blue-500'>
+                            <div className="flex flex-col mb-1 border-b border-gray-200 pb-3 gap-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-[10px] text-gray-500 font-mono font-medium tracking-wider">ID: {h.id}</div>
+                                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusInfo.colors}`}>
+                                        {statusInfo.label}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className='p-2 bg-white rounded-lg shadow-sm text-blue-500 shrink-0 border border-blue-50'>
                                         {methodIcon}
                                     </div>
-                                    <div>
+                                    <div className="flex-1">
                                         <div className='font-bold text-sm uppercase text-slate-800'>{method}</div>
-                                        <div className="text-xs text-slate-500">{new Date(h.timestamp).toLocaleString()}</div>
+                                        <div className="text-[11px] font-medium text-slate-500 mt-0.5">{new Date(h.timestamp).toLocaleString()}</div>
                                     </div>
                                 </div>
-                                <div className={`text-xs font-bold px-3 py-1 rounded-full ${statusInfo.colors}`}>
-                                    {statusInfo.label}
-                                </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm mt-1">
-                                <div className="bg-white p-2 rounded-lg border border-slate-100">
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase">Số rút</div>
-                                    <div className="font-bold text-slate-700">{amount.toLocaleString()}đ</div>
+                            
+                            {parsedDetails && (
+                                <div className="bg-white p-3 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1.5 shadow-sm">
+                                    {isCard ? (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-gray-400 font-medium">Nhà mạng:</span>
+                                            <strong className="text-slate-800">{parsedDetails.cardType}</strong>
+                                        </div>
+                                    ) : isZalo ? (
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 font-medium">Tên tài khoản:</span>
+                                                <strong className="text-slate-800">{parsedDetails.holderName}</strong>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 font-medium">Số điện thoại:</span>
+                                                <strong className="text-slate-800 font-mono">{parsedDetails.accountNumber}</strong>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 font-medium">Ngân hàng:</span>
+                                                <strong className="text-slate-800">{parsedDetails.bankName?.toUpperCase()}</strong>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 font-medium">Chủ tài khoản:</span>
+                                                <strong className="text-slate-800">{parsedDetails.holderName}</strong>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400 font-medium">Số tài khoản:</span>
+                                                <strong className="text-slate-800 font-mono">{parsedDetails.accountNumber}</strong>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                <div className="bg-white p-2 rounded-lg border border-slate-100">
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase">Thực nhận</div>
-                                    <div className="font-bold text-emerald-600">{netAmount.toLocaleString()}đ</div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                                    <div className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Số rút</div>
+                                    <div className="font-bold text-slate-700">{amount.toLocaleString()} đ</div>
+                                </div>
+                                <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-emerald-500/5"></div>
+                                    <div className="text-[10px] text-gray-500 font-bold uppercase mb-0.5 relative">Thực nhận</div>
+                                    <div className="font-black text-emerald-600 relative">{netAmount.toLocaleString()} đ</div>
                                 </div>
                             </div>
                             
@@ -249,16 +308,20 @@ export function WalletPage() {
                                 <button 
                                     onClick={async () => {
                                         if (!window.confirm("Bạn muốn hủy lệnh rút tiền này? Tiền sẽ được hoàn lại.")) return;
+                                        setLoadingCancelId(h.id);
                                         await safeFetch('/api/wallet/cancel', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ uuid: profile?.user_uuid, id: h.id })
                                         });
-                                        fetchWithdrawals();
-                                        refreshProfile();
+                                        await fetchWithdrawals();
+                                        await refreshProfile();
+                                        setLoadingCancelId(null);
                                     }}
-                                    className='mt-2 flex items-center justify-center gap-2 bg-rose-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-rose-600 transition'
+                                    disabled={loadingCancelId === h.id}
+                                    className='mt-2 flex items-center justify-center gap-2 bg-rose-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-rose-600 transition disabled:opacity-50'
                                 >
+                                    {loadingCancelId === h.id && <Loader2 className="animate-spin" size={16} />}
                                     Hủy lệnh rút tiền
                                 </button>
                             )}

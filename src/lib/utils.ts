@@ -43,6 +43,13 @@ export async function safeFetch(url: string, options?: RequestInit) {
         if (res.status === 404) {
             console.warn(`API Not Found: ${url}`);
         }
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            try {
+                const text = await res.text();
+                if (text) return JSON.parse(text);
+            } catch (e) {}
+        }
         return null;
     }
     if (res.status === 204) return { success: true };

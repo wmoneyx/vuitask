@@ -19,7 +19,7 @@ export function TaskVipPage() {
     const data = await safeFetch(`/api/tasks/history?uuid=${uuid}`);
     if (data && data.history) {
         // Filter for VIP tasks
-        const vipHistory = data.history.filter((h: any) => h.task_id && h.task_id.startsWith('vip_'));
+        const vipHistory = data.history.filter((h: any) => (h.task_id && h.task_id.startsWith('vip_')) || (h.task_name || '').toUpperCase().includes('REVIEW'));
         setHistory(vipHistory);
     }
   };
