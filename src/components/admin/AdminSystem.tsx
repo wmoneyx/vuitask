@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2 } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
 import { ConfirmModal } from './ConfirmModal';
+import { useNotification } from '../../context/NotificationContext';
 
 export function AdminSystem() {
+  const { showNotification } = useNotification();
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [mods, setMods] = useState<any[]>([]);
   const [codes, setCodes] = useState<any[]>([]);
@@ -116,11 +118,11 @@ export function AdminSystem() {
            expiry = d.toISOString();
          }
          
-         await safeFetch('/api/admin/system/giftcodes', {
+         const data = await safeFetch('/api/admin/system/giftcodes', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ 
-             code: codeName.toUpperCase(), 
+             code: codeName.toUpperCase().trim(), 
              reward: Number(codeReward), 
              max_uses: Number(codeMaxUses), 
              expiry_date: expiry,
@@ -129,8 +131,16 @@ export function AdminSystem() {
              bonus_hours: Number(codeBonusHours || 0)
            })
          });
-         setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus(''); setCodeBonusHours('');
-         fetchSystem();
+
+         if (data?.error) {
+           showNotification({ title: 'Thất bại', message: data.error, type: 'error' });
+         } else if (data?.success) {
+           showNotification({ title: 'Thành công', message: 'Đã tạo mã Giftcode mới', type: 'success' });
+           setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus(''); setCodeBonusHours('');
+           fetchSystem();
+         } else {
+            showNotification({ title: 'Thất bại', message: 'Lỗi không xác định', type: 'error' });
+         }
        }
     });
   };
@@ -142,12 +152,17 @@ export function AdminSystem() {
        message: 'Xóa mã Giftcode này?',
        onConfirm: async () => {
          setConfirmState({ ...confirmState, isOpen: false });
-         await safeFetch('/api/admin/system/giftcodes/delete', {
+         const data = await safeFetch('/api/admin/system/giftcodes/delete', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ id })
          });
-         fetchSystem();
+         if (data?.error) {
+           showNotification({ title: 'Thất bại', message: data.error, type: 'error' });
+         } else {
+           showNotification({ title: 'Thành công', message: 'Đã xóa Giftcode', type: 'success' });
+           fetchSystem();
+         }
        }
     });
   };

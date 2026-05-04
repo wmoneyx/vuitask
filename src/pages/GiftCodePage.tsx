@@ -23,8 +23,8 @@ export function GiftCodePage() {
           body: JSON.stringify({ uuid: profile.user_uuid, code: giftCode })
        });
        
-       if (data.error) {
-          showNotification({ title: 'Thất bại', message: data.error, type: 'error' });
+       if (!data || data.error) {
+          showNotification({ title: 'Thất bại', message: data?.error || 'Lỗi hệ thống', type: 'error' });
           return;
        }
 

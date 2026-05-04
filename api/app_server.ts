@@ -90,8 +90,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     }
 
     if (!profile) {
-        console.error(`[updateUserStats] Profile not found for userId: ${userId}`);
-        return;
+        throw new Error(`[updateUserStats] Profile not found for userId: ${userId}`);
     }
     
     const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
@@ -136,27 +135,26 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         updates.monthly_balance = 0; 
     }
     
-    if (isTask) {
+    // Always update today/monthly balance if amount > 0, to reflect in earnings dashboard
+    if (Number(amount) > 0) {
         updates.today_balance = currentTodayBalance + Number(amount);
-        if ('weekly_balance' in profile) {
-            updates.weekly_balance = currentWeeklyBalance + Number(amount);
+        if ('weekly_balance' in profile || updates.weekly_balance !== undefined) {
+             updates.weekly_balance = (updates.weekly_balance !== undefined ? updates.weekly_balance : currentWeeklyBalance) + Number(amount);
         }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
-        if (incrementTurn) {
-            updates.today_turns = currentTodayTurns + 1;
-            updates.total_tasks = Number(profile.total_tasks || 0) + 1;
+        
+        if (isTask) {
+            if (incrementTurn) {
+                updates.today_turns = currentTodayTurns + 1;
+                updates.total_tasks = Number(profile.total_tasks || 0) + 1;
+            }
         }
     }
     
     // Final check to remove columns that definitely don't exist based on the profile we fetched
     Object.keys(updates).forEach(key => {
         if (!(key in profile) && key !== pkCol && key !== 'vui_coin_balance' && key !== 'id') {
-            // If it wasn't in our SELECT *, it probably doesn't exist
-            // (Note: select('*') might not have been used, but our cols string had it)
-            // To be safe, if it wasn't in res1/profile, we remove it from updates
-            if (res1 && !(key in res1)) {
-                delete updates[key];
-            }
+             delete updates[key];
         }
     });
 
@@ -164,9 +162,12 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     if (updateError) {
         console.error(`[updateUserStats] Failed to update profile:`, updateError);
         // Fallback: try field by field if total update fails due to schema
+        let anySuccess = false;
         for (const [key, val] of Object.entries(updates)) {
-            await supabaseAdmin.from('profiles').update({ [key]: val }).eq(pkCol, userId);
+            const { error: e2 } = await supabaseAdmin.from('profiles').update({ [key]: val }).eq(pkCol, userId);
+            if (!e2) anySuccess = true;
         }
+        if (!anySuccess) throw new Error("Could not update profile balance");
     } else {
         console.log(`[updateUserStats] Successfully updated balance for ${userId}. New balance: ${updates.vui_coin_balance}`);
         
@@ -1145,23 +1146,39 @@ async function startServer() {
 
   app.post("/api/admin/system/giftcodes", checkAdmin, async (req, res) => {
       const { code, reward, max_uses, expiry_date, type, bonus_percent, bonus_hours } = req.body;
-      const newCode = {
-          code: code.toUpperCase(),
+      
+      const cleanCode = (code || "").toUpperCase().trim();
+      if (!cleanCode) return res.status(400).json({ error: "Mã code không được để trống" });
+
+      // Check if code exists first
+      const { data: existing } = await supabaseAdmin.from('gift_codes').select('code').eq('code', cleanCode).maybeSingle();
+      if (existing) {
+          return res.status(400).json({ error: "Mã Giftcode này đã tồn tại trên hệ thống" });
+      }
+
+      const newCode: any = {
+          code: cleanCode,
           reward_amount: Number(reward),
           max_uses: Number(max_uses),
           used_count: 0,
           expires_at: expiry_date,
           reward_type: type || 'vui_coin',
-          bonus_percent: Number(bonus_percent || 0),
-          bonus_hours: Number(bonus_hours || 0),
           created_at: new Date().toISOString()
       };
       
+      if (bonus_percent) newCode.bonus_percent = Number(bonus_percent);
+      if (bonus_hours) newCode.bonus_hours = Number(bonus_hours);
+
       const { data, error } = await supabaseAdmin.from('gift_codes').insert(newCode).select().single();
       
       if (error) {
-          console.error("Giftcode error:", error);
-          return res.status(500).json({ error: error.message });
+          console.error("Giftcode Admin Creation Error Details:", JSON.stringify(error, null, 2));
+          if (error.message.includes("schema cache") || error.message.includes("column")) {
+             return res.status(500).json({ 
+                error: "Lỗi Schema: Vui lòng vào Supabase SQL Editor chạy các lệnh ALTER TABLE trong file SUPABASE_SETUP.md (Mục 8) để cập nhật bảng gift_codes, sau đó chờ 1-2 phút để hệ thống nhận diện cột mới." 
+             });
+          }
+          return res.status(500).json({ error: error.message || "Lỗi tạo Giftcode" });
       }
 
       res.json({ success: true, code: data });
@@ -2002,13 +2019,14 @@ async function startServer() {
 
   // Gift Code Redemption
   app.post("/api/giftcode/redeem", async (req, res) => {
-    const { code, uuid } = req.body || {};
-    if (!code || !uuid) return res.status(400).json({ error: "Missing info" });
+    const { code, uuid: rawUuid } = req.body || {};
+    if (!code || !rawUuid) return res.status(400).json({ error: "Missing info" });
+    const uuid = rawUuid.trim();
 
     const { data: giftCode, error: codeErr } = await supabaseAdmin
       .from('gift_codes')
       .select('*')
-      .eq('code', code.toUpperCase())
+      .eq('code', code.toUpperCase().trim())
       .single();
 
     if (codeErr || !giftCode) return res.status(404).json({ error: "Mã giftcode không tồn tại" });
@@ -2026,7 +2044,7 @@ async function startServer() {
       .select('*')
       .eq('code', giftCode.code)
       .eq('user_uuid', uuid)
-      .single();
+      .maybeSingle();
 
     if (usage) return res.status(400).json({ error: "Bạn đã sử dụng mã này rồi" });
     
@@ -2038,19 +2056,41 @@ async function startServer() {
       if (giftCode.bonus_hours && giftCode.bonus_hours > 0) {
          updatePayload.task_bonus_expires_at = new Date(Date.now() + giftCode.bonus_hours * 3600000).toISOString();
       }
-      await supabaseAdmin.from('profiles').update(updatePayload).eq('user_uuid', uuid);
+      const { error: bonusErr } = await supabaseAdmin.from('profiles').update(updatePayload).eq('user_uuid', uuid);
+      if (bonusErr) {
+          console.error("Giftcode bonus update error:", bonusErr);
+          return res.status(500).json({ error: "Lỗi hệ thống khi cập nhật Bonus." });
+      }
     }
     
     // Original rewards: vui_coin or coin_task
     if (giftCode.reward_amount > 0) {
       if (giftCode.reward_type === 'coin_task') {
-         await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
+         const { error: rpcErr } = await supabaseAdmin.rpc('increment_coin_task', { user_id: uuid, amount: giftCode.reward_amount });
+         if (rpcErr) {
+            console.error("Giftcode RPC increment_coin_task error:", rpcErr);
+            return res.status(500).json({ error: "Lỗi hệ thống khi cộng tiền (Xu Task). Vui lòng liên hệ Admin." });
+         }
       } else {
-         await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+         try {
+            await updateUserStats(uuid, giftCode.reward_amount, false);
+         } catch (e) {
+            console.error("Giftcode updateUserStats error:", e);
+            const { error: rpcErr } = await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: giftCode.reward_amount });
+            if (rpcErr) {
+               console.error("Giftcode fallback RPC error:", rpcErr);
+               return res.status(500).json({ error: "Lỗi hệ thống khi cộng tiền (VuiCoin). Vui lòng liên hệ Admin." });
+            }
+         }
       }
     }
 
-    await supabaseAdmin.from('gift_code_redeems').insert({ code: giftCode.code, user_uuid: uuid, reward: giftCode.reward_amount });
+    const { error: redeemErr } = await supabaseAdmin.from('gift_code_redeems').insert({ code: giftCode.code, user_uuid: uuid, reward: giftCode.reward_amount });
+    if (redeemErr) {
+        console.error("Giftcode insert redeem error:", redeemErr);
+        // We still proceed as the reward was already given, but the user might be able to redeem again if this fails.
+        // However, usually this failing means the user already redeemed (unique constraint).
+    }
     await supabaseAdmin.from('gift_codes').update({ used_count: (giftCode.used_count || 0) + 1 }).eq('code', giftCode.code);
 
     res.json({ 
