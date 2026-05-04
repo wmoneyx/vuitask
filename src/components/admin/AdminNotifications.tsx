@@ -179,9 +179,7 @@ export function AdminNotifications() {
                          {notif.type === 'system' ? 'Hệ thống' : notif.type === 'event' ? 'Sự kiện' : 'Cảnh báo'}
                       </div>
                     </td>
-                    <td className="p-2 text-xs text-gray-600 line-clamp-2 max-w-sm">
-                      {notif.content}
-                    </td>
+                    <td className="p-2 text-xs text-gray-600 line-clamp-2 max-w-sm" dangerouslySetInnerHTML={{ __html: notif.content }} />
                     <td className="p-2 text-xs text-gray-500">{new Date(notif.created_at).toLocaleString('vi-VN')}</td>
                     <td className="p-2">
                        <div className="flex justify-center gap-1.5">

@@ -88,11 +88,10 @@ export function AdminWithdrawals() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [showInfoModal, setShowInfoModal] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({ serial: '', code: '' });
-  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWithdrawals();
-    const interval = setInterval(fetchWithdrawals, 5000); // Poll every 5s for faster sync
+    const interval = setInterval(fetchWithdrawals, 10000); // Poll every 10s instead of 3s
     return () => clearInterval(interval);
   }, []);
 
@@ -108,48 +107,31 @@ export function AdminWithdrawals() {
 
   const handleApprove = async (id: string, amount: number, cardData?: {serial: string, code: string}) => {
     const actualAmount = amount * 0.95;
-    
-    if (!window.confirm(`Bạn có chắc chắn muốn DUYỆT lệnh rút ${actualAmount.toLocaleString()}đ (Yêu cầu ${amount.toLocaleString()}đ) này không?`)) {
-      return;
+    let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
+    if (cardData) {
+        confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
     }
-
-    setProcessingId(id);
-    try {
-      let confirmMessage = `Số tiền thực nhận ${actualAmount.toLocaleString()}đ đã được thanh toán thành công!`;
-      if (cardData) {
-          confirmMessage += `\nThẻ: ${cardData.code} | Seri: ${cardData.serial}`;
-      }
-      const data = await safeFetch('/api/community/admin-reply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
-      });
-      if (data) {
-          fetchWithdrawals();
-          showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
-      }
-    } finally {
-      setProcessingId(null);
+    const data = await safeFetch('/api/community/admin-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
+    });
+    if (data) {
+        fetchWithdrawals();
+        showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
     }
   };
 
   const handleReject = async (id: string, amount: number) => {
-    const netAmount = amount * 0.95;
-    if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${netAmount.toLocaleString()}đ (số tiền thực nhận) cho người dùng?`)) return;
-    
-    setProcessingId(id);
-    try {
-      const data = await safeFetch('/api/admin/reject-withdrawal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ withdrawalId: id })
-      });
-      if (data && data.success) {
-          fetchWithdrawals();
-          showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn lại số tiền thực nhận!", type: 'info' });
-      }
-    } finally {
-      setProcessingId(null);
+    if (!window.confirm(`Bạn có chắc chắn muốn từ chối và hoàn lại ${amount.toLocaleString()}đ cho người dùng?`)) return;
+    const data = await safeFetch('/api/admin/reject-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId: id })
+    });
+    if (data && data.success) {
+        fetchWithdrawals();
+        showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
     }
   };
 
@@ -215,26 +197,14 @@ export function AdminWithdrawals() {
 
              {activeSubTab === 'pending' && (
                <div className="flex gap-2 mt-auto">
-                 <button 
-                  disabled={!!processingId}
-                  onClick={() => setShowInfoModal(item)} 
-                  className={`flex-1 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                 >
+                 <button onClick={() => setShowInfoModal(item)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
                    <Gamepad2 size={14} /> Xem
                  </button>
-                 <button 
-                  disabled={!!processingId}
-                  onClick={() => handleApprove(item.id, item.amount)} 
-                  className={`flex-1 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                 >
-                   <CheckCircle size={14} /> {processingId === item.id ? '...' : 'Duyệt'}
+                 <button onClick={() => handleApprove(item.id, item.amount)} className="flex-1 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
+                   <CheckCircle size={14} /> Duyệt
                  </button>
-                 <button 
-                  disabled={!!processingId}
-                  onClick={() => handleReject(item.id, item.amount)} 
-                  className={`flex-1 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                 >
-                   <XCircle size={14} /> {processingId === item.id ? '...' : 'Từ chối'}
+                 <button onClick={() => handleReject(item.id, item.amount)} className="flex-1 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors text-xs">
+                   <XCircle size={14} /> Từ chối
                  </button>
                </div>
              )}
@@ -304,13 +274,7 @@ export function AdminWithdrawals() {
                         <p className="text-sm flex gap-2 items-center">Nội dung: <strong>{bankData.transferData.content}</strong> <button onClick={() => copyToClipboard(bankData.transferData.content)} className="text-blue-500 hover:text-blue-700 transition"><Copy size={14}/></button></p>
                      </div>
                      <img src={bankData.qrUrl} alt="QR Code" className="w-full max-w-[200px] mx-auto rounded-xl border shadow-sm" />
-                     <button 
-                      disabled={!!processingId}
-                      onClick={() => { handleApprove(order.id, order.amount); setShowInfoModal(null); }} 
-                      className={`w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                     >
-                       {processingId === order.id ? 'Đang xử lý...' : 'Duyệt & Thanh Toán Xong'}
-                     </button>
+                     <button onClick={() => { handleApprove(order.id, order.amount); setShowInfoModal(null); }} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition">Duyệt & Thanh Toán Xong</button>
                    </div>
                  );
                } catch { return <p className="text-red-500 text-sm">Lỗi dữ liệu BANK (kiểm tra lại JSON). Nội dung gốc: {showInfoModal.content}</p>; }
@@ -329,13 +293,7 @@ export function AdminWithdrawals() {
                         <p className="text-sm">Số tiền: <strong>{zaloData.amount.toLocaleString()}đ</strong></p>
                         <p className="text-sm flex gap-2 items-center">Nội dung: <strong>{zaloData.message}</strong> <button onClick={() => copyToClipboard(zaloData.message)} className="text-blue-500 hover:text-blue-700 transition"><Copy size={14}/></button></p>
                      </div>
-                     <button 
-                      disabled={!!processingId}
-                      onClick={() => { handleApprove(order.id, order.amount); setShowInfoModal(null); }} 
-                      className={`w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                     >
-                        {processingId === order.id ? 'Đang xử lý...' : 'Duyệt & Thanh Toán Xong'}
-                     </button>
+                     <button onClick={() => { handleApprove(order.id, order.amount); setShowInfoModal(null); }} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition">Duyệt & Thanh Toán Xong</button>
                    </div>
                  );
                } catch { return <p className="text-red-500 text-sm">Lỗi dữ liệu ZALOPAY (kiểm tra lại JSON).</p>; }
@@ -355,15 +313,14 @@ export function AdminWithdrawals() {
                      <input type="text" placeholder="Số Seri thẻ" value={cardDetails.serial} onChange={e => setCardDetails({...cardDetails, serial: e.target.value})} className="w-full p-3 border rounded-xl" />
                      <input type="text" placeholder="Mã Thẻ (PIN)" value={cardDetails.code} onChange={e => setCardDetails({...cardDetails, code: e.target.value})} className="w-full p-3 border rounded-xl" />
                      <button 
-                       disabled={!!processingId}
                        onClick={() => {
                           processCardLogic(order, cardDetails.serial, cardDetails.code, async (ordId: string, status: string, payload: any) => {
                               await handleApprove(ordId, order.amount, { serial: payload.cardResult.serial, code: payload.cardResult.pin });
                           }).then(() => setShowInfoModal(null)).catch((e: any) => showNotification({ title: 'Lỗi', message: e.message, type: 'error' }));
                        }} 
-                       className={`w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition ${!!processingId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                       className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition"
                      >
-                       {processingId === order.id ? 'Đang xử lý...' : 'Duyệt & Gửi Thẻ'}
+                       Duyệt & Gửi Thẻ
                      </button>
                    </div>
                  );

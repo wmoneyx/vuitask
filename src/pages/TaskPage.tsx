@@ -13,12 +13,14 @@ const TASKS = [
   { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 400, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
   { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
   { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
-  { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 456, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=' },
-  { id: 'utl2', name: 'UTL 2 STEP', maxViews: 999, reward: 399, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=' },
-  { id: 'utl1', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=' },
+  { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 456, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
+  { id: 'utl2', name: 'UTL 2 STEP', maxViews: 999, reward: 399, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
+  { id: 'utl1', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=' },
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'traffic68', name: 'TRAFFIC 68', maxViews: 4, reward: 449, auto: true, apiUrl: 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
+  { id: 'linkngon', name: 'LINK NGON', maxViews: 2, reward: 185, auto: false, apiUrl: 'https://linkngon.top/api?api=iDqggiRIz7r9280v8NsD8jZS&url=' },
+  { id: 'linktop', name: 'LINKTOP', maxViews: 2, reward: 136, auto: false, apiUrl: 'https://linktop.one/api?api=tXbluP65U5e2IuzTqVOFjAcLfJvGrzgcoaAFEnFqTbG5AG&url=' },
 ];
 
 import { useUser } from '@/UserContext';
@@ -112,8 +114,7 @@ export function TaskPage() {
               taskId: task.id,
               taskName: task.name,
               reward: task.reward,
-              auto: task.auto,
-              fingerprint: fingerprint
+              auto: task.auto
           })
       });
       
@@ -123,19 +124,9 @@ export function TaskPage() {
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
       const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
       
-      let apiRequestUrl = task.apiUrl;
-      const encodedDest = encodeURIComponent(destinationUrl);
-      
+      let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
       if (task.id === 'timmap') {
-        // If apiUrl ends with &url=
-        if (apiRequestUrl.endsWith('&url=')) {
-          apiRequestUrl += encodedDest + '&url_phu=' + encodedDest;
-        } else {
-          // Fallback if URL is missing &url=
-          apiRequestUrl += (apiRequestUrl.includes('?') ? '&' : '?') + 'url=' + encodedDest + '&url_phu=' + encodedDest;
-        }
-      } else {
-        apiRequestUrl += encodedDest;
+        apiRequestUrl += '&url2=' + encodeURIComponent(destinationUrl);
       }
       
       showNotification({ title: 'Khởi tạo', message: `Đang lấy link từ hệ thống ${task.name}...`, type: 'info' });
@@ -173,7 +164,7 @@ export function TaskPage() {
           } else if (urlMatch && urlMatch[0]) {
             result = { status: "success", shortenedUrl: urlMatch[0] };
           } else {
-            throw new Error("Hệ thống không tìm thấy link. Vui lòng quay lại sau!");
+            throw new Error("API trả về định dạng dữ liệu không hợp lệ.");
           }
         }
       }
@@ -181,17 +172,18 @@ export function TaskPage() {
       let link = 
         result.shortenedUrl || 
         result.url || 
-        result.short_url ||
-        result.short_link ||
-        result.link ||
-        result.html ||
         result.bbmktsUrl || 
+        result.short_url ||
         result.data?.short_url ||
         result.data?.url ||
-        result.data?.link ||
         result.result; 
 
-      const isSuccess = result.status === "success" || result.success === true || result.status === 1 || !!link;
+      if (!link && result.html) {
+        const urlMatch = result.html.match(/https?:\/\/[^\s"']+/);
+        if (urlMatch) link = urlMatch[0];
+      }
+
+      const isSuccess = result.status === "success" || result.success === true || !!link;
 
       if (isSuccess && link) {
         // Cập nhật session URL trên server

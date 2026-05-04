@@ -5,11 +5,9 @@ import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
-import { useUser } from '@/UserContext';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { refreshProfile } = useUser();
   const captchaRef = useRef<HCaptcha | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -71,9 +69,24 @@ export function RegisterPage() {
       if (data.user) {
         localStorage.setItem('userUUID', data.user.id);
         
-        // Sync profile immediately using UserContext
+        // Sync profile immediately
         try {
-          await refreshProfile();
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+          
+          await fetch('/api/user/sync-profile', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ 
+              uuid: data.user.id, 
+              email: email, 
+              userName: name,
+              referralCode: referral
+            })
+          });
         } catch (err) {
           console.error("Immediate Sync Error:", err);
         }

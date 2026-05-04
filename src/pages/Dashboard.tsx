@@ -147,7 +147,7 @@ export function Dashboard() {
                        </span>
                     </div>
                     <h4 className="text-sm font-bold text-slate-800 mb-1">{n.title}</h4>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">{n.content}</p>
+                    <p className="text-xs text-gray-500 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: n.content }} />
                   </div>
                 ))
               ) : (

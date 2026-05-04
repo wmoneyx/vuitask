@@ -14,10 +14,8 @@ export function VerifyTaskPrePage() {
   const [emailInput, setEmailInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
 
-  const rawCode = searchParams.get('code') || '';
-  const rawUuid = searchParams.get('uuid') || '';
-  const sessionId = rawCode.split('/')[0].split('?')[0];
-  const uuid = rawUuid.split('/')[0].split('?')[0];
+  const sessionId = searchParams.get('code');
+  const uuid = searchParams.get('uuid');
 
   useEffect(() => {
     if (!sessionId || !uuid) {
@@ -86,7 +84,7 @@ export function VerifyTaskPrePage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="w-full mx-auto px-6 md:px-12 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-600 font-extrabold text-xl tracking-tighter">
             <Mail size={28} />
             PRE-VERIFY
@@ -99,7 +97,7 @@ export function VerifyTaskPrePage() {
         </div>
       </header>
 
-      <main className="flex-1 w-full mx-auto px-6 md:px-12 py-8 grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
         <div className="space-y-6">
           <div className="bg-white rounded-[40px] p-6 md:p-12 border border-gray-100 shadow-xl shadow-slate-200/50">
             
@@ -253,7 +251,7 @@ export function VerifyTaskPrePage() {
       </main>
 
       <footer className="bg-white border-t border-gray-100 py-12 mt-12">
-         <div className="w-full mx-auto px-6 md:px-12 text-center">
+         <div className="max-w-6xl mx-auto px-4 text-center">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">© 2026 PRE-VERIFY SECURE SYSTEM. Powered by Linktot</p>
          </div>
       </footer>

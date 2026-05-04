@@ -12,10 +12,8 @@ export function VerifyTaskPage() {
   const [status, setStatus] = useState<'checking' | 'valid' | 'error' | 'confirmed'>('checking');
   const [errorMSG, setErrorMSG] = useState('');
   
-  const rawCode = searchParams.get('code') || '';
-  const rawUuid = searchParams.get('uuid') || '';
-  const sessionId = rawCode.split('/')[0].split('?')[0];
-  const uuid = rawUuid.split('/')[0].split('?')[0];
+  const sessionId = searchParams.get('code');
+  const uuid = searchParams.get('uuid');
 
   useEffect(() => {
     if (!sessionId || !uuid) {
@@ -94,7 +92,7 @@ export function VerifyTaskPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200">
-        <div className="w-full mx-auto px-6 md:px-12 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-blue-600 font-black text-xl tracking-tight">
             <ShieldCheck size={28} />
             VERIFYHUB
@@ -107,7 +105,7 @@ export function VerifyTaskPage() {
         </div>
       </header>
 
-      <main className="flex-1 w-full mx-auto px-6 md:px-12 py-8 grid grid-cols-1 md:grid-cols-[1fr_350px] gap-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
         
         {/* MAIN ARTICLE CONTENT */}
         <div className="space-y-6">

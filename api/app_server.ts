@@ -6,10 +6,10 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
-async function updateUserStats(userId: string, amount: number, isTask: boolean = true, incrementTurns: boolean = true) {
-    console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}, incrementTurns: ${incrementTurns}`);
+async function updateUserStats(userId: string, amount: number, isTask: boolean = true) {
+    console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}`);
     
     // 1. Find the profile column and existing data
     let profile: any = null;
@@ -90,11 +90,8 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
             updates.weekly_balance = currentWeeklyBalance + Number(amount);
         }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
-        
-        if (incrementTurns) {
-            updates.today_turns = currentTodayTurns + 1;
-            updates.total_tasks = Number(profile.total_tasks || 0) + 1;
-        }
+        updates.today_turns = currentTodayTurns + 1;
+        updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
     // Final check to remove columns that definitely don't exist based on the profile we fetched
@@ -176,16 +173,16 @@ async function startServer() {
         const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
         const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
 
-        // Query history for same IP today for this specific task
+        // Query history for same IP or Fingerprint today for this specific task
         const { data: historyData, error: historyError } = await supabaseAdmin
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
-            .eq('ip', ip);
+            .or(`ip.eq."${ip}",fingerprint.eq."${fingerprint}"`);
 
         if (historyError) {
-          console.error("[generate-session] Check limits query error:", JSON.stringify(historyError));
+          console.error("Check limits error:", historyError);
         }
 
         // Fetch task config to get max_views (fallback to 2 if not found)
@@ -195,7 +192,7 @@ async function startServer() {
 
         if (historyData && historyData.length >= maxViews) {
             return res.status(403).json({ 
-                error: `Giới hạn nhiệm vụ! IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
+                error: `Giới hạn nhiệm vụ! Thiết bị hoặc IP của bạn đã thực hiện tối đa ${maxViews} lượt cho nhiệm vụ này trong hôm nay.` 
             });
         }
 
@@ -208,7 +205,8 @@ async function startServer() {
           auto,
           expires: Date.now() + 15 * 60 * 1000,
           completed: false,
-          short_url: ''
+          short_url: '',
+          fingerprint: fingerprint // Store fingerprint in session
         });
 
         if (error) {
@@ -239,15 +237,11 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session", async (req, res) => {
-    let { sessionId, uuid } = req.body || {};
-    
-    // Sanitize
-    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
-    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
+    const { sessionId, uuid } = req.body || {};
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
-      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
+      .select('*')
       .eq('id', sessionId)
       .single();
     
@@ -279,15 +273,11 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session-pro", async (req, res) => {
-    let { sessionId, uuid } = req.body || {};
-    
-    // Sanitize
-    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
-    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
+    const { sessionId, uuid } = req.body || {};
     
     const { data: session, error } = await supabaseAdmin
       .from('sessions')
-      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url')
+      .select('*')
       .eq('id', sessionId)
       .single();
     
@@ -381,15 +371,11 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pro-task", async (req, res) => {
-    let { sessionId, uuid, type, reviewUrl } = req.body || {};
-
-    // Sanitize
-    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
-    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
+    const { sessionId, uuid, type, reviewUrl } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
-      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url, created_at')
+      .select('*')
       .eq('id', sessionId)
       .single();
     
@@ -427,13 +413,11 @@ async function startServer() {
         task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
-        start_timestamp: session.created_at ? new Date(session.created_at).getTime() : (session.expires - 15 * 60 * 1000),
         reward: finalReward,
         status: finalStatus,
         status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
         status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
         url: reviewUrl,
-        metadata: { type: 'vip', pro_type: type, review_url: reviewUrl, short_url: session.short_url },
         ip: ip
     });
 
@@ -458,15 +442,11 @@ async function startServer() {
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
-    let { sessionId, uuid, email, note } = req.body || {};
-
-    // Sanitize
-    if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
-    if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
+    const { sessionId, uuid, email, note } = req.body || {};
     
     const { data: session } = await supabaseAdmin
       .from('sessions')
-      .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url, created_at')
+      .select('*')
       .eq('id', sessionId)
       .single();
     
@@ -479,8 +459,7 @@ async function startServer() {
       .update({ completed: true })
       .eq('id', sessionId);
 
-    const h = req.headers['x-forwarded-for'];
-    const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
     
     // No anti-spam for PRE tasks
     const finalStatus = 'Chờ duyệt';
@@ -490,13 +469,9 @@ async function startServer() {
     let finalReward = baseReward;
     
     try {
-      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent, task_bonus_expires_at').eq('user_uuid', uuid).maybeSingle();
+      const { data: prof } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
       if (prof && prof.task_bonus_percent > 0) {
-         if (!prof.task_bonus_expires_at || new Date(prof.task_bonus_expires_at).getTime() > Date.now()) {
-            finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
-         } else {
-            await supabaseAdmin.from('profiles').update({ task_bonus_percent: 0, task_bonus_expires_at: null }).eq('user_uuid', uuid);
-         }
+         finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
       }
     } catch (e) {
       console.error("Error calculating bonus reward:", e);
@@ -508,13 +483,11 @@ async function startServer() {
         task_id: session.task_id,
         task_name: session.task_name,
         timestamp: Date.now(),
-        start_timestamp: session.created_at ? new Date(session.created_at).getTime() : (session.expires - 15 * 60 * 1000),
         reward: finalReward,
         status: finalStatus,
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
         url: email,
-        metadata: { note: note || '', type: 'pre', password: 'Zhy99!!!' },
         ip: ip
     });
 
@@ -536,15 +509,11 @@ async function startServer() {
 
   app.post("/api/tasks/complete-session", async (req, res) => {
     try {
-      let { sessionId, uuid } = req.body || {};
-
-      // Sanitize
-      if (typeof sessionId === 'string') sessionId = sessionId.split('/')[0].split('?')[0];
-      if (typeof uuid === 'string') uuid = uuid.split('/')[0].split('?')[0];
+      const { sessionId, uuid } = req.body || {};
       
       const { data: session } = await supabaseAdmin
         .from('sessions')
-        .select('id, user_uuid, task_id, task_name, reward, auto, expires, completed, short_url, created_at')
+        .select('*')
         .eq('id', sessionId)
         .single();
       
@@ -581,26 +550,12 @@ async function startServer() {
       let finalReward = baseReward;
       
       try {
-        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent, task_bonus_expires_at').eq('user_uuid', uuid).maybeSingle();
+        const { data: prof, error: profErr } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
         if (prof && prof.task_bonus_percent > 0) {
-           if (!prof.task_bonus_expires_at || new Date(prof.task_bonus_expires_at).getTime() > Date.now()) {
-              finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
-           } else {
-              await supabaseAdmin.from('profiles').update({ task_bonus_percent: 0, task_bonus_expires_at: null }).eq('user_uuid', uuid);
-           }
+           finalReward = Math.floor(baseReward * (1 + prof.task_bonus_percent / 100));
         }
       } catch (e) {
         console.error("Error calculating bonus reward:", e);
-      }
-
-      let taskType = 'standard';
-      const upperName = (session.task_name || '').toUpperCase();
-      const tid = (session.task_id || '').toLowerCase();
-
-      if (upperName.includes('GMAIL') || tid === 'gmail_pre') {
-        taskType = 'pre';
-      } else if (upperName.includes('REVIEW') || tid.startsWith('vip_')) {
-        taskType = 'vip';
       }
 
       const historyEntry = {
@@ -614,9 +569,8 @@ async function startServer() {
           status_v1: statusV1,
           status_v2: statusV1,
           ip: ip,
-          timestamp: Date.now(),
-          start_timestamp: session.created_at ? new Date(session.created_at).getTime() : (session.expires - 15 * 60 * 1000),
-          metadata: { type: taskType, short_url: session.short_url }
+          fingerprint: session.fingerprint, // Include fingerprint from session
+          timestamp: Date.now()
       };
 
       const { error: insertError } = await supabaseAdmin.from('tasks_history').insert(historyEntry);
@@ -632,7 +586,7 @@ async function startServer() {
               await supabaseAdmin.from('site_notifications').insert({
                   id: `FAST_WARN_${Date.now()}`,
                   title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!`,
+                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!  <span class="text-rose-600 font-bold">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (0 / 5)</span>`,
                   type: 'warning',
                   target: 'all',
                   timestamp: Date.now()
@@ -1333,8 +1287,8 @@ async function startServer() {
             admin_note: 'Approved'
           });
 
-          // Update balance using user_uuid from task record - DO NOT increment turns again (already counted at submission)
-          await updateUserStats(task.user_uuid, task.reward, true, false);
+          // Update balance using user_uuid from task record
+          await updateUserStats(task.user_uuid, task.reward, true);
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -1370,8 +1324,9 @@ async function startServer() {
        return res.status(400).json({ error: 'Không tìm thấy hoặc đã được xử lý.' });
     }
 
-    // Refund full amount to the user
-    const totalRefund = wRecord.amount || 0;
+    // Refund amount (số tiền thực nhận) to the user
+    const amount = wRecord.amount || 0;
+    const totalRefund = amount;
 
     await supabaseAdmin
       .from('community_messages')
@@ -1388,8 +1343,8 @@ async function startServer() {
       admin_note: 'Rejected'
     });
 
-    // Refund using RPC to ensure atomicity
-    await supabaseAdmin.rpc('increment_vui_coin', { user_id: wRecord.user_uuid, amount: totalRefund });
+    // Call update user stats to increase balance (no it's better to just manually increment or reuse the function)
+    await updateUserStats(wRecord.user_uuid, totalRefund, false);
 
     const replyMsg = {
         id: `REPLY_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -1398,7 +1353,7 @@ async function startServer() {
         user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
         is_admin: true,
         reply_to_id: withdrawalId,
-        content: `Yêu cầu rút tiền ${totalRefund.toLocaleString()}đ của bạn đã bị từ chối. VNĐ đã được hoàn lại.`,
+        content: `Yêu cầu rút tiền ${amount.toLocaleString()}đ của bạn đã bị từ chối. VNĐ đã được hoàn lại.`,
         timestamp: Date.now()
     };
     
@@ -1944,10 +1899,7 @@ async function startServer() {
     if (giftCode.bonus_percent && giftCode.bonus_percent > 0) {
       const { data: currentProfile } = await supabaseAdmin.from('profiles').select('task_bonus_percent').eq('user_uuid', uuid).maybeSingle();
       const newBonus = (currentProfile?.task_bonus_percent || 0) + giftCode.bonus_percent;
-      await supabaseAdmin.from('profiles').update({ 
-        task_bonus_percent: newBonus,
-        task_bonus_expires_at: giftCode.expires_at || null
-      }).eq('user_uuid', uuid);
+      await supabaseAdmin.from('profiles').update({ task_bonus_percent: newBonus }).eq('user_uuid', uuid);
     }
     
     // Original rewards: vui_coin or coin_task
@@ -1990,7 +1942,8 @@ async function startServer() {
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
     
     // Fee 5%
-    const totalDeduction = amount;
+    const fee = amount * 0.05;
+    const totalDeduction = amount + fee;
     
     if (!profile || profile.vui_coin_balance < totalDeduction) {
       return res.status(400).json({ error: "Số dư không đủ (đã bao gồm phí 5%)" });
@@ -2041,8 +1994,10 @@ async function startServer() {
       return res.status(400).json({ error: "Yêu cầu không tồn tại hoặc đã được xử lý" });
     }
 
-    // Tiền hoàn lại: Hoàn lại 100% số tiền đã bị trừ
-    const totalRefund = wd.amount;
+    // Tiền hoàn lại: Số tiền thực nhận + phí (tức là tổng số tiền bị trừ)
+    const amount = wd.amount;
+    const fee = amount * 0.05;
+    const totalRefund = amount + fee;
 
     await supabaseAdmin.from('community_messages').update({ status: 'Đã hủy' }).eq('id', id);
     await supabaseAdmin.rpc('increment_vui_coin', { user_id: uuid, amount: totalRefund });

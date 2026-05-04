@@ -66,9 +66,10 @@ export function WebsiteAnnouncements() {
           <h2 className="text-sm font-bold tracking-widest text-center text-gray-400 uppercase mb-2">Thông báo từ hệ thống</h2>
           <h3 className="text-xl font-bold text-center text-slate-800 mb-6">{currentAnnouncement.title}</h3>
           
-          <div className="text-slate-600 text-[15px] leading-relaxed text-center mb-8 max-h-60 overflow-y-auto custom-scrollbar px-2">
-             {currentAnnouncement.content}
-          </div>
+          <div 
+            className="text-slate-600 text-[15px] leading-relaxed text-center mb-8 max-h-60 overflow-y-auto custom-scrollbar px-2"
+            dangerouslySetInnerHTML={{ __html: currentAnnouncement.content }}
+          />
 
           <button onClick={handleClose} className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-colors">
              Đã hiểu và Đóng

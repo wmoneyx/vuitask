@@ -18,7 +18,7 @@ export function AdminSystem() {
   const [codeName, setCodeName] = useState('');
   const [codeReward, setCodeReward] = useState('');
   const [codeMaxUses, setCodeMaxUses] = useState('');
-  const [codeExpiry, setCodeExpiry] = useState('');
+  const [codeDays, setCodeDays] = useState('');
   const [codeBonus, setCodeBonus] = useState('');
   const [codeType, setCodeType] = useState('vui_coin');
 
@@ -82,8 +82,10 @@ export function AdminSystem() {
   const handleCreateGiftcode = async () => {
     if (!codeName || !codeReward || !codeMaxUses) return;
     let expiry = null;
-    if (codeExpiry) {
-      expiry = new Date(codeExpiry).toISOString();
+    if (codeDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + Number(codeDays));
+      expiry = d.toISOString();
     }
     
     await safeFetch('/api/admin/system/giftcodes', {
@@ -98,7 +100,7 @@ export function AdminSystem() {
         bonus_percent: Number(codeBonus || 0)
       })
     });
-    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeExpiry(''); setCodeBonus('');
+    setCodeName(''); setCodeReward(''); setCodeMaxUses(''); setCodeDays(''); setCodeBonus('');
     fetchSystem();
   };
 
@@ -214,10 +216,13 @@ export function AdminSystem() {
              </div>
              <div className="col-span-2 pb-2 border-b border-gray-100 flex gap-2">
                 <input 
-                  type="datetime-local" 
-                  value={codeExpiry}
-                  onChange={e => setCodeExpiry(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm" 
+                  type="number" 
+                  value={codeDays}
+                  onChange={e => setCodeDays(e.target.value)}
+                  min="1" 
+                  max="999" 
+                  placeholder="Hạn dùng (số ngày)..." 
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
                 />
                 <button onClick={handleCreateGiftcode} className="px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors gap-2">
                   <Plus size={20} /> TẠO MÃ
@@ -241,7 +246,7 @@ export function AdminSystem() {
                       <div className="text-[10px] text-gray-500 flex items-center gap-1">
                         Thưởng: <span className="font-bold text-purple-600">{Number(code.reward_amount).toLocaleString()}</span>
                         {code.bonus_percent > 0 && <span className="text-blue-600 font-bold ml-1">+ {code.bonus_percent}% TASK</span>}
-                        {code.expires_at && <span> • Hết hạn: {new Date(code.expires_at).toLocaleString('vi-VN')}</span>}
+                        {code.expires_at && <span> • Hết hạn: {new Date(code.expires_at).toLocaleDateString()}</span>}
                       </div>
                     </div>
                   </div>
