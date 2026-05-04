@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../server_lib/supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, warning_count, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks';
 
 async function getActiveBonusPercent(uuid: string): Promise<number> {
     try {
@@ -614,27 +614,14 @@ async function startServer() {
           await updateUserStats(uuid, 0, true);
 
           if (session.auto) {
-              const { data: prof } = await supabaseAdmin.from('profiles').select('warning_count').eq('user_uuid', uuid).maybeSingle();
-              const newWarnCount = (prof?.warning_count || 0) + 1;
-              
-              const updateData: any = { warning_count: newWarnCount };
-              if (newWarnCount >= 5) {
-                  updateData.is_banned = true;
-              }
-              await supabaseAdmin.from('profiles').update(updateData).eq('user_uuid', uuid);
-
               await supabaseAdmin.from('site_notifications').insert({
-                  id: `FAST_WARN_${Date.now()}_${uuid.slice(0, 4)}`,
+                  id: `FAST_WARN_${Date.now()}`,
                   title: "CẢNH BÁO SPAM NHIỆM VỤ",
-                  content: `Hệ thống phát hiện [${uuid.slice(0, 8)}...] vượt captcha quá nhanh. Phần thưởng [${finalReward}] VuiCoin tại [${session.task_name}] đã bị hủy! <span class="text-rose-600 font-bold block mt-1">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (${newWarnCount}/ 5) SẼ KHÓA TÀI KHOẢN</span>`,
+                  content: `Hệ thống phát hiện ${uuid.slice(0, 8)}... vượt captcha quá nhanh. Phần thưởng ${finalReward} VuiCoin tại ${session.task_name} đã bị hủy!  <span class="text-rose-600 font-bold">TÀI KHOẢN ĐÃ ĐƯỢC ĐƯA VÀO DANH SÁCH ĐEN ĐỂ GIÁM SÁT , CÁNH CÁO (0 / 5)</span>`,
                   type: 'warning',
                   target: 'all',
                   timestamp: Date.now()
               });
-              
-              if (newWarnCount >= 5) {
-                  return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa do vi phạm chính sách quá 5 lần." });
-              }
               return res.status(400).json({ error: "Phát hiện vượt link quá tốc độ ánh sáng! Đã hủy phần thưởng." });
           } else {
               return res.status(400).json({ error: "Bạn vượt link quá nhanh. Nhiệm vụ sẽ tự động bị từ chối."});
@@ -851,11 +838,9 @@ async function startServer() {
 
   // ========== NOTIFICATION API ==========
   app.get("/api/notifications", async (req, res) => {
-    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
     const { data: notifications } = await supabaseAdmin
       .from('site_notifications')
       .select('*')
-      .gte('timestamp', twentyFourHoursAgo)
       .order('timestamp', { ascending: false })
       .limit(50);
     res.json({ notifications: notifications || [] });

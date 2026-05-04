@@ -23,14 +23,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   is_banned BOOLEAN DEFAULT false,
   task_bonus_percent INT DEFAULT 0,
   task_bonus_expires_at TIMESTAMP WITH TIME ZONE,
-  warning_count INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Migration for existing users (Run if columns are missing):
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS task_bonus_percent INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS task_bonus_expires_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS warning_count INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_balance BIGINT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS today_turns INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS monthly_balance BIGINT DEFAULT 0;
@@ -162,10 +160,9 @@ CREATE TABLE IF NOT EXISTS public.attendance_logs (
 INSERT INTO public.tasks (id, name, type, reward, auto, api_url, max_views, tutorial_url) VALUES
 ('layma', 'LAYMA', 'shortlink', 600, true, 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=', 2, NULL),
 ('link4m', 'LINK4M', 'shortlink', 300, true, 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=', 2, NULL),
-('utl_3step', 'UTL 3 STEP', 'shortlink', 463, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=', 999, NULL),
-('utl_2step', 'UTL 2 STEP', 'shortlink', 449, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=', 999, NULL),
-('utl_1step', 'UTL 1 STEP', 'shortlink', 385, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=', 999, NULL),
-('yeumoney', 'YEUMONEY', 'shortlink', 259, false, 'https://yeumoney.com/QL_api.php?token=2103f2aa67d874c161e5f4388b2312af6d43742734a8ea41716b8a2cc94b7b02&format=json&url=', 3, NULL),
+('utl_3step', 'UTL 3 STEP', 'shortlink', 463, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
+('utl_2step', 'UTL 2 STEP', 'shortlink', 449, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
+('utl_1step', 'UTL 1 STEP', 'shortlink', 385, true, 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&url=', 999, NULL),
 ('traffic68', 'TRAFFIC68', 'shortlink', 449, true, 'https://traffic68.com/api/quicklink/api?api=tf68_c42992fb620964a590a36f35a0412f70bab3236f1e0aeb08&url=', 4, NULL),
 ('linktot', 'LINKTOT', 'shortlink', 400, true, 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 4, NULL),
 ('timmap', 'TIMMAP', 'shortlink', 200, true, 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=', 2, NULL),
@@ -296,11 +293,4 @@ BEGIN
   WHERE user_uuid = user_id;
 END;
 $$;
-
--- 18. Maintenance Queries (Optional)
--- Reset all bonus percent to 0
--- UPDATE public.profiles SET task_bonus_percent = 0, task_bonus_expires_at = NULL;
-
--- Delete notifications older than 24h
--- DELETE FROM public.site_notifications WHERE timestamp < (EXTRACT(EPOCH FROM NOW()) * 1000 - (24 * 60 * 60 * 1000));
 ```

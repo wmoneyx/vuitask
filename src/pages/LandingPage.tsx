@@ -10,7 +10,7 @@ export function LandingPage() {
     <div className="min-h-screen bg-white font-sans text-slate-800">
       {/* Navbar */}
       <header className="border-b border-gray-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
-        <div className="w-full px-4 sm:px-8 md:px-12 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-4">
             {isLoggedIn ? (
@@ -33,14 +33,14 @@ export function LandingPage() {
 
       {/* Hero */}
       <section className="pt-24 pb-16 px-4">
-        <div className="w-full text-center">
+        <div className="max-w-4xl mx-auto text-center">
           <AnimatedDiv delay={0.1}>
              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-6">VUITASK.NET - WEBSITE KIẾM TIỀN ONLINE ỔN ĐỊNH</p>
-             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-6 tracking-tight leading-[1.1]">
+             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 tracking-tight leading-tight">
                Nền tảng kiếm tiền online<br />
                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-500 to-primary">số 1 Việt Nam</span>
              </h1>
-             <p className="text-lg md:text-xl text-gray-500 mb-10 max-w-4xl mx-auto leading-relaxed font-medium">
+             <p className="text-lg text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
                Kiếm tiền thụ động vào thời gian rảnh, thu nhập cao. Vui Task kết nối doanh nghiệp với hàng nghìn cộng tác viên. Làm nhiệm vụ đơn giản, rút tiền mặt nhanh chóng.
              </p>
              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -58,7 +58,7 @@ export function LandingPage() {
 
       {/* Stats */}
       <section className="py-12 bg-gray-50/50 border-y border-gray-100">
-        <div className="w-full px-4 sm:px-8 md:px-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <AnimatedDiv delay={0.2} className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center">
                 <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -87,7 +87,7 @@ export function LandingPage() {
 
       {/* Features */}
       <section className="py-20">
-         <div className="w-full px-4 sm:px-8 lg:px-12">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
                <h2 className="text-3xl font-bold mb-4">Tính năng nổi bật</h2>
                <p className="text-gray-500">Tại sao nên chọn Vui Task để gia tăng thu nhập?</p>
@@ -154,7 +154,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-12">
-         <div className="w-full px-4 sm:px-8 lg:px-12 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
            <div className="flex flex-col items-center md:items-start gap-4">
               <Logo />
               <div className="text-xs text-gray-400 flex items-center gap-2">
