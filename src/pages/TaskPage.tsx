@@ -57,7 +57,17 @@ export function TaskPage() {
     await refreshProfile();
   }
 
-  const getTodayTaskCount = (taskId: string) => {
+  const getTotalTodayTasks = () => {
+    const today = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+    return history.filter(h => {
+        const hDate = new Date(new Date(h.timestamp).getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
+        return hDate === today && (h.status === 'Hoàn thành' || h.status === 'Từ chối');
+    }).length;
+  };
+
+  const todayTaskCount = getTotalTodayTasks();
+
+  const getTodayTaskCountPerTask = (taskId: string) => {
     const today = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
     return history.filter(h => {
         const hId = (h.task_id || '').toLowerCase();
@@ -225,20 +235,20 @@ export function TaskPage() {
         <div className="relative z-10">
           <div className="text-xs font-bold uppercase tracking-[0.2em] mb-2 opacity-80">Tiến độ hằng ngày</div>
           <div className="flex items-end gap-2 mb-4">
-            <span className="text-4xl font-black">{profile?.today_turns || 0}</span>
+            <span className="text-4xl font-black">{todayTaskCount}</span>
             <span className="text-xl font-bold opacity-60 mb-1">/ 2207 nhiệm vụ</span>
           </div>
           <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
             <motion.div 
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(((profile?.today_turns || 0) / 2207) * 100, 100)}%` }}
+              animate={{ width: `${Math.min((todayTaskCount / 2207) * 100, 100)}%` }}
               className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
             />
           </div>
           <p className="mt-4 text-[10px] font-bold uppercase tracking-wider opacity-70">
-            { (profile?.today_turns || 0) >= 2207 
+            { todayTaskCount >= 2207 
                 ? "Bạn đã hoàn thành mục tiêu ngày hôm nay. Hãy quay lại vào ngày mai!" 
-                : `Còn ${2207 - (profile?.today_turns || 0)} nhiệm vụ nữa để hoàn thành mục tiêu ngày.`
+                : `Còn ${2207 - todayTaskCount} nhiệm vụ nữa để hoàn thành mục tiêu ngày.`
             }
           </p>
         </div>
@@ -277,7 +287,7 @@ export function TaskPage() {
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Giới hạn lượt làm</div>
-                <div className="font-bold text-slate-800 text-lg">{getTodayTaskCount(task.id)} / {task.maxViews}</div>
+                <div className="font-bold text-slate-800 text-lg">{getTodayTaskCountPerTask(task.id)} / {task.maxViews}</div>
               </div>
               <div className="bg-orange-50/50 rounded-2xl p-4 border border-orange-100/50">
                 <div className="text-[10px] font-bold text-orange-500/70 uppercase tracking-wider mb-1">Duyệt thưởng</div>
