@@ -93,7 +93,7 @@ export function TaskPage() {
     if (!uuid) return;
     
     // Check per-task limit
-    const taskCount = getTodayTaskCount(task.id);
+    const taskCount = getTodayTaskCountPerTask(task.id);
     if (taskCount >= task.maxViews) {
       showNotification({ 
         title: 'Thông báo', 
