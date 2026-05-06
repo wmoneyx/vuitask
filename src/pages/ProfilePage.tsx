@@ -116,7 +116,10 @@ export function ProfilePage() {
             onChange={(e) => setUsername(e.target.value)}
             className="text-xl font-black text-slate-900 bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 outline-none w-full mb-1"
           />
-          <p className="text-gray-500 mb-3">{email || "Chưa thiết lập email"}</p>
+          <p className="text-gray-500 mb-1">{email || "Chưa thiết lập email"}</p>
+          <div className="text-[10px] font-mono text-slate-400 mb-3 bg-slate-50 p-1.5 rounded-lg border border-slate-100 break-all select-all cursor-pointer" title="ID Người dùng (Click để chọn)">
+            ID: {profile?.user_uuid}
+          </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <input 
               type="text" 

@@ -45,10 +45,45 @@ setInterval(async () => {
         
         if (nowVN.getUTCHours() === 0 && nowVN.getUTCMinutes() === 0 && lastResetNotificationDay !== todayStr) {
             lastResetNotificationDay = todayStr;
+
+            // Calculate yesterday's stats
+            const yesterdayStart = new Date(nowVN.getTime() - 24 * 3600 * 1000);
+            yesterdayStart.setUTCHours(0, 0, 0, 0);
+            const yesterdayEnd = new Date(nowVN.getTime() - 24 * 3600 * 1000);
+            yesterdayEnd.setUTCHours(23, 59, 59, 999);
+
+            const startTS = yesterdayStart.getTime();
+            const endTS = yesterdayEnd.getTime();
+
+            // 1. Total Earned Yesterday (System Balance)
+            const { data: yesterdayTasks } = await supabaseAdmin.from('tasks_history')
+                .select('reward')
+                .eq('status', 'Hoàn thành')
+                .gte('timestamp', startTS)
+                .lte('timestamp', endTS);
+            
+            const totalEarnedYesterday = (yesterdayTasks || []).reduce((acc, curr) => acc + (Number(curr.reward) || 0), 0);
+
+            // 2. Total Withdrawn Yesterday
+            const { data: yesterdayWithdrawals } = await supabaseAdmin.from('community_messages')
+                .select('amount')
+                .eq('type', 'withdrawal')
+                .eq('status', 'Đã thanh toán')
+                .gte('timestamp', startTS)
+                .lte('timestamp', endTS);
+            
+            const totalWithdrawnYesterday = (yesterdayWithdrawals || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
             await sendTelegramNotification(`
 <b>🔄 THÔNG BÁO RESET HỆ THỐNG</b>
 ━━━━━━━━━━━━━━━━━━
 HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NGƯỜI KIẾM THẬT NHIỀU VUICOIN NGÀY MỚI ! 
+
+📊 <b>BÁO CÁO NGÀY HÔM QUA:</b>
+💰 <b>Số dư hệ thống:</b> ${totalEarnedYesterday.toLocaleString()} VuiCoin
+      <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
+💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
+      <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
 `.trim());
         }
     } catch(e) {
@@ -1209,6 +1244,14 @@ async function startServer() {
          description: `${logMsg} ${id}`
       });
 
+      await sendTelegramNotification(`
+<b>🚨 THAY ĐỔI TRẠNG THÁI TÀI KHOẢN</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>UUID:</b> <code>${id}</code>
+🛠️ <b>Hành động:</b> ${is_banned ? '⛔ CẤM TÀI KHOẢN' : '✅ BỎ CẤM TÀI KHOẢN'}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+
       res.json({ success: true });
   });
 
@@ -1306,6 +1349,17 @@ async function startServer() {
       }).select().single();
 
       if (error) return res.status(500).json({ error: error.message });
+
+      if (type === 'warning') {
+          await sendTelegramNotification(`
+<b>⚠️ CẢNH BÁO NGƯỜI DÙNG (ADMIN)</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>Target:</b> <code>${target}</code>
+📝 <b>Tiêu đề:</b> ${title}
+💬 <b>Nội dung:</b> ${content}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+      }
 
       await supabaseAdmin.from('activity_logs').insert({
           user_uuid: 'admin',
@@ -1410,6 +1464,15 @@ async function startServer() {
      const mod = req.body;
      mod.id = 'mod_' + Date.now();
      await supabaseAdmin.from('mod_games').insert(mod);
+     
+     await sendTelegramNotification(`
+<b>🆕 MOD GAME MỚI</b>
+━━━━━━━━━━━━━━━━━━
+🎮 <b>Tên Mod:</b> ${mod.name}
+💰 <b>Giá:</b> ${(Number(mod.price) || 0).toLocaleString()} VNĐ
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+
      res.json({ success: true, mod });
   });
 
@@ -1643,6 +1706,33 @@ async function startServer() {
     res.json({ success: true });
   });
   // ===================================
+
+    // Record IP
+    const recordUserIp = async (uuid: string, ip: string, pkCol: string) => {
+      if (ip === 'unknown') return;
+      
+      const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString() };
+      ipRecord[pkCol] = uuid;
+      await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: pkCol + ',ip_address' });
+
+      // Check for duplicate IP
+      const { data: duplicateIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip);
+      if (duplicateIps && duplicateIps.length > 1) {
+          const uniqueUuids = [...new Set(duplicateIps.map(d => d.user_uuid))];
+          if (uniqueUuids.length > 1 && !onlineNotificationCache.has(`IP_DUP_${ip}`)) {
+              onlineNotificationCache.set(`IP_DUP_${ip}`, Date.now()); 
+              await sendTelegramNotification(`
+<b>🚩 CẢNH BÁO IP TRÙNG LẶP</b>
+━━━━━━━━━━━━━━━━━━
+🌐 <b>IP:</b> <code>${ip}</code>
+👥 <b>Số tài khoản dùng chung:</b> ${uniqueUuids.length}
+🆔 <b>Danh sách UUID:</b>
+${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+          }
+      }
+    };
 
     app.post("/api/user/sync-profile", async (req, res) => {
       const { uuid, email: reqEmail, userName: reqUserName, avatarUrl: reqAvatarUrl, referralCode, isLogin } = req.body || {};
@@ -1904,10 +1994,7 @@ async function startServer() {
       }
 
       // Record IP
-      if (ip !== 'unknown') {
-        const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString(), user_uuid: uuid };
-        await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: 'user_uuid,ip_address' });
-      }
+      await recordUserIp(uuid, ip, 'user_uuid');
       
       await sendTelegramNotification(`
 <b>✨ NGƯỜI DÙNG MỚI ĐĂNG KÝ</b>
@@ -1922,11 +2009,7 @@ async function startServer() {
     }
 
     // Existing Profile -> Update and Record IP
-    if (ip !== 'unknown') {
-        const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString() };
-        ipRecord[pkCol] = uuid;
-        await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: pkCol + ',ip_address' });
-    }
+    await recordUserIp(uuid, ip, pkCol);
 
     const updates: any = {};
     if (reqEmail !== undefined && profile.user_email !== reqEmail) updates.user_email = reqEmail;
@@ -2023,6 +2106,15 @@ async function startServer() {
           value,
           updated_at: new Date().toISOString()
       });
+
+      await sendTelegramNotification(`
+<b>🕵️ THAY ĐỔI TRẠNG THÁI TÌNH NGHI</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>UUID:</b> <code>${uuid}</code>
+💡 <b>Trạng thái:</b> ${!!value[uuid] ? '🕵️ ĐÃ ĐƯA VÀO TÌNH NGHI' : '✅ ĐÃ GỠ BỎ TÌNH NGHI'}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+
       res.json({ success: true, is_suspected: !!value[uuid] });
   });
 
@@ -2288,6 +2380,16 @@ async function startServer() {
     }
     await supabaseAdmin.from('gift_codes').update({ used_count: (giftCode.used_count || 0) + 1 }).eq('code', giftCode.code);
 
+    await sendTelegramNotification(`
+<b>🎁 NGƯỜI DÙNG NHẬP GIFTCODE</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>UUID:</b> <code>${uuid}</code>
+🎟️ <b>Mã:</b> <code>${giftCode.code}</code>
+💰 <b>Phần thưởng:</b> ${giftCode.reward_amount.toLocaleString()} ${giftCode.reward_type}
+🚀 <b>Bonus Task:</b> +${giftCode.bonus_percent || 0}%
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+
     res.json({ 
       success: true, 
       reward: giftCode.reward_amount, 
@@ -2340,6 +2442,19 @@ async function startServer() {
     });
 
     if (error) return res.status(500).json({ error: error.message });
+
+    await sendTelegramNotification(`
+<b>💸 ĐƠN RÚT TIỀN MỚI</b>
+━━━━━━━━━━━━━━━━━━
+🆔 <b>ID Đơn:</b> <code>${msgId}</code>
+👤 <b>UUID:</b> <code>${uuid}</code>
+🏷️ <b>Tên:</b> ${profile.user_name || 'User'}
+💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
+🏦 <b>Phương thức:</b> ${method}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+📊 <b>Trạng thái:</b> Đang chờ duyệt
+`.trim());
+
     res.json({ success: true });
   });
 
