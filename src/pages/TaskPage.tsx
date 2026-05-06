@@ -19,7 +19,7 @@ const TASKS = [
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'yeumoney', name: 'YEUMONEY', maxViews: 3, reward: 259, auto: false, apiUrl: 'https://yeumoney.com/QL_api.php?token=2103f2aa67d874c161e5f4388b2312af6d43742734a8ea41716b8a2cc94b7b02&format=json&url=' },
-  { id: 'xxxlink', name: 'XXX-LINK', maxViews: 2, reward: 159, auto: true, apiUrl: 'https://xlink.co/api?token=ac55663f-ef85-4849-8ce1-4ca99bd57ce7&url=' },
+  { id: 'xxxlink', name: 'XXX-LINK', maxViews: 2, reward: 159, auto: false, apiUrl: 'https://xlink.co/api?token=ac55663f-ef85-4849-8ce1-4ca99bd57ce7&url=' },
 ];
 
 import { useUser } from '@/UserContext';
