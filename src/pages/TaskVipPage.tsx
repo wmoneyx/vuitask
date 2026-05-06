@@ -70,7 +70,7 @@ export function TaskVipPage() {
           const sessionData = await sessionRes.json();
           
           if (!sessionRes.ok) {
-             showNotification({ title: 'Thông báo', message: sessionData.error || "Không thể tạo phiên nhiệm vụ. Thử lại sau!", type: 'warning' });
+             showNotification({ title: 'Thông báo', message: sessionData.error || "Bạn đã hết lượt làm .Kiểm tra thêm ở history !", type: 'warning' });
              setDoingTask(null);
              return;
           }

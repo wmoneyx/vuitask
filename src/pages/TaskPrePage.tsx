@@ -83,7 +83,7 @@ export function TaskPrePage() {
       const data = await res.json();
       
       if (!res.ok) {
-        showNotification({ title: 'Thông báo', message: data.error || "Không thể tạo phiên nhiệm vụ. Thử lại sau!", type: 'warning' });
+        showNotification({ title: 'Thông báo', message: data.error || "Bạn đã hết lượt làm .Kiểm tra thêm ở history !", type: 'warning' });
         return;
       }
 

@@ -253,7 +253,7 @@ async function startServer() {
             maxViews = 3;
         } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap') {
             maxViews = 2;
-        } else if (taskId === 'linktot' || taskId === 'traffic68') {
+        } else if (taskId === 'linktot') {
             maxViews = 4;
         } else if (taskId.startsWith('utl') || taskId === 'y1s') {
             maxViews = 999;
@@ -261,7 +261,7 @@ async function startServer() {
 
         if (historyData && historyData.length >= maxViews) {
             return res.status(403).json({ 
-                error: "BẠN ĐÃ LÀM NHIỆM VỤ NÀY RỒI ! VUI LÒNG QUAY LẠI VÀO NGÀY MAI." 
+                error: "Bạn đã hết lượt làm .Kiểm tra thêm ở history !" 
             });
         }
 
