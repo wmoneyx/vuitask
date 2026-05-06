@@ -23,10 +23,13 @@ const TASKS = [
 ];
 
 import { useUser } from '@/UserContext';
+import { AdBanner } from '@/components/ui/AdBanner';
+import { useAds } from '@/context/AdsContext';
 
 export function TaskPage() {
   const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTaskUrl, setCurrentTaskUrl] = useState<string | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -78,6 +81,10 @@ export function TaskPage() {
 
   const handleOpenLink = () => {
     if (currentTaskUrl) {
+      // Direct link ad
+      if (isAdEnabled('TaskPage', 'direct')) {
+        window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+      }
       window.open(currentTaskUrl, "_blank");
       setShowTaskModal(false);
       showNotification({ title: 'Đang mở link', message: 'Vui lòng hoàn thành để nhận thưởng.', type: 'info' });
@@ -362,6 +369,13 @@ export function TaskPage() {
           </table>
         </div>
       </AnimatedDiv>
+
+      <div className="flex flex-col items-center gap-6 pt-8 pb-4">
+        <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
+        <div className="py-4 px-8 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+           <AdBanner id="f3953ccabe0373956f3995758b9d8628" width={300} height={250} type="rectangle" />
+        </div>
+      </div>
 
       {/* Modal dialog for task success */}
       <AnimatePresence>

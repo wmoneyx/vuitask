@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2 } from 'lucide-react';
+import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2, Settings, LayoutGrid, Activity } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { useNotification } from '../../context/NotificationContext';
@@ -27,6 +27,17 @@ export function AdminSystem() {
   const [codeType, setCodeType] = useState('vui_coin');
 
   const [ranks, setRanks] = useState<any[]>([]);
+  const [adsConfig, setAdsConfig] = useState<any>({
+    global: true,
+    pages: {
+      "TaskPage": { script: true, banner: true, direct: true },
+      "TaskPrePage": { script: true, banner: true, direct: true },
+      "TaskVipPage": { script: true, banner: true, direct: true },
+      "VerifyStandard": { script: true, banner: true, direct: true },
+      "VerifyPre": { script: true, banner: true, direct: true },
+      "VerifyPro": { script: true, banner: true, direct: true },
+    }
+  });
   const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   const generateRandomCode = () => {
@@ -38,14 +49,43 @@ export function AdminSystem() {
      const data = await safeFetch('/api/admin/system');
      if (data) {
         if (data.settings) {
-           const val = data.settings.find((s: any) => s.key === 'maintenance_mode');
-           if (val) setIsMaintenance(val.value === 'true');
+           const maintenance = data.settings.find((s: any) => s.key === 'maintenance_mode');
+           if (maintenance) setIsMaintenance(maintenance.value === 'true');
+           
+           const ads = data.settings.find((s: any) => s.key === 'ads_config');
+           if (ads) {
+              try {
+                setAdsConfig(JSON.parse(ads.value));
+              } catch(e) {
+                console.error("Ad config parse error", e);
+              }
+           }
         }
         if (data.mods) setMods(data.mods);
         if (data.codes) setCodes(data.codes);
         if (data.leaderboard) setRanks(data.leaderboard);
      }
      setLoading(false);
+  };
+
+  const handleUpdateAds = async (newConfig: any) => {
+    setAdsConfig(newConfig);
+    await safeFetch('/api/admin/system', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ key: 'ads_config', value: JSON.stringify(newConfig) })
+    });
+  };
+
+  const togglePageAd = (pageKey: string, adType: 'script' | 'banner' | 'direct') => {
+    const newConfig = { ...adsConfig };
+    newConfig.pages[pageKey][adType] = !newConfig.pages[pageKey][adType];
+    handleUpdateAds(newConfig);
+  };
+
+  const toggleGlobalAds = () => {
+    const newConfig = { ...adsConfig, global: !adsConfig.global };
+    handleUpdateAds(newConfig);
   };
 
 
@@ -417,6 +457,70 @@ export function AdminSystem() {
                 ))
               )}
            </div>
+        </div>
+      </div>
+
+      {/* 5. Ad Management */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 col-span-1 md:col-span-2 lg:col-span-2 border-t-4 border-t-emerald-500">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center">
+              <LinkIcon size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 uppercase tracking-tight">Cấu hình Quảng Cáo</h3>
+              <p className="text-sm text-gray-500">Bật/tắt quảng cáo linh hoạt từng trang</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+             <span className={`text-xs font-black uppercase tracking-widest ${adsConfig.global ? 'text-emerald-500' : 'text-slate-400'}`}>Tất cả ADS</span>
+             <button onClick={toggleGlobalAds} className={`text-5xl transition-colors ${adsConfig.global ? 'text-emerald-500' : 'text-gray-300'}`}>
+                {adsConfig.global ? <ToggleRight /> : <ToggleLeft />}
+             </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {Object.entries(adsConfig.pages).map(([pageKey, config]: [string, any]) => (
+            <div key={pageKey} className="space-y-4 p-5 rounded-2xl bg-slate-50/50 border border-slate-100 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
+                 <Settings size={48} />
+               </div>
+               <h4 className="font-black text-slate-700 uppercase tracking-tighter text-sm border-b border-slate-200 pb-2 flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                 {pageKey === 'TaskPage' ? 'Trang Nhiệm Vụ' : 
+                  pageKey === 'TaskPrePage' ? 'Trang Pre Mission' :
+                  pageKey === 'TaskVipPage' ? 'Trang VIP Mission' :
+                  pageKey === 'VerifyStandard' ? 'Verify Nhiệm Vụ Thường' :
+                  pageKey === 'VerifyPre' ? 'Verify Nhiệm Vụ Pre' :
+                  pageKey === 'VerifyPro' ? 'Verify Nhiệm Vụ Pro' : pageKey}
+               </h4>
+               
+               <div className="grid grid-cols-3 gap-3">
+                 <button 
+                  onClick={() => togglePageAd(pageKey, 'banner')}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${config.banner ? 'bg-white border-emerald-200 text-emerald-600 shadow-sm' : 'bg-transparent border-slate-200 text-slate-400 opacity-50'}`}
+                 >
+                   <LayoutGrid size={18} />
+                   <span className="text-[10px] font-black uppercase">Banner</span>
+                 </button>
+                 <button 
+                  onClick={() => togglePageAd(pageKey, 'script')}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${config.script ? 'bg-white border-emerald-200 text-emerald-600 shadow-sm' : 'bg-transparent border-slate-200 text-slate-400 opacity-50'}`}
+                 >
+                   <Activity size={18} />
+                   <span className="text-[10px] font-black uppercase">Scripts</span>
+                 </button>
+                 <button 
+                  onClick={() => togglePageAd(pageKey, 'direct')}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${config.direct ? 'bg-white border-emerald-200 text-emerald-600 shadow-sm' : 'bg-transparent border-slate-200 text-slate-400 opacity-50'}`}
+                 >
+                   <LinkIcon size={18} />
+                   <span className="text-[10px] font-black uppercase">Direct</span>
+                 </button>
+               </div>
+            </div>
+          ))}
         </div>
       </div>
 

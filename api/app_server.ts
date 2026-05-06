@@ -1405,6 +1405,15 @@ async function startServer() {
       res.json({ maintenance: setting?.value === 'true' });
   });
 
+  app.get("/api/system/settings", async (req, res) => {
+      const { key } = req.query;
+      if (!key || (key !== 'ads_config' && key !== 'maintenance_mode')) {
+          return res.status(403).json({ error: "Access denied" });
+      }
+      const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', key).maybeSingle();
+      res.json({ value: setting?.value || null });
+  });
+
   app.post("/api/admin/members/delete", checkAdmin, async (req, res) => {
       const { id } = req.body;
       try {

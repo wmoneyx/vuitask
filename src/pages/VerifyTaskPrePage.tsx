@@ -4,10 +4,13 @@ import { Mail, CheckCircle, AlertCircle, Loader2, ShieldCheck, FileText, Chevron
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
+import { AdBanner } from '@/components/ui/AdBanner';
+import { useAds } from '@/context/AdsContext';
 
 export function VerifyTaskPrePage() {
   const [searchParams] = useSearchParams();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [status, setStatus] = useState<'checking' | 'valid' | 'forbidden' | 'confirmed'>('checking');
   const [errorMSG, setErrorMSG] = useState('');
   
@@ -53,6 +56,10 @@ export function VerifyTaskPrePage() {
   }, [sessionId, uuid, showNotification]);
 
   const handleSubmit = () => {
+    // Direct link ad
+    if (isAdEnabled('VerifyPre', 'direct')) {
+      window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+    }
     if (!emailInput.trim()) return showNotification({ title: 'Cảnh báo', message: 'Vui lòng nhập Email!', type: 'warning' });
     if (!emailInput.includes('@gmail.com')) return showNotification({ title: 'Sai định dạng', message: 'Vui lòng nhập định dạng @gmail.com', type: 'error' });
 
@@ -100,6 +107,7 @@ export function VerifyTaskPrePage() {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
         <div className="space-y-6">
+          <AdBanner id="a3930c4058f6ea7a4ff07710093bebcc" width={468} height={60} type="banner" />
           <div className="bg-white rounded-[40px] p-6 md:p-12 border border-gray-100 shadow-xl shadow-slate-200/50">
             
             <AnimatedDiv className="mb-10">
@@ -224,7 +232,7 @@ export function VerifyTaskPrePage() {
                      <p className="bg-amber-50 p-6 rounded-3xl border border-amber-200"><span className="text-amber-600 font-extrabold uppercase block mb-1 text-xs text-amber-700">Lưu ý khi bị hỏi SĐT</span> Đừng cố tạo tiếp! Hãy dừng lại và đợi ít nhất 5 ngày. Trong thời gian này không đăng nhập hay tương tác gì với các dịch vụ Google trên máy đó.</p>
                      <div className="bg-slate-900 p-6 rounded-3xl text-slate-400 text-xs">
                         <h5 className="text-white font-black uppercase mb-2">QUẢNG CÁO</h5>
-                        <div className="h-20 bg-slate-800 rounded-xl flex items-center justify-center font-black uppercase tracking-[0.3em]">GG ADS 300x100</div>
+                        <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
                      </div>
                   </div>
                </div>
@@ -234,13 +242,7 @@ export function VerifyTaskPrePage() {
         </div>
 
         <aside className="space-y-6">
-           <div className="bg-white p-4 rounded-[32px] border border-gray-100 shadow-lg">
-             <div className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] text-center mb-2">Google ADs</div>
-             <div className="h-64 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 font-black uppercase tracking-[0.4em] border border-dashed border-slate-200">
-                AD_300x250
-             </div>
-           </div>
-
+           <AdBanner id="f3953ccabe0373956f3995758b9d8628" width={300} height={250} type="rectangle" />
            <div className="bg-indigo-900 rounded-[32px] p-8 text-white shadow-xl shadow-indigo-200">
               <h3 className="font-black italic uppercase tracking-tighter text-xl mb-4 leading-none">Hỗ trợ 24/7</h3>
               <p className="text-xs font-bold text-indigo-300 leading-relaxed mb-6">Mọi thắc mắc về nhiệm vụ, vui lòng nhắn tin cho bộ phận kỹ thuật để được hỗ trợ nhanh nhất.</p>

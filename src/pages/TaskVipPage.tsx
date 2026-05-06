@@ -5,14 +5,17 @@ import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { useAds } from '@/context/AdsContext';
 
 const fpPromise = FingerprintJS.load();
 
 import { useUser } from '@/UserContext';
+import { AdBanner } from '@/components/ui/AdBanner';
 
 export function TaskVipPage() {
   const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [doingTask, setDoingTask] = useState<'map' | 'trip' | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [fingerprint, setFingerprint] = useState<string>('');
@@ -40,6 +43,10 @@ export function TaskVipPage() {
   }, [profile]);
 
   const startTask = async (type: 'map' | 'trip') => {
+      // Direct link ad
+      if (isAdEnabled('TaskVipPage', 'direct')) {
+        window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+      }
       if (!uuid) return;
       const lockKey = `vip_task_${type}_lock`;
       const lastDoneStr = localStorage.getItem(lockKey);
@@ -119,6 +126,7 @@ export function TaskVipPage() {
 
   return (
     <GenericPage title="Nhiệm Vụ VIP" showHistory={false}>
+       <AdBanner id="728x90" width={728} height={90} type="leaderboard" />
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center text-center">
              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4">
@@ -148,6 +156,10 @@ export function TaskVipPage() {
                  </button>
              </div>
           </div>
+       </div>
+
+       <div className="max-w-4xl mx-auto mt-8">
+         <AdBanner id="f3953ccabe0373956f3995758b9d8628" width={300} height={250} type="rectangle" />
        </div>
 
        <AnimatedDiv delay={0.3} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">

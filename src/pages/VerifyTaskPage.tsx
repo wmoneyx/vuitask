@@ -4,11 +4,14 @@ import { CheckCircle, AlertCircle, Loader2, ShieldCheck, FileText, ChevronRight 
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
+import { AdBanner } from '@/components/ui/AdBanner';
+import { useAds } from '@/context/AdsContext';
 
 export function VerifyTaskPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [status, setStatus] = useState<'checking' | 'valid' | 'error' | 'confirmed'>('checking');
   const [errorMSG, setErrorMSG] = useState('');
   
@@ -51,6 +54,10 @@ export function VerifyTaskPage() {
   }, [sessionId, uuid, showNotification]);
 
   const handleConfirm = () => {
+    // Direct link ad
+    if (isAdEnabled('VerifyStandard', 'direct')) {
+      window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+    }
     fetch('/api/tasks/complete-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -110,6 +117,7 @@ export function VerifyTaskPage() {
         
         {/* MAIN ARTICLE CONTENT */}
         <div className="space-y-6">
+          <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             
             {/* THE VERIFICATION COMPONENT */}
@@ -172,14 +180,7 @@ export function VerifyTaskPage() {
 
         {/* SIDEBAR WIDGETS & ADS */}
         <aside className="space-y-6">
-          {/* FAKE AD UNIT 1 */}
-          <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-right mb-2">Advertisement</div>
-            <div className="w-full h-64 bg-slate-100 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-300">
-               <span className="font-bold text-sm uppercase">Ad Slot 300x250</span>
-            </div>
-          </div>
-
+          <AdBanner id="f3953ccabe0373956f3995758b9d8628" width={300} height={250} type="rectangle" />
           <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-lg">
              <h3 className="font-black text-lg uppercase tracking-widest mb-4">Hỗ trợ nhanh</h3>
              <p className="text-slate-400 text-sm mb-4 leading-relaxed">Nếu bạn gặp khó khăn trong quá trình làm nhiệm vụ, hãy báo cáo để được xử lý ngay.</p>

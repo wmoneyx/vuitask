@@ -4,11 +4,14 @@ import { CheckCircle, AlertCircle, Loader2, ShieldCheck, FileText, ChevronRight,
 import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
+import { AdBanner } from '@/components/ui/AdBanner';
+import { useAds } from '@/context/AdsContext';
 
 export function VerifyTaskProPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [status, setStatus] = useState<'checking' | 'valid' | 'error' | 'confirmed'>('checking');
   const [errorMSG, setErrorMSG] = useState('');
   
@@ -54,6 +57,10 @@ export function VerifyTaskProPage() {
   }, [sessionId, uuid, showNotification]);
 
   const handleSubmitReview = () => {
+      // Direct link ad
+      if (isAdEnabled('VerifyPro', 'direct')) {
+          window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+      }
       if (!inputUrl) return showNotification({ title: 'Lỗi', message: 'Vui lòng nhập URL!', type: 'warning' });
       if (mode === 'map' && !inputUrl.includes('maps.app.goo.gl')) {
          return showNotification({ title: 'Sai định dạng', message: 'URL Map phải có dạng maps.app.goo.gl', type: 'error' });
@@ -106,6 +113,7 @@ export function VerifyTaskProPage() {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
         <div className="space-y-6">
+          <AdBanner id="10288221afcf59c7fab355761ab7fa8b" width={728} height={90} type="leaderboard" />
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             
             <AnimatedDiv className="bg-indigo-50/50 border border-indigo-100 p-8 rounded-2xl text-center mb-8">
@@ -243,13 +251,7 @@ export function VerifyTaskProPage() {
         </div>
 
         <aside className="space-y-6">
-          <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-right mb-2">Advertisement</div>
-            <div className="w-full h-64 bg-slate-100 rounded-xl flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-300">
-               <span className="font-bold text-sm uppercase">Ad Slot 300x250</span>
-            </div>
-          </div>
-
+          <AdBanner id="f3953ccabe0373956f3995758b9d8628" width={300} height={250} type="rectangle" />
           <div className="bg-indigo-900 text-white p-6 rounded-3xl shadow-lg">
              <h3 className="font-black text-lg uppercase tracking-widest mb-4">Hỗ trợ nhanh</h3>
              <p className="text-indigo-200 text-sm mb-4 leading-relaxed">Nếu bạn gặp khó khăn trong quá trình gửi duyệt, hãy liên hệ QTV hoặc CSKH qua Hòm Thư.</p>

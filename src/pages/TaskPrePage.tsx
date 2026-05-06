@@ -6,14 +6,17 @@ import { useNotification } from '../context/NotificationContext';
 import { safeFetch } from '@/lib/utils';
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { useAds } from '@/context/AdsContext';
 
 const fpPromise = FingerprintJS.load();
 
 import { useUser } from '@/UserContext';
+import { AdBanner } from '@/components/ui/AdBanner';
 
 export function TaskPrePage() {
   const { profile, refreshProfile } = useUser();
   const { showNotification } = useNotification();
+  const { isAdEnabled } = useAds();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [canSubmit, setCanSubmit] = useState(false);
@@ -59,6 +62,10 @@ export function TaskPrePage() {
   }, [showModal, countdown]);
 
   const handleStartTask = () => {
+    // Direct link ad
+    if (isAdEnabled('TaskPrePage', 'direct')) {
+      window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
+    }
     setShowModal(true);
     setCountdown(5);
     setCanSubmit(false);
@@ -99,6 +106,7 @@ export function TaskPrePage() {
   return (
     <GenericPage title="Nhiệm Vụ Pre" showHistory={false}>
       <div className="max-w-4xl mx-auto space-y-6">
+        <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6">
             <div className="bg-rose-50 text-rose-500 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Hot Task</div>
