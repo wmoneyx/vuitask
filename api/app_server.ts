@@ -38,12 +38,17 @@ setInterval(async () => {
 const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks, total_refs';
 
 let lastResetNotificationDay = '';
+let lastReminderSentSlot = '';
 setInterval(async () => {
     try {
         const nowVN = new Date(new Date().getTime() + 7 * 3600 * 1000);
         const todayStr = nowVN.toISOString().split('T')[0];
+        const currentHour = nowVN.getUTCHours();
+        const currentMinute = nowVN.getUTCMinutes();
+        const currentSlot = `${todayStr}-${currentHour}`;
         
-        if (nowVN.getUTCHours() === 0 && nowVN.getUTCMinutes() === 0 && lastResetNotificationDay !== todayStr) {
+        // Daily Reset Notification at 00:00
+        if (currentHour === 0 && currentMinute === 0 && lastResetNotificationDay !== todayStr) {
             lastResetNotificationDay = todayStr;
 
             // Calculate yesterday's stats
@@ -84,6 +89,19 @@ HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NG
       <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
 💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
       <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
+`.trim());
+        }
+
+        // Scheduled reminders: 6h sáng, 12h trưa, 14h (2h chiều), 18h (6h chiều), 20h (8h tối), 22h (10h tối)
+        const reminderHours = [6, 12, 14, 18, 20, 22];
+        if (reminderHours.includes(currentHour) && currentMinute === 0 && lastReminderSentSlot !== currentSlot) {
+            lastReminderSentSlot = currentSlot;
+            await sendTelegramNotification(`
+<b>📢 THÔNG BÁO TỪ HỆ THỐNG</b>
+━━━━━━━━━━━━━━━━━━
+MÃ HÔM NAY CÒN RẤT NHIỀU MỌI NGƯỜI TRANH THỦ VÀO BÀO NHÉE !
+🚀 <b>Website:</b> www.vuitask.online
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
         }
     } catch(e) {
