@@ -1289,6 +1289,15 @@ async function startServer() {
      res.json({ success: true });
   });
 
+  app.get("/api/public/mods", async (req, res) => {
+     try {
+       const { data: mods } = await supabaseAdmin.from('mod_games').select('*').order('created_at', { ascending: false });
+       res.json({ mods: mods || [] });
+     } catch (e) {
+       res.status(500).json({ error: String(e) });
+     }
+  });
+
   app.post("/api/admin/system/mods", checkAdmin, async (req, res) => {
      const mod = req.body;
      mod.id = 'mod_' + Date.now();
@@ -2351,6 +2360,39 @@ async function startServer() {
      const uuid = req.query.uuid as string;
      const { data: refs } = await supabaseAdmin.from('referrals').select('*').eq('referrer_uuid', uuid);
      res.json({ referrals: refs || [] });
+  });
+
+  app.post("/api/user/buy-mod", async (req, res) => {
+     try {
+       const { uuid, modId } = req.body;
+       if (!uuid || !modId) return res.status(400).json({ error: "Missing parameters" });
+
+       const { data: mod } = await supabaseAdmin.from('mod_games').select('*').eq('id', modId).maybeSingle();
+       if (!mod) return res.status(404).json({ error: "Không tìm thấy mod" });
+
+       const price = Number(mod.price) || 0;
+
+       if (price > 0) {
+         const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
+         if (!profile) return res.status(404).json({ error: "Profile not found" });
+
+         if (Number(profile.vui_coin_balance) < price) {
+           return res.status(400).json({ error: "Số dư VUI Coin không đủ. Vui lòng kiếm thêm." });
+         }
+
+         // Deduct balance
+         const { error: deductErr } = await supabaseAdmin.from('profiles')
+           .update({ vui_coin_balance: Number(profile.vui_coin_balance) - price })
+           .eq('user_uuid', uuid);
+           
+         if (deductErr) return res.status(500).json({ error: "Lỗi trừ tiền" });
+       }
+
+       res.json({ success: true, link: mod.link, name: mod.name });
+     } catch (e) {
+       console.error("buy-mod err", e);
+       res.status(500).json({ error: String(e) });
+     }
   });
 
   // Withdraw History

@@ -15,7 +15,8 @@ export function VerifyTaskPrePage() {
   const [noteInput, setNoteInput] = useState('');
 
   const sessionId = searchParams.get('code');
-  const uuid = searchParams.get('uuid');
+  let uuid = searchParams.get('uuid');
+  if (uuid) uuid = uuid.replace(/\/.*$/, '').replace(/\?.*$/, '').replace(/&.*$/, '');
 
   useEffect(() => {
     if (!sessionId || !uuid) {
