@@ -148,21 +148,6 @@ export function AttendancePage() {
     const uuid = profile?.user_uuid;
     if (!uuid) return;
 
-    try {
-        // We'd need an API for this: /api/user/open-chest
-        // For now, doing it via existing sync simulation or generic write
-        await safeFetch('/api/user/sync-profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                uuid, 
-                vuiChange: isVuiCoinCost ? -cost : 0, 
-                coinTaskChange: !isVuiCoinCost ? -cost : 0 
-            })
-        });
-        await refreshProfile();
-    } catch (err) {}
-
     // Logic for reward
     let reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
     
@@ -172,6 +157,21 @@ export function AttendancePage() {
     } else {
       if (reward > 15000) reward = 15000;
     }
+
+    try {
+        await safeFetch('/api/user/open-chest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                uuid, 
+                chestType: type,
+                cost,
+                isVuiCoinCost,
+                rewardAmount: reward
+            })
+        });
+        await refreshProfile();
+    } catch (err) {}
 
     // Update opened
     setOpenedChests(p => ({ ...p, [chestId]: p[chestId] + 1 }));

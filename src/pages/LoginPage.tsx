@@ -94,7 +94,8 @@ export function LoginPage() {
             },
             body: JSON.stringify({ 
               uuid: data.user.id, 
-              email: email
+              email: email,
+              isLogin: true
             })
           });
         } catch (err) {
