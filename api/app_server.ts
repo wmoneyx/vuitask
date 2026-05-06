@@ -334,7 +334,7 @@ async function startServer() {
             maxViews = taskConfig.max_views;
         } else if (taskId === 'yeumoney') {
             maxViews = 3;
-        } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap') {
+        } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap' || taskId === 'xxxlink') {
             maxViews = 2;
         } else if (taskId === 'linktot') {
             maxViews = 4;
