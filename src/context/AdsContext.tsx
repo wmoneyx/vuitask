@@ -41,23 +41,18 @@ export const AdsProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState(true);
   const location = useLocation();
 
-  const fetchConfig = async (retries = 2) => {
+  const fetchConfig = async () => {
     try {
       const data = await safeFetch('/api/system/settings?key=ads_config');
       if (data && data.value) {
         setConfig(JSON.parse(data.value));
-        setLoading(false);
-      } else if (data === null && retries > 0) {
-        // If server is not ready, wait and retry
-        console.warn(`Ads config fetch failed, retrying in 2s... (${retries} left)`);
-        setTimeout(() => fetchConfig(retries - 1), 2000);
       } else {
         setConfig(DEFAULT_CONFIG);
-        setLoading(false);
       }
     } catch (e) {
       console.error("Failed to fetch ads config", e);
       setConfig(DEFAULT_CONFIG);
+    } finally {
       setLoading(false);
     }
   };

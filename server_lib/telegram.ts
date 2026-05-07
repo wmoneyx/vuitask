@@ -9,15 +9,13 @@ export async function sendTelegramNotification(message: string) {
     }
 
     try {
-        const appendedMessage = message + "\n\n👉 **Bot hỗ trợ làm NV:** @vuitaskonlinebotvuotlink_bot";
-        
         const url = `https://api.telegram.org/bot${token}/sendMessage`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: chatId,
-                text: appendedMessage,
+                text: message,
                 parse_mode: 'HTML'
             })
         });
@@ -30,4 +28,3 @@ export async function sendTelegramNotification(message: string) {
         console.error("[Telegram] Exception:", e);
     }
 }
-

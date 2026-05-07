@@ -86,24 +86,36 @@ export const handleUpdateStatus = async (orderId: string, status: string, endpoi
 export function AdminWithdrawals() {
   const { showNotification } = useNotification();
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'history'>('pending');
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [pending, setPending] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState<any>(null);
   const [cardDetails, setCardDetails] = useState({ serial: '', code: '' });
   const [confirmState, setConfirmState] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
 
   useEffect(() => {
-    fetchWithdrawals();
-    const interval = setInterval(fetchWithdrawals, 10000); // Poll every 10s instead of 3s
+    fetchPending();
+    const interval = setInterval(fetchPending, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchWithdrawals = async () => {
-    const data = await safeFetch('/api/admin/withdrawals');
-    if (data && data.withdrawals) setWithdrawals(data.withdrawals);
+  useEffect(() => {
+    if (activeSubTab === 'history' && history.length === 0) {
+      fetchHistory();
+    }
+  }, [activeSubTab]);
+
+  const fetchPending = async () => {
+    const data = await safeFetch('/api/admin/withdrawals?status=pending');
+    if (data && data.withdrawals) setPending(data.withdrawals);
   };
 
-  const pending = withdrawals.filter(w => w.status === 'Đang chờ duyệt');
-  const history = withdrawals.filter(w => w.status !== 'Đang chờ duyệt');
+  const fetchHistory = async () => {
+    setLoading(true);
+    const data = await safeFetch('/api/admin/withdrawals?status=history&limit=50');
+    if (data && data.withdrawals) setHistory(data.withdrawals);
+    setLoading(false);
+  };
 
   const displayedList = activeSubTab === 'pending' ? pending : history;
 
@@ -119,7 +131,8 @@ export function AdminWithdrawals() {
         body: JSON.stringify({ withdrawalId: id, content: confirmMessage, cardData })
     });
     if (data) {
-        fetchWithdrawals();
+        fetchPending();
+        if (activeSubTab === 'history') fetchHistory();
         showNotification({ title: 'Thành công', message: "Đã duyệt và thông báo lên cộng đồng!", type: 'success' });
     }
   };
@@ -147,7 +160,8 @@ export function AdminWithdrawals() {
              body: JSON.stringify({ withdrawalId: id })
          });
          if (data && data.success) {
-             fetchWithdrawals();
+             fetchPending();
+             if (activeSubTab === 'history') fetchHistory();
              showNotification({ title: 'Đã từ chối', message: "Đã từ chối và hoàn tiền kèm phí 5%!", type: 'info' });
          }
        }
@@ -162,7 +176,7 @@ export function AdminWithdrawals() {
          setConfirmState({ ...confirmState, isOpen: false });
          const data = await safeFetch('/api/admin/clear-withdrawals-history', { method: 'POST' });
          if (data) {
-             fetchWithdrawals();
+             setHistory([]);
              showNotification({ title: 'Thành công', message: 'Đã xóa lịch sử duyệt rút tiền.', type: 'success' });
          }
        }
@@ -204,7 +218,12 @@ export function AdminWithdrawals() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {displayedList.map((item) => (
+        {loading ? (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center gap-4">
+             <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin"></div>
+             <p className="text-slate-500 font-bold text-sm uppercase tracking-widest">Đang tải dữ liệu...</p>
+          </div>
+        ) : displayedList.map((item) => (
           <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col relative overflow-hidden">
              {/* Type Badge */}
              <div className="absolute top-0 right-0">

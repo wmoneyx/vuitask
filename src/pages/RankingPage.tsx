@@ -8,7 +8,7 @@ import confetti from 'canvas-confetti';
 export function RankingPage() {
     const [ranks, setRanks] = useState<Array<{id: string, username: string, score: number, turns: number, avatar: string}>>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'day' | 'week' | 'month'>('day');
+    const [view, setView] = useState<'day' | 'week' | 'month'>('month');
 
     useEffect(() => {
         fetchLeaderboard(view);
@@ -19,11 +19,11 @@ export function RankingPage() {
         const data = await safeFetch(`/api/user/leaderboard?period=${period}`);
         if (data && data.leaderboard) {
             const fetched = data.leaderboard.map((item: any) => ({
-                id: item.user_uuid || item.id,
-                username: item.username || item.user_name || 'Thành viên',
-                score: Number(item.score || 0),
-                turns: Number(item.turns || 0),
-                avatar: item.avatar || item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid || item.id}`
+                id: item.user_uuid,
+                username: item.user_name || item.user_email?.split('@')[0] || 'Unknown',
+                score: (period === 'day' ? item.today_balance : (period === 'week' ? item.weekly_balance : item.monthly_balance)) || 0,
+                turns: (period === 'day' ? item.today_turns : item.total_tasks) || 0,
+                avatar: item.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_uuid}`
             }));
             setRanks(fetched);
         }

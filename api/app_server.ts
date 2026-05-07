@@ -4,50 +4,29 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { supabaseAdmin } from "../server_lib/supabase.js";
 import { sendTelegramNotification } from "../server_lib/telegram.js";
-import { setupTelegramBot } from "../server_lib/telegramBot.js";
-import { initFakeData, fakeUsers, fakeMessages } from "../server_lib/fakeData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function maskInfo(str: string | undefined | null) {
     if (!str) return '***';
-    if (str.includes('@')) {
-        const [local, domain] = str.split('@');
-        const showLocal = Math.max(1, Math.floor(local.length / 3));
-        const [domainName, domainExt] = (domain || "").split('.');
-        const showDomain = Math.max(1, Math.floor((domainName || "").length / 3));
-        return local.substring(0, showLocal) + '***@' + (domainName || "").substring(0, showDomain) + '***' + (domainExt ? '.' + domainExt : '');
-    }
-    const show = Math.max(1, Math.floor(str.length / 3));
-    return str.substring(0, show) + '***';
+    const len = Math.ceil(str.length / 3);
+    return str.substring(0, len) + '***';
 }
 
 const onlineNotificationCache = new Map<string, number>();
 
-const getDisplayUserInfo = async (uuid: string) => {
-    try {
-        const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
-        const maskedName = maskInfo(profile?.user_name || 'Thành viên');
-        const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
-        return `${maskedName}${maskedEmail}`;
-    } catch (e) {
-        return `User ${maskInfo(uuid)}`;
-    }
-};
-
 setInterval(async () => {
     try {
         const { data: topUsers } = await supabaseAdmin.from('profiles')
-            .select('user_name, user_uuid, user_email, vui_coin_balance')
+            .select('user_name, user_uuid, vui_coin_balance')
             .order('vui_coin_balance', { ascending: false })
             .limit(3);
             
         if (topUsers && topUsers.length > 0) {
             let msg = `<b>🏆 TOP 3 BẢNG XẾP HẠNG</b>\n━━━━━━━━━━━━━━━━━━\n`;
             topUsers.forEach((u, i) => {
-                const name = maskInfo(u.user_name || 'Thành viên');
-                const email = u.user_email ? ` (${maskInfo(u.user_email)})` : '';
-                msg += `<b>#${i+1}</b> ${name}${email} - ${u.vui_coin_balance.toLocaleString()} VuiCoin\n`;
+                const name = u.user_name || maskInfo(u.user_uuid);
+                msg += `<b>#${i+1}</b> ${name} - ${u.vui_coin_balance.toLocaleString()} VuiCoin\n`;
             });
             await sendTelegramNotification(msg);
         }
@@ -69,7 +48,7 @@ setInterval(async () => {
         const currentSlot = `${todayStr}-${currentHour}`;
         
         // Daily Reset Notification at 00:00
-        if (currentHour === 0 && lastResetNotificationDay !== todayStr) {
+        if (currentHour === 0 && currentMinute === 0 && lastResetNotificationDay !== todayStr) {
             lastResetNotificationDay = todayStr;
 
             // Calculate yesterday's stats
@@ -100,7 +79,7 @@ setInterval(async () => {
             
             const totalWithdrawnYesterday = (yesterdayWithdrawals || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
-            const resetMsg = `
+            await sendTelegramNotification(`
 <b>🔄 THÔNG BÁO RESET HỆ THỐNG</b>
 ━━━━━━━━━━━━━━━━━━
 HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NGƯỜI KIẾM THẬT NHIỀU VUICOIN NGÀY MỚI ! 
@@ -110,43 +89,20 @@ HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NG
       <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
 💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
       <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
-`.trim();
-
-            await sendTelegramNotification(resetMsg);
-            
-            // Send to chat
-            await supabaseAdmin.from('community_messages').insert({
-                id: `SYS_RESET_${todayStr}`,
-                type: 'message',
-                user_name: 'Vui TASK ( BOT )',
-                is_admin: true,
-                content: `🔄 [HỆ THỐNG RESET] Chào ngày mới ${todayStr}! Chúc mọi người kiếm thật nhiều VuiCoin.`,
-                timestamp: Date.now()
-            });
+`.trim());
         }
 
         // Scheduled reminders: 6h sáng, 12h trưa, 14h (2h chiều), 18h (6h chiều), 20h (8h tối), 22h (10h tối)
         const reminderHours = [6, 12, 14, 18, 20, 22];
-        if (reminderHours.includes(currentHour) && lastReminderSentSlot !== currentSlot) {
+        if (reminderHours.includes(currentHour) && currentMinute === 0 && lastReminderSentSlot !== currentSlot) {
             lastReminderSentSlot = currentSlot;
-            const reminderTxt = `
+            await sendTelegramNotification(`
 <b>📢 THÔNG BÁO TỪ HỆ THỐNG</b>
 ━━━━━━━━━━━━━━━━━━
 MÃ HÔM NAY CÒN RẤT NHIỀU MỌI NGƯỜI TRANH THỦ VÀO BÀO NHÉE !
 🚀 <b>Website:</b> www.vuitask.online
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim();
-            await sendTelegramNotification(reminderTxt);
-
-            // Send to chat
-            await supabaseAdmin.from('community_messages').insert({
-                id: `SYS_REMINDER_${currentSlot}`,
-                type: 'message',
-                user_name: 'Vui TASK ( BOT )',
-                is_admin: true,
-                content: `📢 THÔNG BÁO: Mã hôm nay còn rất nhiều, mọi người tranh thủ vào làm nhiệm vụ nhé! 🚀`,
-                timestamp: Date.now()
-            });
+`.trim());
         }
     } catch(e) {
         console.error("Error sending daily reset", e);
@@ -208,30 +164,38 @@ async function awardReferralBonus(referredId: string, baseReward: number) {
 async function updateUserStats(userId: string, amount: number, isTask: boolean = true, incrementTurn: boolean = true) {
     console.log(`[updateUserStats] Starting for user: ${userId}, amount: ${amount}, isTask: ${isTask}, incrementTurn: ${incrementTurn}`);
     
-    // 1. Find the profile column and existing data
+    // Retry logic for DB connection
     let profile: any = null;
     let pkCol = 'user_uuid';
     const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, weekly_balance, monthly_balance, last_reset_day, last_reset_week, last_reset_month, total_tasks';
     
-    // We try to select all, but some might be missing. Supabase will return error if any col is missing.
-    let { data: res1, error: selectError } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
-    
-    // Fallback if some columns are missing
-    if (selectError) {
-        const fallbackCols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, total_tasks';
-        const { data: resFallback } = await supabaseAdmin.from('profiles').select(fallbackCols).eq('user_uuid', userId).maybeSingle();
-        res1 = resFallback as any;
-    }
-    
-    if (res1) {
+    let retryCount = 0;
+    while (retryCount < 3) {
+      const { data: res1, error: selectError } = await supabaseAdmin.from('profiles').select(cols).eq('user_uuid', userId).maybeSingle();
+      if (!selectError && res1) {
         profile = res1;
         pkCol = 'user_uuid';
-    } else {
-        const { data: res2 } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).maybeSingle();
-        if (res2) {
-            profile = res2;
-            pkCol = 'id';
-        }
+        break;
+      }
+      if (selectError && selectError.message?.includes('fetch')) {
+         console.warn(`[updateUserStats] Select failed, retrying... (${retryCount + 1})`);
+         await new Promise(r => setTimeout(r, 1000));
+         retryCount++;
+         continue;
+      }
+      
+      // Try ID fallback
+      const { data: res2, error: err2 } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (res2) {
+          profile = res2;
+          pkCol = 'id';
+          break;
+      }
+      
+      if (!selectError && !res1) break; // Not found
+      
+      retryCount++;
+      await new Promise(r => setTimeout(r, 1000));
     }
 
     if (!profile) {
@@ -368,49 +332,26 @@ async function startServer() {
     const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
 
     try {
-        // 2. CHECK LIMITS (Today: 100, Week: 200, Month: 900)
+        // 2. CHECK LIMITS (IP, Fingerprint, UserID)
         const msVN = Date.now() + 7 * 3600 * 1000;
         const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
         const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
-        // Week start (Monday)
-        const todayDate = new Date();
-        const dayOfWeek = todayDate.getDay();
-        const weekStart = new Date(todayDate);
-        weekStart.setDate(todayDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-        weekStart.setUTCHours(0,0,0,0);
-        const weekStartMS = weekStart.getTime() - 7 * 3600 * 1000;
-        // Month start
-        const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-        const monthStartMS = monthStart.getTime() - 7 * 3600 * 1000;
 
-        // Check active daily turns from profile for speed
-        const { data: currentProfile } = await supabaseAdmin.from('profiles').select('today_turns, total_tasks').eq('user_uuid', userId).maybeSingle();
-        if (currentProfile && currentProfile.today_turns >= 100) {
-            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 100 nhiệm vụ/ngày!" });
-        }
-
-        // Check weekly/monthly from history
-        const { count: weeklyCount } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', userId).gte('timestamp', weekStartMS);
-        if (weeklyCount && weeklyCount >= 200) {
-            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 200 nhiệm vụ/tuần!" });
-        }
-
-        const { count: monthlyCount } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', userId).gte('timestamp', monthStartMS);
-        if (monthlyCount && monthlyCount >= 900) {
-            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 900 nhiệm vụ/tháng!" });
-        }
-
-        // Per task limit
+        // Dynamic OR filter to avoid issues with missing values
         const orConditions = [`ip.eq."${ip}"`];
         if (fingerprint && fingerprint !== 'undefined') orConditions.push(`fingerprint.eq."${fingerprint}"`);
         if (userId && userId !== 'undefined') orConditions.push(`user_uuid.eq."${userId}"`);
 
-        const { data: historyData } = await supabaseAdmin
+        const { data: historyData, error: historyError } = await supabaseAdmin
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
             .or(orConditions.join(','));
+
+        if (historyError) {
+          console.error("Check limits error:", historyError);
+        }
 
         // Fetch task config to get max_views (fallback to 2 if not found)
         let maxViews = 2;
@@ -423,8 +364,6 @@ async function startServer() {
             maxViews = 2;
         } else if (taskId === 'linktot') {
             maxViews = 4;
-        } else if (taskId === 'bbmkts') {
-            maxViews = 1;
         } else if (taskId.startsWith('utl') || taskId === 'y1s') {
             maxViews = 999;
         }
@@ -445,8 +384,7 @@ async function startServer() {
           expires: Date.now() + 15 * 60 * 1000,
           completed: false,
           short_url: '',
-          fingerprint: fingerprint, // Store fingerprint in session
-          start_ip: ip // Store start IP
+          fingerprint: fingerprint // Store fingerprint in session
         });
 
         if (error) {
@@ -513,11 +451,184 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session-pro", async (req, res) => {
-    res.status(410).json({ error: "Endpoint deprecated" });
+    const { sessionId, uuid } = req.body || {};
+    
+    const { data: session, error } = await supabaseAdmin
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+    
+    if (error || !session || session.expires < Date.now()) {
+      return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hết hạn" });
+    }
+
+    if (session.user_uuid !== uuid) {
+        return res.status(403).json({ error: "Phiên không thuộc về người dùng này" });
+    }
+
+    if (session.completed) {
+        return res.status(400).json({ error: "Phiên này đã được xác nhận" });
+    }
+
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+    
+    // Simulate VPN check
+    const isVPN = ip.includes('127.0.0.1') || ip.includes('localhost'); 
+
+    if (isVPN) {
+        // Notify admin via Supabase
+        await supabaseAdmin.from('site_notifications').insert({
+           id: `VPN_ALERT_${Date.now()}`,
+           title: "CẢNH BÁO VPN/PROXY",
+           content: `Phát hiện người dùng ${uuid.slice(0, 8)}... sử dụng VPN tại phiên ${sessionId}. IP: ${ip}`,
+           type: 'warning',
+           target: 'admin',
+           timestamp: Date.now()
+        });
+
+        await supabaseAdmin.from('sessions').delete().eq('id', sessionId);
+        return res.status(403).json({ error: "Hệ thống phát hiện sử dụng Proxy/VPN/Bot! Hủy phiên nhiệm vụ VIP." });
+    }
+
+    res.json({ status: "valid" });
+  });
+
+  app.post("/api/tasks/start-vip", async (req, res) => {
+    const { type, uuid, destinationUrl } = req.body || {};
+    // API_URL_GOC base
+    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodeURIComponent(destinationUrl)}`;
+
+    try {
+      console.log(`Calling provider VIP API: ${API_URL_GOC}`);
+      const response = await fetch(API_URL_GOC);
+      const text = await response.text();
+      console.log(`Provider VIP response: ${text}`);
+      
+      let linkPath = "";
+      // 1. Check for window.location.href in the response
+      if (text.includes("window.location.href")) {
+        const match = text.match(/window\.location\.href\s*=\s*["']([^"']+)["']/);
+        linkPath = match ? match[1] : "";
+      } else {
+        linkPath = text.trim();
+      }
+
+      if (!linkPath) {
+        return res.status(500).json({ error: "Không phản hồi link từ nhà cung cấp" });
+      }
+
+      // Cleanup link from possible double quotes or extra text if it was trimmed
+      linkPath = linkPath.split(/[ "']/)[0];
+
+      if (!linkPath.includes('.rv')) {
+         // If it doesn't have .rv, we can't safely replace it, but we'll try to use it as is
+         // or throw error if strictly required. For now, let's log it.
+         console.warn("Link does not contain .rv extension:", linkPath);
+      }
+
+      // 2. Change extension based on task type
+      let finalLink = linkPath;
+      if (type === "trip") {
+        finalLink = linkPath.replace(".rv", ".tr");
+      } else if (type === "app") {
+        finalLink = linkPath.replace(".rv", ".ap");
+      }
+      // If type is "map", keep .rv
+
+      // 3. Resolve absolute URL
+      if (finalLink.startsWith("/")) {
+        finalLink = "https://linktot.net" + finalLink;
+      }
+
+      res.json({ success: true, url: finalLink });
+    } catch (error) {
+      console.error("Task VIP System Error:", error);
+      res.status(500).json({ error: "Lỗi kết nối đến nhà cung cấp API VIP." });
+    }
   });
 
   app.post("/api/admin/submit-pro-task", async (req, res) => {
-    res.status(410).json({ error: "Endpoint deprecated" });
+    const { sessionId, uuid, type, reviewUrl } = req.body || {};
+    
+    const { data: session } = await supabaseAdmin
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+    
+    if (!session || session.expires < Date.now() || session.completed || session.user_uuid !== uuid) {
+      return res.status(400).json({ error: "Phiên không hợp lệ" });
+    }
+
+    await supabaseAdmin
+      .from('sessions')
+      .update({ completed: true })
+      .eq('id', sessionId);
+
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
+    
+    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
+    const isTooFast = timeTaken < 60000; // less than 1 minute
+    const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
+    
+    // Calculation of bonus reward
+    let baseReward = session.reward;
+    let finalReward = baseReward;
+    
+    try {
+      const bonusPercent = await getActiveBonusPercent(uuid);
+      if (bonusPercent > 0) {
+         finalReward = Math.floor(baseReward * (1 + bonusPercent / 100));
+      }
+    } catch (e) {
+      console.error("Error calculating bonus reward:", e);
+    }
+
+    await supabaseAdmin.from('tasks_history').insert({
+        id: sessionId,
+        user_uuid: uuid,
+        task_id: session.task_id,
+        task_name: session.task_name,
+        timestamp: Date.now(),
+        reward: finalReward,
+        status: finalStatus,
+        status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
+        status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
+        url: reviewUrl,
+        ip: ip
+    });
+
+    // Increment turns
+    await updateUserStats(uuid, 0, true);
+
+    if (isTooFast) {
+       return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
+    }
+
+    await supabaseAdmin.from('community_messages').insert({
+      id: `task_review_${Date.now()}`,
+      type: 'task_review',
+      user_uuid: uuid,
+      user_name: 'Member VIP',
+      user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
+      content: `[XÁC MINH VIP]\nUser: ${uuid.slice(0, 8)}...\nLoại: ${type === 'map' ? 'Review Map' : 'Review Trip'}\nURL Review: ${reviewUrl}\nLink gốc: ${session.short_url || 'N/A'}\nThưởng: ${session.reward} VuiCoin\nDuyệt Lần 1: 24H\nDuyệt Lần 2: 10 Ngày`,
+      timestamp: Date.now()
+    });
+
+    // Notify Telegram
+    await sendTelegramNotification(`
+<b>🔔 NHIỆM VỤ VIP MỚI</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+📝 <b>Tên:</b> ${session.task_name}
+💰 <b>Thưởng:</b> ${finalReward} VuiCoin
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+📊 <b>Trạng thái:</b> ${finalStatus}
+🔗 <b>URL:</b> ${reviewUrl}
+`.trim());
+
+    res.json({ success: true });
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
@@ -567,23 +678,19 @@ async function startServer() {
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
         url: note ? `${email}|||${note}` : email,
-        ip: ip,
-        start_ip: session.start_ip
+        ip: ip
     });
 
     // Increment turns
     await updateUserStats(uuid, 0, true);
 
-    // Fetch user profile for masking
-    const displayUserInfo = await getDisplayUserInfo(uuid);
-
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
       type: 'task_review',
       user_uuid: uuid,
-      user_name: displayUserInfo,
+      user_name: 'Member Pre',
       user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
-      content: `[GMAIL PRE]\nUser: ${displayUserInfo}\nEmail: ${displayUserInfo}\nNote: ${note || 'Không có'}\nThưởng: ${session.reward} VuiCoin`,
+      content: `[GMAIL PRE]\nUser: ${uuid.slice(0, 8)}...\nEmail: ${email}\nNote: ${note || 'Không có'}\nThưởng: ${session.reward} VuiCoin`,
       timestamp: Date.now()
     });
 
@@ -591,12 +698,12 @@ async function startServer() {
     await sendTelegramNotification(`
 <b>🔔 NHIỆM VỤ GMAIL MỚI</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${displayUserInfo}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 📝 <b>Tên:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 📊 <b>Trạng thái:</b> ${finalStatus}
-📧 <b>Gmail:</b> ${displayUserInfo}
+📧 <b>Gmail:</b> ${email}
 `.trim());
 
     res.json({ success: true });
@@ -627,10 +734,10 @@ async function startServer() {
         .eq('id', sessionId);
       
       const h = req.headers['x-forwarded-for'];
-      const currentIp = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
+      const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
       
       const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-      const isTooFast = timeTaken < 60000;
+      const isTooFast = timeTaken < 20000; // Lowered to 20s to be more lenient
 
       let finalStatus = session.auto ? 'Hoàn thành' : 'Chờ duyệt';
       let statusV1 = session.auto ? 'Đã duyệt' : 'Đang duyệt';
@@ -638,6 +745,8 @@ async function startServer() {
       if (isTooFast) {
           finalStatus = 'Từ chối';
           statusV1 = 'Từ chối';
+          // Still create session but mark as cheated/fast
+          console.warn(`[complete-session] Speed violation by ${uuid}: ${timeTaken}ms`);
       }
 
       // Calculation of bonus reward
@@ -663,8 +772,7 @@ async function startServer() {
           status: finalStatus,
           status_v1: statusV1,
           status_v2: statusV1,
-          ip: currentIp,
-          start_ip: session.start_ip,
+          ip: ip,
           fingerprint: session.fingerprint, // Include fingerprint from session
           timestamp: Date.now()
       };
@@ -674,30 +782,11 @@ async function startServer() {
           console.error("Failed to insert into tasks_history:", insertError);
       }
 
-      // Fetch user profile for masking and chat notification
-      const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
-      const maskedName = maskInfo(profile?.user_name || 'Thành viên');
-      const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
-      const displayUserInfo = `${maskedName}${maskedEmail}`;
-
-      // Notify Chat for standard task
-      if (!isTooFast && session.auto) {
-          await supabaseAdmin.from('community_messages').insert({
-              id: `TASK_AUTO_${sessionId}`,
-              type: 'message',
-              user_uuid: uuid,
-              user_name: displayUserInfo,
-              user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
-              content: `✅ ${displayUserInfo} vừa hoàn thành nhiệm vụ "${session.task_name}" và nhận được ${finalReward} VuiCoin! 🚀`,
-              timestamp: Date.now()
-          });
-      }
-
       // Notify Telegram
       await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ HOÀN THÀNH</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${displayUserInfo}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 📝 <b>Tên:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -805,9 +894,7 @@ async function startServer() {
        return { ...m, reactions: reactionsMap };
     });
 
-    const combined = [...transformed, ...fakeMessages].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
-
-    res.json({ messages: combined.reverse() });
+    res.json({ messages: transformed.reverse() });
   });
 
   app.post("/api/community/withdraw", async (req, res) => {
@@ -826,18 +913,12 @@ async function startServer() {
     // Deduct balance
     await supabaseAdmin.rpc('decrement_vui_coin', { user_id: uuid, amount: totalDeduction });
 
-    // Fetch user profile for masking
-    const { data: userProfile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
-    const maskedName = maskInfo(userProfile?.user_name || username || 'User');
-    const maskedEmail = userProfile?.user_email ? ` (${maskInfo(userProfile.user_email)})` : '';
-    const displayUserInfo = `${maskedName}${maskedEmail}`;
-
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newMsg = {
        id: msgId,
        type: 'withdrawal',
        user_uuid: uuid,
-       user_name: displayUserInfo,
+       user_name: username || 'User',
        user_avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`,
        amount: netAmount, // Store net amount
        content: `Method: ${method || 'bank'}\nAmount: ${netAmount}\nRequested: ${amount}`,
@@ -852,7 +933,8 @@ async function startServer() {
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>User:</b> <code>${displayUserInfo}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+📱 <b>Username:</b> ${username}
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 💵 <b>Thực nhận (95%):</b> ${netAmount.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -889,13 +971,12 @@ async function startServer() {
             admin_note: 'Approved'
         });
 
-       // Notify Telegram
-       const info = await getDisplayUserInfo(wRecord.user_uuid);
-       await sendTelegramNotification(`
+        // Notify Telegram
+        await sendTelegramNotification(`
 <b>✅ ĐƠN RÚT TIỀN ĐÃ ĐƯỢC DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${withdrawalId}</code>
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(wRecord.user_uuid)}</code>
 💰 <b>Số tiền:</b> ${(wRecord.amount || 0).toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1018,16 +1099,40 @@ async function startServer() {
       res.json({ success: true });
   });
 
+  let statsCache: any = null;
+  let statsCacheTime = 0;
+
   app.get("/api/admin/stats", checkAdmin, async (req, res) => {
      try {
-       const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
-               const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
-        const { count: telegramUsers } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null);
-       const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at, vui_coin_balance, today_balance, last_reset_day');
-       const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, timestamp, task_id, status_v1');
-       const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, timestamp, amount').eq('type', 'withdrawal');
+       if (statsCache && (Date.now() - statsCacheTime < 30000)) {
+           return res.json(statsCache);
+       }
 
-       // Chart data: past 7 days
+       const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
+       const sevenDaysAgoTime = Date.now() - 7 * 24 * 3600 * 1000;
+       const sevenDaysAgoDate = new Date(sevenDaysAgoTime).toISOString();
+
+       const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+       
+       // Optimization: Only fetch what is absolutely necessary
+       // totalRev: use sum aggregate if possible, but let's just get today's balances more precisely
+       const { data: todayBalances } = await supabaseAdmin.from('profiles').select('today_balance').eq('last_reset_day', todayVN);
+       const { data: recentUsers } = await supabaseAdmin.from('profiles').select('created_at').gte('created_at', sevenDaysAgoDate);
+       
+       // Calculate totalRev more efficiently - maybe just a sample or sum if the table is reasonable
+       const { data: totalCoinsData } = await supabaseAdmin.from('profiles').select('vui_coin_balance');
+       const totalRev = (totalCoinsData || []).reduce((acc, curr) => acc + (Number(curr.vui_coin_balance) || 0), 0);
+       const todayRev = (todayBalances || []).reduce((acc, curr) => acc + (Number(curr.today_balance) || 0), 0);
+       
+       const { data: tasks } = await supabaseAdmin.from('tasks_history')
+         .select('reward, status, timestamp, status_v1')
+         .or(`timestamp.gt.${sevenDaysAgoTime},status.eq.Chờ duyệt`);
+
+       const { data: withdrawals } = await supabaseAdmin.from('community_messages')
+         .select('status, timestamp, amount')
+         .eq('type', 'withdrawal')
+         .or(`timestamp.gt.${sevenDaysAgoTime},status.eq.Đang chờ duyệt`);
+
        const chartData: any[] = [];
        for (let i = 6; i >= 0; i--) {
          const d = new Date();
@@ -1035,7 +1140,6 @@ async function startServer() {
          d.setHours(0, 0, 0, 0);
          const endOfDay = new Date(d);
          endOfDay.setHours(23, 59, 59, 999);
-         
          chartData.push({
            name: d.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit' }),
            start: d.getTime(),
@@ -1046,96 +1150,73 @@ async function startServer() {
          });
        }
 
-       let totalRev = 0;
-       let todayRev = 0;
-       
-       (allUsers || []).forEach(u => {
-           totalRev += Number(u.vui_coin_balance || 0);
-           if (u.last_reset_day === todayVN) {
-               todayRev += Number(u.today_balance || 0);
-           }
-       });
-
-       let pendingTasks = 0;
-
-       (tasks || []).forEach(t => {
-          const tTime = t.timestamp; // We use numeric timestamp column in tasks_history
-          if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
-             const day = chartData.find(d => tTime >= d.start && tTime <= d.end);
-             if (day) day.revenue += Number(t.reward || 0);
-          }
-          if (t.status === 'Chờ duyệt') {
-             pendingTasks++;
-          }
-       });
-
-       let totalWithdrawn = 0;
-       let pendingWithdrawals = 0;
-
-       (withdrawals || []).forEach(w => {
-           const wTime = w.timestamp;
-           if (w.status === 'Đã thanh toán') {
-              const amt = Number(w.amount || 0);
-              totalWithdrawn += amt;
-              const day = chartData.find(d => wTime >= d.start && wTime <= d.end);
-              if (day) day.withdrawn += amt;
-           } else if (w.status === 'Đang chờ duyệt') {
-              pendingWithdrawals++;
-           }
-       });
-
-       (allUsers || []).forEach(u => {
+       (recentUsers || []).forEach(u => {
            const uTime = new Date(u.created_at).getTime();
            const day = chartData.find(d => uTime >= d.start && uTime <= d.end);
            if (day) day.users++;
        });
 
-       // Recent actions
-       const recentActions = [];
-       (allUsers || []).slice(-10).forEach(u => recentActions.push({ timestamp: new Date(u.created_at).getTime(), type: 'user', title: 'Người dùng mới', desc: 'Có tài khoản mới đăng ký' }));
-       (tasks || []).slice(-10).forEach(t => recentActions.push({ timestamp: t.timestamp, type: 'task', title: 'Nhiệm vụ', desc: `Vừa làm nhiệm vụ ${t.task_id || ''}` }));
-       (withdrawals || []).slice(-10).forEach(w => recentActions.push({ timestamp: w.timestamp, type: 'withdraw', title: 'Rút tiền', desc: `Có đơn rút tiền mới: ${w.status}` }));
+       let pendingTasks = 0;
+       (tasks || []).forEach(t => {
+          if (t.status === 'Hoàn thành' || t.status === 'Đã duyệt' || t.status_v1 === 'Đã duyệt') {
+             const day = chartData.find(d => t.timestamp >= d.start && t.timestamp <= d.end);
+             if (day) day.revenue += Number(t.reward || 0);
+          }
+          if (t.status === 'Chờ duyệt') pendingTasks++;
+       });
 
-       
+       let pendingWithdrawals = 0;
+       (withdrawals || []).forEach(w => {
+           if (w.status === 'Đã thanh toán') {
+              const day = chartData.find(d => w.timestamp >= d.start && w.timestamp <= d.end);
+              if (day) day.withdrawn += Number(w.amount || 0);
+           } else if (w.status === 'Đang chờ duyệt') {
+              pendingWithdrawals++;
+           }
+       });
+
+       // Correct totalWithdrawn calculation
+       const { data: totalWithdrawnData } = await supabaseAdmin.from('community_messages').select('amount').eq('type', 'withdrawal').eq('status', 'Đã thanh toán');
+       const totalWithdrawn = (totalWithdrawnData || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+       // Recent actions (simplified/limited)
+       const recentActions: any[] = [];
+       // We can just use the data we already have but limited
+       (recentUsers || []).slice(-5).forEach(u => recentActions.push({ timestamp: new Date(u.created_at).getTime(), type: 'user', title: 'Người dùng mới', desc: 'Có tài khoản mới đăng ký' }));
+       (tasks || []).filter(t => t.status === 'Chờ duyệt').slice(-5).forEach(t => recentActions.push({ timestamp: t.timestamp, type: 'task', title: 'Nhiệm vụ', desc: 'Đang chờ duyệt' }));
+       (withdrawals || []).filter(w => w.status === 'Đang chờ duyệt').slice(-5).forEach(w => recentActions.push({ timestamp: w.timestamp, type: 'withdraw', title: 'Rút tiền', desc: 'Yêu cầu mới' }));
        recentActions.sort((a,b) => b.timestamp - a.timestamp);
-       const topRecent = recentActions.slice(0, 10);
 
-       // Online Users (last 5 mins)
        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-       const { data: recentIps } = await supabaseAdmin
-         .from('user_ips')
-         .select('user_uuid')
-         .gte('last_seen', fiveMinsAgo);
-       
-       const uniqueOnlineUsers = new Set((recentIps || []).map(i => i.user_uuid)).size;
+       const { count: onlineCount } = await supabaseAdmin.from('user_ips').select('*', { count: 'exact', head: true }).gte('last_seen', fiveMinsAgo);
 
-       // Duplicate IPs
-       const { data: allIps } = await supabaseAdmin.from('user_ips').select('ip_address, user_uuid');
+       // Optimized Duplicate IPs count - check only those seen in last 24h
+       const yesterdayLimit = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+       const { data: recentIps } = await supabaseAdmin.from('user_ips').select('ip_address, user_uuid').gte('last_seen', yesterdayLimit);
        const ipGroups: Record<string, Set<string>> = {};
-       (allIps || []).forEach(item => {
+       (recentIps || []).forEach(item => {
          if (!ipGroups[item.ip_address]) ipGroups[item.ip_address] = new Set();
          ipGroups[item.ip_address].add(item.user_uuid);
        });
-       let duplicateIpsCount = 0;
-       Object.values(ipGroups).forEach(usersSet => {
-         if (usersSet.size > 1) duplicateIpsCount++;
-       });
+       const duplicateIpsCount = Object.values(ipGroups).filter(set => set.size > 1).length;
 
-       res.json({
-                   users: usersCount || 0,
-          telegramUsers: telegramUsers || 0,
+       statsCache = {
+         users: usersCount || 0,
          totalRevenue: totalRev,
          todayRevenue: todayRev,
          totalWithdrawn,
          pendingWithdrawals,
          pendingTasks,
-         onlineUsers: uniqueOnlineUsers,
+         onlineUsers: onlineCount || 0,
          duplicateIps: duplicateIpsCount,
          chartData,
-         recentActions: topRecent
-       });
+         recentActions: recentActions.slice(0, 10)
+       };
+       statsCacheTime = Date.now();
+       res.json(statsCache);
      } catch (e: any) {
-       res.status(500).json({ error: e.message || "Internal Server Error" });
+       console.error("Stats Error:", e);
+       res.status(500).json({ error: e.message || "Lỗi thống kê" });
      }
   });
 
@@ -1193,11 +1274,10 @@ async function startServer() {
          description: `${logMsg} ${id}`
       });
 
-      const info = await getDisplayUserInfo(id);
       await sendTelegramNotification(`
 <b>🚨 THAY ĐỔI TRẠNG THÁI TÀI KHOẢN</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${id}</code>
 🛠️ <b>Hành động:</b> ${is_banned ? '⛔ CẤM TÀI KHOẢN' : '✅ BỎ CẤM TÀI KHOẢN'}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1301,11 +1381,10 @@ async function startServer() {
       if (error) return res.status(500).json({ error: error.message });
 
       if (type === 'warning') {
-          const displayTarget = (target === 'all' || !target) ? 'Tất cả' : await getDisplayUserInfo(target);
           await sendTelegramNotification(`
 <b>⚠️ CẢNH BÁO NGƯỜI DÙNG (ADMIN)</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Target:</b> <code>${displayTarget}</code>
+👤 <b>Target:</b> <code>${target}</code>
 📝 <b>Tiêu đề:</b> ${title}
 💬 <b>Nội dung:</b> ${content}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -1339,17 +1418,12 @@ async function startServer() {
   });
 
   app.get("/api/system/settings", async (req, res) => {
-      try {
-          const { key } = req.query;
-          if (!key || (key !== 'ads_config' && key !== 'maintenance_mode')) {
-              return res.status(403).json({ error: "Access denied" });
-          }
-          const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', key).maybeSingle();
-          res.json({ value: setting?.value || null });
-      } catch (err) {
-          console.error("Error fetching system settings:", err);
-          res.status(500).json({ error: "Internal Server Error" });
+      const { key } = req.query;
+      if (!key || (key !== 'ads_config' && key !== 'maintenance_mode')) {
+          return res.status(403).json({ error: "Access denied" });
       }
+      const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', key).maybeSingle();
+      res.json({ value: setting?.value || null });
   });
 
   app.post("/api/admin/members/delete", checkAdmin, async (req, res) => {
@@ -1385,21 +1459,6 @@ async function startServer() {
 
   app.get("/api/admin/history", checkAdmin, async (req, res) => {
      const { data: logs } = await supabaseAdmin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50);
-     res.json({ logs: logs || [] });
-  });
-
-  app.get("/api/admin/history/tasks", checkAdmin, async (req, res) => {
-     const { data: logs } = await supabaseAdmin.from('tasks_history').select('*').order('timestamp', { ascending: false }).limit(200);
-     res.json({ logs: logs || [] });
-  });
-
-  app.get("/api/admin/history/withdrawals", checkAdmin, async (req, res) => {
-     const { data: logs } = await supabaseAdmin.from('community_messages').select('*').eq('type', 'withdrawal').order('timestamp', { ascending: false }).limit(200);
-     res.json({ logs: logs || [] });
-  });
-
-  app.get("/api/admin/history/approvals", checkAdmin, async (req, res) => {
-     const { data: logs } = await supabaseAdmin.from('community_messages').select('*').in('type', ['withdrawal', 'task_review']).not('admin_note', 'is', null).order('timestamp', { ascending: false }).limit(200);
      res.json({ logs: logs || [] });
   });
 
@@ -1457,11 +1516,30 @@ async function startServer() {
   });
 
   app.get("/api/admin/withdrawals", async (req, res) => {
-     const { data: messages } = await supabaseAdmin
+     const { status, limit } = req.query;
+     
+     let query = supabaseAdmin
        .from('community_messages')
        .select('*')
        .eq('type', 'withdrawal')
        .order('timestamp', { ascending: false });
+
+     if (status === 'pending') {
+       query = query.eq('status', 'Đang chờ duyệt');
+     } else if (status === 'history') {
+       query = query.neq('status', 'Đang chờ duyệt');
+     }
+
+     if (limit) {
+       query = query.limit(parseInt(limit as string));
+     } else if (status === 'history') {
+       query = query.limit(100); // Default limit for history
+     } else if (!status) {
+       // If no status specified, just get last 200 items to avoid loading everything
+       query = query.limit(200);
+     }
+     
+     const { data: messages } = await query;
      
      // Remap to match internal user object if client expects it
      const withdrawals = (messages || []).map(m => ({
@@ -1587,11 +1665,10 @@ async function startServer() {
           // Award 2% bonus to referrer
           await awardReferralBonus(task.user_uuid, task.reward);
 
-          const info = await getDisplayUserInfo(task.user_uuid);
           await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ MANUAL ĐÃ DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(task.user_uuid)}</code>
 📝 <b>Nhiệm vụ:</b> ${task.task_name || task.task_id}
 💰 <b>Thưởng:</b> ${task.reward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -1612,11 +1689,10 @@ async function startServer() {
             admin_note: 'Rejected'
           });
 
-          const info_rej = await getDisplayUserInfo(task.user_uuid);
           await sendTelegramNotification(`
 <b>❌ NHIỆM VỤ MANUAL BỊ TỪ CHỐI</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info_rej}</code>
+👤 <b>UUID:</b> <code>${maskInfo(task.user_uuid)}</code>
 📝 <b>Nhiệm vụ:</b> ${task.task_name || task.task_id}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1649,13 +1725,12 @@ async function startServer() {
       .update({ status: 'Từ chối' })
       .eq('id', withdrawalId);
 
-   // Notify Telegram
-    const info = await getDisplayUserInfo(wRecord.user_uuid);
+    // Notify Telegram
     await sendTelegramNotification(`
 <b>❌ ĐƠN RÚT TIỀN BỊ TỪ CHỐI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${withdrawalId}</code>
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(wRecord.user_uuid)}</code>
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1690,13 +1765,31 @@ async function startServer() {
   });
   // ===================================
 
-    // Record IP and Check Duplicate
+    // Record IP
     const recordUserIp = async (uuid: string, ip: string, pkCol: string) => {
       if (ip === 'unknown') return;
       
       const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString() };
       ipRecord[pkCol] = uuid;
       await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: pkCol + ',ip_address' });
+
+      // Check for duplicate IP
+      const { data: duplicateIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip);
+      if (duplicateIps && duplicateIps.length > 1) {
+          const uniqueUuids = [...new Set(duplicateIps.map(d => d.user_uuid))];
+          if (uniqueUuids.length > 1 && !onlineNotificationCache.has(`IP_DUP_${ip}`)) {
+              onlineNotificationCache.set(`IP_DUP_${ip}`, Date.now()); 
+              await sendTelegramNotification(`
+<b>🚩 CẢNH BÁO IP TRÙNG LẶP</b>
+━━━━━━━━━━━━━━━━━━
+🌐 <b>IP:</b> <code>${ip}</code>
+👥 <b>Số tài khoản dùng chung:</b> ${uniqueUuids.length}
+🆔 <b>Danh sách UUID:</b>
+${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
+🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+`.trim());
+          }
+      }
     };
 
     app.post("/api/user/sync-profile", async (req, res) => {
@@ -1723,14 +1816,12 @@ async function startServer() {
       // Handle online status notification
       if (!onlineNotificationCache.has(uuid) || Date.now() - (onlineNotificationCache.get(uuid) || 0) > 3600000) { // Every 1 hour
           onlineNotificationCache.set(uuid, Date.now());
-          getDisplayUserInfo(uuid).then(info => {
-              sendTelegramNotification(`
+          sendTelegramNotification(`
 <b>🌐 CÓ NGƯỜI DÙNG ONLINE</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim()).catch(console.error);
-          });
       }
 
       const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
@@ -1946,13 +2037,11 @@ async function startServer() {
                       }).eq('user_uuid', referrer.user_uuid);
                       
                       // Notify Telegram
-                      const info = await getDisplayUserInfo(referrer.user_uuid);
-                      const referredInfo = await getDisplayUserInfo(uuid);
                       await sendTelegramNotification(`
 <b>🤝 GIỚI THIỆU (REF) THÀNH CÔNG</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Người mời:</b> <code>${info}</code>
-🆕 <b>Người được mời:</b> <code>${referredInfo}</code>
+👤 <b>Người mời:</b> <code>${maskInfo(referrer.user_uuid)}</code>
+🆕 <b>Người được mời:</b> <code>${maskInfo(uuid)}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
                   } catch (e) {
@@ -1965,11 +2054,12 @@ async function startServer() {
       // Record IP
       await recordUserIp(uuid, ip, 'user_uuid');
       
-      const info = await getDisplayUserInfo(uuid);
       await sendTelegramNotification(`
 <b>✨ NGƯỜI DÙNG MỚI ĐĂNG KÝ</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+📧 <b>Email:</b> ${maskInfo(email)}
+🏷️ <b>Tên:</b> ${userName || 'Ẩn danh'}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
 
@@ -2047,14 +2137,14 @@ async function startServer() {
     } catch(e) {}
     
     if (isLogin) {
-        getDisplayUserInfo(uuid).then(info => {
-            sendTelegramNotification(`
+        await sendTelegramNotification(`
 <b>🔑 NGƯỜI DÙNG ĐĂNG NHẬP</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+📧 <b>Email:</b> ${maskInfo(profile.user_email)}
+🏷️ <b>Tên:</b> ${profile.user_name || 'Ẩn danh'}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim()).catch(() => {});
-        });
     }
     
     res.json({ profile: { ...normalize(profile), is_suspected } });
@@ -2149,12 +2239,11 @@ async function startServer() {
        }).eq(pkCol, uuid);
        
        // Notify Telegram
-       const info = await getDisplayUserInfo(uuid);
        const dayNum = Number(day) || 1;
        await sendTelegramNotification(`
 <b>📅 ĐIỂM DANH HÀNG NGÀY</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 ☀️ <b>Ngày:</b> Thứ ${dayNum}
 🎁 <b>Thưởng:</b> ${reward} CoinTask
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2219,69 +2308,30 @@ async function startServer() {
   // Gift Code API
   // Leaderboard API
   app.get("/api/user/leaderboard", async (req, res) => {
-    try {
-      const period = req.query.period as string || 'day';
-      
-      // Attempt to fetch real users. We fetch more to ensure we have enough real candidates after sorting.
-      // We use a more minimal select to avoid breaking on missing columns.
-      let { data: profiles, error } = await supabaseAdmin
-        .from('profiles')
-        .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
-        .limit(300);
+     try {
+       const period = req.query.period as string || 'month';
+       let sortCol = 'monthly_balance';
+       if (period === 'day') sortCol = 'today_balance';
+       else if (period === 'week') sortCol = 'weekly_balance';
+       
+       let { data: profiles, error } = await supabaseAdmin
+         .from('profiles')
+         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
+         .order(sortCol, { ascending: false })
+         .gt(sortCol, 0)
+         .limit(20);
 
-      if (error) {
-          console.error("Leaderboard query error:", error);
-      }
-
-      const realUsers = (profiles || []).map((p: any) => ({
-          ...p,
-          id: p.user_uuid || p.id,
-          username: p.user_name || p.user_email?.split('@')[0] || 'Member',
-          avatar: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`,
-          // Ensure all required numeric fields exist
-          today_turns: Number(p.today_turns || 0),
-          total_tasks: Number(p.total_tasks || 0),
-          today_balance: Number(p.today_balance || 0),
-          weekly_balance: Number(p.weekly_balance || 0),
-          monthly_balance: Number(p.monthly_balance || 0),
-          // Estimated turns for week/month if not explicitly tracked
-          weekly_turns: Math.floor(Number(p.weekly_balance || 0) / 400),
-          monthly_turns: Math.floor(Number(p.monthly_balance || 0) / 400)
-      }));
-      
-      // Map fake users to similar structure if needed, but they already have the fields
-      const processedFake = fakeUsers.map(u => ({
-          ...u,
-          username: u.user_name,
-          avatar: u.avatar_url,
-          score: period === 'day' ? u.today_balance : (period === 'week' ? u.weekly_balance : u.monthly_balance),
-          turns: period === 'day' ? u.today_turns : (period === 'week' ? (u.weekly_turns || u.total_tasks) : (u.monthly_turns || u.total_tasks))
-      }));
-
-      const processedReal = realUsers.map(u => ({
-          ...u,
-          score: period === 'day' ? u.today_balance : (period === 'week' ? u.weekly_balance : u.monthly_balance),
-          turns: period === 'day' ? u.today_turns : (period === 'week' ? (u.weekly_turns || u.total_tasks) : (u.monthly_turns || u.total_tasks))
-      }));
-
-      let combined = [...processedReal, ...processedFake];
-      
-      // Sorting: highest turns or score first
-      combined.sort((a: any, b: any) => {
-          const valB = Number(b.turns || 0);
-          const valA = Number(a.turns || 0);
-          if (valB !== valA) return valB - valA;
-          return Number(b.score || 0) - Number(a.score || 0);
-      });
-      
-      // Filter out those with 0 activity in the period
-      const filtered = combined.filter((u: any) => Number(u.turns || 0) > 0 || Number(u.score || 0) > 0);
-      
-      res.json({ leaderboard: filtered.slice(0, 1000) });
-    } catch (err) {
-      console.error("Leaderboard fatal error:", err);
-      res.json({ leaderboard: [] });
-    }
+       if (profiles && !error) {
+           profiles = profiles.map((p: any) => ({
+               ...p,
+               avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
+           }));
+       }
+       
+       res.json({ leaderboard: profiles || [] });
+     } catch (err) {
+       res.json({ leaderboard: [] });
+     }
   });
 
   // User IPs API
@@ -2435,16 +2485,13 @@ async function startServer() {
 
     await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - totalDeduction }).eq('user_uuid', uuid);
     
-    // Fetch info for masking
-    const displayUserInfo = await getDisplayUserInfo(uuid);
-
     // Instead of wallet_transactions, insert into community_messages
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const { error } = await supabaseAdmin.from('community_messages').insert({
       id: msgId,
       type: 'withdrawal',
       user_uuid: uuid,
-      user_name: displayUserInfo,
+      user_name: profile.user_name || 'User',
       user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
       content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
       amount: amount,
@@ -2458,7 +2505,8 @@ async function startServer() {
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>User:</b> <code>${displayUserInfo}</code>
+👤 <b>UUID:</b> <code>${uuid}</code>
+🏷️ <b>Tên:</b> ${profile.user_name || 'User'}
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 🏦 <b>Phương thức:</b> ${method}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2700,11 +2748,10 @@ async function startServer() {
        }
 
        // Notify Telegram
-       const info_mod = await getDisplayUserInfo(uuid);
        await sendTelegramNotification(`
 <b>🛍️ MUA MOD THÀNH CÔNG</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info_mod}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 🎮 <b>Tên Mod:</b> ${mod.name}
 💰 <b>Giá:</b> ${price.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2741,11 +2788,10 @@ async function startServer() {
          await supabaseAdmin.from('profiles').update({ coin_task_balance: Number(profile.coin_task_balance) - cost, vui_coin_balance: Number(profile.vui_coin_balance) + rewardAmount }).eq('user_uuid', uuid);
       }
 
-      const info = await getDisplayUserInfo(uuid);
       await sendTelegramNotification(`
 <b>🎁 ĐỔI QUÀ ĐIỂM DANH (MỞ HÒM)</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
+👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
 📦 <b>Hòm:</b> Hòm Bí Ẩn ${chestType}
 💎 <b>Phí:</b> -${cost.toLocaleString()} ${isVuiCoinCost ? 'VuiCoin' : 'CoinTask'}
 🎁 <b>Nhận được:</b> +${rewardAmount.toLocaleString()} VuiCoin
@@ -2806,12 +2852,6 @@ async function startServer() {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   }
-
-  // Khởi chạy Telegram Bot thứ 2 (delay 2s để tránh conflict khi restart)
-  setTimeout(() => {
-    setupTelegramBot();
-  }, 2000);
-  initFakeData();
 
   return app;
 }

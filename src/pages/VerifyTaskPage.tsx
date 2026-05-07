@@ -5,9 +5,7 @@ import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
 import { AdBanner } from '@/components/ui/AdBanner';
-import { PopUnderAd } from '@/components/ui/PopUnderAd';
 import { useAds } from '@/context/AdsContext';
-import { safeFetch } from '@/lib/utils';
 
 export function VerifyTaskPage() {
   const [searchParams] = useSearchParams();
@@ -27,12 +25,6 @@ export function VerifyTaskPage() {
       setErrorMSG('Thiếu mã phiên làm việc hoặc UUID người dùng. Vui lòng truy cập từ trang nhiệm vụ.');
       return;
     }
-
-    // Inject Pop-under script
-    const adScript = document.createElement('script');
-    adScript.src = 'https://socialconventcontext.com/e4/f7/75/e4f7759d92f684ee31c3179f8525d4b2.js';
-    adScript.async = true;
-    document.body.appendChild(adScript);
 
     // Simulate a 2-second VPN check delay before verifying to satisfy the < 5s rule
     const timeout = setTimeout(() => {
@@ -58,12 +50,7 @@ export function VerifyTaskPage() {
       });
     }, 2500);
 
-    return () => {
-      clearTimeout(timeout);
-      if (document.body.contains(adScript)) {
-        document.body.removeChild(adScript);
-      }
-    };
+    return () => clearTimeout(timeout);
   }, [sessionId, uuid, showNotification]);
 
   const handleConfirm = () => {
@@ -71,13 +58,14 @@ export function VerifyTaskPage() {
     if (isAdEnabled('VerifyStandard', 'direct')) {
       window.open('https://www.profitablecpmratenetwork.com/ce768aiwx?key=fc027e1483d8006f462a99426d1060b2', '_blank');
     }
-    safeFetch('/api/tasks/complete-session', {
+    fetch('/api/tasks/complete-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, uuid })
     })
+    .then(res => res.json())
     .then(data => {
-      if(data && data.status === 'success') {
+      if(data.status === 'success') {
         setStatus('confirmed');
         
         // Fireworks!
@@ -110,7 +98,6 @@ export function VerifyTaskPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <PopUnderAd />
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -181,15 +168,11 @@ export function VerifyTaskPage() {
               </div>
               <p>Môi trường mạng hiện nay đang đối mặt với nhiều nguy cơ. Do sự phát triển của các công cụ ẩn danh (VPN, Proxy) và mạng botnet, việc xác thực "người dùng thật" (Proof of Human) là vô cùng quan trọng đối với các hệ thống phân phối nội dung và quảng cáo.</p>
               
-              <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
-
               <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800">1. Tại sao phải cấm VPN và Proxy?</h2>
               <p>Việc sử dụng VPN nhằm che giấu địa chỉ IP thực làm ảnh hưởng tới độ chính xác của các thuật toán phân bổ lưu lượng truy cập. Trình duyệt của bạn sẽ bị phân tích sâu hơn để đảm bảo tính minh bạch.</p>
               
               <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800">2. Mức độ an toàn thông tin & Định danh</h2>
               <p>Chúng tôi sử dụng công nghệ định danh vân tay (Fingerprint) để nhận diện thiết bị duy nhất. Điều này giúp ngăn chặn việc chia sẻ thiết bị hoặc IP nhằm gian lận hạn mức nhiệm vụ. Hệ thống chỉ kiểm tra độ phân giải IP và mức độ rủi ro (Fraud Score) từ địa chỉ mạng của bạn.</p>
-              
-              <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
             </article>
 
           </div>

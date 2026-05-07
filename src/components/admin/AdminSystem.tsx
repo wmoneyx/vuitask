@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2, Settings, LayoutGrid, Activity, Smartphone } from 'lucide-react';
+import { ToggleRight, ToggleLeft, ShieldAlert, Plus, Trash2, Gift, Link as LinkIcon, Trophy, Gamepad2, Settings, LayoutGrid, Activity } from 'lucide-react';
 import { safeFetch } from '@/lib/utils';
 import { ConfirmModal } from './ConfirmModal';
 import { useNotification } from '../../context/NotificationContext';
@@ -10,7 +10,6 @@ export function AdminSystem() {
   const [mods, setMods] = useState<any[]>([]);
   const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [telegramUsers, setTelegramUsers] = useState(0);
 
   // Mod inputs
   const [modName, setModName] = useState('');
@@ -65,7 +64,6 @@ export function AdminSystem() {
         if (data.mods) setMods(data.mods);
         if (data.codes) setCodes(data.codes);
         if (data.leaderboard) setRanks(data.leaderboard);
-        if (data.telegramUsers) setTelegramUsers(data.telegramUsers);
      }
      setLoading(false);
   };
@@ -229,33 +227,22 @@ export function AdminSystem() {
         onConfirm={confirmState.onConfirm} 
         onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} 
       />
-      {/* 1. Maintenance & Stats */}
+      {/* 1. Maintenance */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 col-span-1 md:col-span-2 lg:col-span-1">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center">
             <ShieldAlert size={24} />
           </div>
           <div>
-             <h3 className="text-lg font-bold text-slate-900">Bảo trì & Thống kê Bot</h3>
-             <p className="text-sm text-gray-500">Trạng thái web và người dùng Telegram</p>
+             <h3 className="text-lg font-bold text-slate-900">Bảo trì hệ thống</h3>
+             <p className="text-sm text-gray-500">Khóa trang web và hiển thị thông báo bảo trì</p>
           </div>
         </div>
-        <div className="space-y-4">
-           <div className="p-4 bg-slate-50 rounded-2xl border border-gray-100 flex items-center justify-between">
-              <div className="font-bold text-slate-700">Trạng thái bảo trì</div>
-              <button onClick={handleMaintenanceToggle} className={`text-5xl transition-colors ${isMaintenance ? 'text-rose-500' : 'text-gray-300'}`}>
-                 {isMaintenance ? <ToggleRight /> : <ToggleLeft />}
-              </button>
-           </div>
-           <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-purple-600">
-                   <Smartphone size={20} />
-                </div>
-                <div className="font-bold text-purple-900">Người dùng Telegram Bot</div>
-              </div>
-              <div className="text-2xl font-black text-purple-600">{telegramUsers.toLocaleString()}</div>
-           </div>
+        <div className="p-6 bg-slate-50 rounded-2xl border border-gray-200 flex items-center justify-between">
+           <div className="font-bold text-slate-700">Trạng thái bảo trì</div>
+           <button onClick={handleMaintenanceToggle} className={`text-5xl transition-colors ${isMaintenance ? 'text-rose-500' : 'text-gray-300'}`}>
+              {isMaintenance ? <ToggleRight /> : <ToggleLeft />}
+           </button>
         </div>
       </div>
 

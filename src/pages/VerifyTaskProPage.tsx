@@ -5,9 +5,7 @@ import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
 import { AdBanner } from '@/components/ui/AdBanner';
-import { PopUnderAd } from '@/components/ui/PopUnderAd';
 import { useAds } from '@/context/AdsContext';
-import { safeFetch } from '@/lib/utils';
 
 export function VerifyTaskProPage() {
   const [searchParams] = useSearchParams();
@@ -30,12 +28,6 @@ export function VerifyTaskProPage() {
       setErrorMSG('Thiếu mã phiên làm việc hoặc UUID người dùng. Vui lòng truy cập từ trang nhiệm vụ.');
       return;
     }
-
-    // Inject Pop-under script
-    const adScript = document.createElement('script');
-    adScript.src = 'https://socialconventcontext.com/e4/f7/75/e4f7759d92f684ee31c3179f8525d4b2.js';
-    adScript.async = true;
-    document.body.appendChild(adScript);
 
     // Simulate VPN check (less than 5 seconds), this checks "fast" e.g. 2s
     const timeout = setTimeout(() => {
@@ -61,12 +53,7 @@ export function VerifyTaskProPage() {
       });
     }, 2000);
 
-    return () => {
-      clearTimeout(timeout);
-      if (document.body.contains(adScript)) {
-        document.body.removeChild(adScript);
-      }
-    };
+    return () => clearTimeout(timeout);
   }, [sessionId, uuid, showNotification]);
 
   const handleSubmitReview = () => {
@@ -82,13 +69,14 @@ export function VerifyTaskProPage() {
          return showNotification({ title: 'Sai định dạng', message: 'URL Tripadvisor không hợp lệ', type: 'error' });
       }
 
-      safeFetch('/api/admin/submit-pro-task', {
+      fetch('/api/admin/submit-pro-task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, uuid, type: mode, reviewUrl: inputUrl })
       })
+      .then(res => res.json())
       .then(data => {
-        if(data && data.success) {
+        if(data.success) {
           setStatus('confirmed');
           confetti({
             particleCount: 150,
@@ -109,7 +97,6 @@ export function VerifyTaskProPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <PopUnderAd />
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-indigo-600 font-black text-xl tracking-tight">
@@ -126,8 +113,7 @@ export function VerifyTaskProPage() {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8">
         <div className="space-y-6">
-          <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
-          <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
+          <AdBanner id="10288221afcf59c7fab355761ab7fa8b" width={728} height={90} type="leaderboard" />
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             
             <AnimatedDiv className="bg-indigo-50/50 border border-indigo-100 p-8 rounded-2xl text-center mb-8">
@@ -233,7 +219,6 @@ export function VerifyTaskProPage() {
                   <FileText size={16} /> Update: 24/10/2026
                 </div>
                 <p className="leading-relaxed text-slate-600">Môi trường mạng hiện nay đang đối mặt với nhiều nguy cơ. Do sự phát triển của các công cụ ẩn danh (VPN, Proxy) và mạng botnet, việc xác thực "người dùng thật" (Proof of Human) là vô cùng quan trọng đối với các hệ thống phân phối nội dung và quảng cáo.</p>
-                <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
                 
                 <h2 className="text-xl font-bold mt-8 mb-4 text-slate-800 flex items-center gap-2">
                   <ShieldCheck className="text-indigo-600" size={20} />

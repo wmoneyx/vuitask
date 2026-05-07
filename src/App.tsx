@@ -54,10 +54,11 @@ export default function App() {
 
       // Heartbeat every 2 minutes
       const heartbeat = () => {
-        safeFetch('/api/user/heartbeat', {
+        fetch('/api/user/heartbeat', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ uuid })
-        });
+        }).catch(() => {});
       };
       
       heartbeat();
