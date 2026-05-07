@@ -4,6 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { supabaseAdmin } from "../server_lib/supabase.js";
 import { sendTelegramNotification } from "../server_lib/telegram.js";
+import { setupTelegramBot } from "../server_lib/telegramBot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -398,6 +399,8 @@ async function startServer() {
             maxViews = 2;
         } else if (taskId === 'linktot') {
             maxViews = 4;
+        } else if (taskId === 'bbmkts') {
+            maxViews = 1;
         } else if (taskId.startsWith('utl') || taskId === 'y1s') {
             maxViews = 999;
         }
@@ -1169,7 +1172,8 @@ async function startServer() {
   app.get("/api/admin/stats", checkAdmin, async (req, res) => {
      try {
        const todayVN = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
-       const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+               const { count: usersCount } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+        const { count: telegramUsers } = await supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null);
        const { data: allUsers } = await supabaseAdmin.from('profiles').select('created_at, vui_coin_balance, today_balance, last_reset_day');
        const { data: tasks } = await supabaseAdmin.from('tasks_history').select('reward, status, timestamp, task_id, status_v1');
        const { data: withdrawals } = await supabaseAdmin.from('community_messages').select('content, status, timestamp, amount').eq('type', 'withdrawal');
@@ -1269,7 +1273,8 @@ async function startServer() {
        });
 
        res.json({
-         users: usersCount || 0,
+                   users: usersCount || 0,
+          telegramUsers: telegramUsers || 0,
          totalRevenue: totalRev,
          todayRevenue: todayRev,
          totalWithdrawn,
@@ -1531,6 +1536,21 @@ async function startServer() {
 
   app.get("/api/admin/history", checkAdmin, async (req, res) => {
      const { data: logs } = await supabaseAdmin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50);
+     res.json({ logs: logs || [] });
+  });
+
+  app.get("/api/admin/history/tasks", checkAdmin, async (req, res) => {
+     const { data: logs } = await supabaseAdmin.from('tasks_history').select('*').order('timestamp', { ascending: false }).limit(200);
+     res.json({ logs: logs || [] });
+  });
+
+  app.get("/api/admin/history/withdrawals", checkAdmin, async (req, res) => {
+     const { data: logs } = await supabaseAdmin.from('community_messages').select('*').eq('type', 'withdrawal').order('timestamp', { ascending: false }).limit(200);
+     res.json({ logs: logs || [] });
+  });
+
+  app.get("/api/admin/history/approvals", checkAdmin, async (req, res) => {
+     const { data: logs } = await supabaseAdmin.from('community_messages').select('*').in('type', ['withdrawal', 'task_review']).not('admin_note', 'is', null).order('timestamp', { ascending: false }).limit(200);
      res.json({ logs: logs || [] });
   });
 
@@ -1828,27 +1848,6 @@ async function startServer() {
       const ipRecord: any = { ip_address: ip, last_seen: new Date().toISOString() };
       ipRecord[pkCol] = uuid;
       await supabaseAdmin.from('user_ips').upsert(ipRecord, { onConflict: pkCol + ',ip_address' });
-
-      // Check for duplicate IP
-      const { data: duplicateIps } = await supabaseAdmin.from('user_ips').select('user_uuid').eq('ip_address', ip);
-      if (duplicateIps && duplicateIps.length > 1) {
-          const uniqueUuids = [...new Set(duplicateIps.map(d => d.user_uuid))];
-          if (uniqueUuids.length > 1 && !onlineNotificationCache.has(`IP_DUP_${ip}`)) {
-              onlineNotificationCache.set(`IP_DUP_${ip}`, Date.now()); 
-              
-              const userInfos = await Promise.all(uniqueUuids.map(uid => getDisplayUserInfo(uid)));
-              
-              await sendTelegramNotification(`
-<b>🚩 CẢNH BÁO IP TRÙNG LẶP</b>
-━━━━━━━━━━━━━━━━━━
-🌐 <b>IP:</b> <code>${ip}</code>
-👥 <b>Số tài khoản dùng chung:</b> ${uniqueUuids.length}
-👤 <b>Danh sách User:</b>
-${userInfos.map(info => `• <code>${info}</code>`).join('\n')}
-🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
-          }
-      }
     };
 
     app.post("/api/user/sync-profile", async (req, res) => {
@@ -2919,6 +2918,9 @@ ${userInfos.map(info => `• <code>${info}</code>`).join('\n')}
       console.log(`Server running on http://localhost:${PORT}`);
     });
   }
+
+  // Khởi chạy Telegram Bot thứ 2
+  setupTelegramBot();
 
   return app;
 }

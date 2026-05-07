@@ -13,7 +13,7 @@ export function RefPage() {
   const uuid = profile?.user_uuid;
   const refCode = useMemo(() => profile?.user_uuid?.split('-')[0] || '12345', [profile?.user_uuid]);
   
-  const refLink = `${window.location.origin}?ref=${refCode}`;
+  const refLink = `https://t.me/vuitaskonlinebotvuotlink_bot?start=${refCode}`;
 
   useEffect(() => {
     fetchRefs();

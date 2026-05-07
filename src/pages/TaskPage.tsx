@@ -10,16 +10,16 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs';
 const fpPromise = FingerprintJS.load();
 
 const TASKS = [
-  { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 500, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
-  { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: false, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
-  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
-  { id: 'utl3', name: 'UTL 3 STEP', maxViews: 999, reward: 456, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=' },
-  { id: 'utl2', name: 'UTL 2 STEP', maxViews: 999, reward: 399, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=' },
-  { id: 'utl1', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=' },
+  { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
+  { id: 'utl4', name: 'UTL 3 STEP', maxViews: 999, reward: 453, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=' },
+  { id: 'utl3', name: 'UTL 2 STEP', maxViews: 999, reward: 385, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=' },
+  { id: 'utl2', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=' },
   { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
   { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'yeumoney', name: 'YEUMONEY', maxViews: 3, reward: 259, auto: false, apiUrl: 'https://yeumoney.com/QL_api.php?token=2103f2aa67d874c161e5f4388b2312af6d43742734a8ea41716b8a2cc94b7b02&format=json&url=' },
-  { id: 'xxxlink', name: 'XXX-LINK', maxViews: 2, reward: 136, auto: false, apiUrl: 'https://xlink.co/api?token=ac55663f-ef85-4849-8ce1-4ca99bd57ce7&url=' },
+  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
+  { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
+  { id: 'vip_map', name: 'VIP MAP', maxViews: 999, reward: 1200, auto: false, apiUrl: 'https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
+  { id: 'vip_trip', name: 'VIP TRIP', maxViews: 999, reward: 2900, auto: false, apiUrl: 'https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
 ];
 
 import { useUser } from '@/UserContext';
@@ -120,6 +120,20 @@ export function TaskPage() {
       return;
     }
 
+    if (task.id.startsWith('vip_')) {
+      const lockKey = `${task.id}_lock`;
+      const lastDoneStr = localStorage.getItem(lockKey);
+      if (lastDoneStr) {
+          const times = JSON.parse(lastDoneStr) as number[];
+          const now = Date.now();
+          const validTimes = times.filter((t: number) => now - t < 30 * 60 * 1000);
+          if (validTimes.length >= 10) {
+             showNotification({ title: 'Giới hạn', message: `Quá 10 lần trong 30 phút. Vui lòng quay lại sau!`, type: 'warning' });
+             return;
+          }
+      }
+    }
+
     setLoadingTask(task.id);
     
     try {
@@ -141,7 +155,8 @@ export function TaskPage() {
       if (!sessionId) throw new Error(sessionData?.error || "Bạn đã hết lượt làm .Kiểm tra thêm ở history !");
 
       // 2. GẮN VÀO LINK DESTINATION ĐỂ CUNG CẤP CHO NHÀ CUNG CẤP URL SHORTENER
-      const destinationUrl = `${window.location.origin}/verifytask?code=${sessionId}&uuid=${uuid}`;
+      const verifyPage = task.id.startsWith('vip_') ? 'verifytaskpro' : 'verifytask';
+      const destinationUrl = `${window.location.origin}/${verifyPage}?code=${sessionId}&uuid=${uuid}`;
       
       let apiRequestUrl = task.apiUrl + encodeURIComponent(destinationUrl);
       if (task.id === 'timmap') {
@@ -205,6 +220,21 @@ export function TaskPage() {
       const isSuccess = result.status === "success" || result.success === true || !!link;
 
       if (isSuccess && link) {
+        // Handle VIP tasks extension
+        if (task.id === 'vip_trip') {
+           link = link.replace('.rv', '.tr');
+        }
+
+        if (task.id.startsWith('vip_')) {
+             const lockKey = `${task.id}_lock`;
+             const lastDoneStr = localStorage.getItem(lockKey);
+             const times = lastDoneStr ? JSON.parse(lastDoneStr) as number[] : [];
+             const now = Date.now();
+             const validTimes = times.filter((t: number) => now - t < 30 * 60 * 1000);
+             validTimes.push(now);
+             localStorage.setItem(lockKey, JSON.stringify(validTimes));
+        }
+
         // Cập nhật session URL trên server
         safeFetch('/api/tasks/update-session-url', {
              method: 'POST',
@@ -312,17 +342,31 @@ export function TaskPage() {
               <p className="text-[9px] font-medium text-rose-400 pl-4">Hệ thống áp dụng giới hạn theo Thiết bị & IP. Mọi hành vi gian lận sẽ bị khóa tài khoản.</p>
             </div>
 
-            <button 
-              onClick={() => handleDoTask(task)}
-              disabled={loadingTask === task.id}
-              className="w-full py-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-slate-900/20"
-            >
-              {loadingTask === task.id ? (
-                <><Loader2 size={18} className="animate-spin" /> ĐANG TẠO LINK...</>
-              ) : (
-                <>LÀM NHIỆM VỤ <ArrowUpRight size={18} /></>
-              )}
-            </button>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => handleDoTask(task)}
+                disabled={loadingTask === task.id}
+                className="w-full py-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-slate-900/20"
+              >
+                {loadingTask === task.id ? (
+                  <><Loader2 size={18} className="animate-spin" /> ĐANG TẠO LINK...</>
+                ) : (
+                  <>LÀM NHIỆM VỤ <ArrowUpRight size={18} /></>
+                )}
+              </button>
+              
+              <a 
+                href={`https://t.me/vuitaskonlinebotvuotlink_bot?start=task_${task.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-4 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-[#0088cc]/20 tracking-tighter sm:tracking-normal"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.94z"/>
+                </svg>
+                LÀM TRÊN TELEGRAM CHATBOT
+              </a>
+            </div>
           </AnimatedDiv>
         ))}
       </div>

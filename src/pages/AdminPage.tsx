@@ -3,7 +3,7 @@ import { GenericPage } from "@/components/layout/GenericPage";
 import { 
   Shield, Users, Database, Settings, Activity, 
   RotateCw, HardDrive, LayoutGrid, CreditCard, 
-  CheckSquare, History, Bell, LifeBuoy, TrendingUp,
+  CheckSquare, History, Bell, LifeBuoy, TrendingUp, Search,
   UserCheck, Smartphone, Maximize2, X, Loader2, ShieldAlert
 } from "lucide-react";
 import { AnimatedDiv } from '@/components/ui/AnimatedText';
@@ -19,6 +19,7 @@ import { AdminHistory } from '../components/admin/AdminHistory';
 import { AdminSystem } from '../components/admin/AdminSystem';
 import { AdminSupport } from '../components/admin/AdminSupport';
 import { AdminNotifications } from '../components/admin/AdminNotifications';
+import { AdminDataHistory } from '../components/admin/AdminDataHistory';
 
 const data = [
   { name: 'Th 3, ngày 21', users: 0, revenue: 0, withdrawn: 0 },
@@ -164,7 +165,8 @@ export function AdminPage() {
     { name: 'Thành viên', icon: Users },
     { name: 'Duyệt Rút', icon: CreditCard },
     { name: 'Duyệt Nhiệm vụ', icon: CheckSquare },
-    { name: 'Lịch sử', icon: History },
+    { name: 'Tra cứu Lịch sử', icon: Search },
+    { name: 'Nhật ký hệ thống', icon: History },
     { name: 'Hệ thống', icon: Settings },
     { name: 'Thông báo', icon: Bell },
     { name: 'Hỗ trợ', icon: LifeBuoy },
@@ -172,6 +174,7 @@ export function AdminPage() {
 
   const stats = [
     { label: "THÀNH VIÊN", value: statsData.users.toLocaleString(), icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
+    { label: "TELEGRAM BOT", value: (statsData as any).telegramUsers?.toLocaleString() || '0', icon: Smartphone, color: "text-purple-500", bg: "bg-purple-50" },
     { label: "SỐ DƯ VÍ", value: `${statsData.totalRevenue.toLocaleString()}đ`, icon: Database, color: "text-green-500", bg: "bg-green-50" },
     { label: "SỐ DƯ VÍ HÔM NAY", value: `${statsData.todayRevenue.toLocaleString()}đ`, icon: TrendingUp, color: "text-cyan-500", bg: "bg-cyan-50" },
     { label: "ĐÃ RÚT", value: `${statsData.totalWithdrawn.toLocaleString()}đ`, icon: CreditCard, color: "text-purple-500", bg: "bg-purple-50" },
@@ -426,7 +429,8 @@ export function AdminPage() {
         {activeTab === 'Thành viên' && <AdminMembers />}
         {activeTab === 'Duyệt Rút' && <AdminWithdrawals />}
         {activeTab === 'Duyệt Nhiệm vụ' && <AdminTasks />}
-        {activeTab === 'Lịch sử' && <AdminHistory />}
+        {activeTab === 'Tra cứu Lịch sử' && <AdminDataHistory />}
+        {activeTab === 'Nhật ký hệ thống' && <AdminHistory />}
         {activeTab === 'Hệ thống' && <AdminSystem />}
         {activeTab === 'Thông báo' && <AdminNotifications />}
         {activeTab === 'Hỗ trợ' && <AdminSupport />}
