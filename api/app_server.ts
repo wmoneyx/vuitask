@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { supabaseAdmin } from "../server_lib/supabase.js";
 import { sendTelegramNotification } from "../server_lib/telegram.js";
 import { setupTelegramBot } from "../server_lib/telegramBot.js";
+import { initFakeData, fakeUsers, fakeMessages } from "../server_lib/fakeData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -367,26 +368,49 @@ async function startServer() {
     const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
 
     try {
-        // 2. CHECK LIMITS (IP, Fingerprint, UserID)
+        // 2. CHECK LIMITS (Today: 100, Week: 200, Month: 900)
         const msVN = Date.now() + 7 * 3600 * 1000;
         const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
         const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
+        // Week start (Monday)
+        const todayDate = new Date();
+        const dayOfWeek = todayDate.getDay();
+        const weekStart = new Date(todayDate);
+        weekStart.setDate(todayDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+        weekStart.setUTCHours(0,0,0,0);
+        const weekStartMS = weekStart.getTime() - 7 * 3600 * 1000;
+        // Month start
+        const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+        const monthStartMS = monthStart.getTime() - 7 * 3600 * 1000;
 
-        // Dynamic OR filter to avoid issues with missing values
+        // Check active daily turns from profile for speed
+        const { data: currentProfile } = await supabaseAdmin.from('profiles').select('today_turns, total_tasks').eq('user_uuid', userId).maybeSingle();
+        if (currentProfile && currentProfile.today_turns >= 100) {
+            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 100 nhiệm vụ/ngày!" });
+        }
+
+        // Check weekly/monthly from history
+        const { count: weeklyCount } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', userId).gte('timestamp', weekStartMS);
+        if (weeklyCount && weeklyCount >= 200) {
+            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 200 nhiệm vụ/tuần!" });
+        }
+
+        const { count: monthlyCount } = await supabaseAdmin.from('tasks_history').select('*', { count: 'exact', head: true }).eq('user_uuid', userId).gte('timestamp', monthStartMS);
+        if (monthlyCount && monthlyCount >= 900) {
+            return res.status(403).json({ error: "Bạn đã vượt quá giới hạn 900 nhiệm vụ/tháng!" });
+        }
+
+        // Per task limit
         const orConditions = [`ip.eq."${ip}"`];
         if (fingerprint && fingerprint !== 'undefined') orConditions.push(`fingerprint.eq."${fingerprint}"`);
         if (userId && userId !== 'undefined') orConditions.push(`user_uuid.eq."${userId}"`);
 
-        const { data: historyData, error: historyError } = await supabaseAdmin
+        const { data: historyData } = await supabaseAdmin
             .from('tasks_history')
             .select('id')
             .eq('task_id', taskId)
             .gte('timestamp', midnightVN)
             .or(orConditions.join(','));
-
-        if (historyError) {
-          console.error("Check limits error:", historyError);
-        }
 
         // Fetch task config to get max_views (fallback to 2 if not found)
         let maxViews = 2;
@@ -421,7 +445,8 @@ async function startServer() {
           expires: Date.now() + 15 * 60 * 1000,
           completed: false,
           short_url: '',
-          fingerprint: fingerprint // Store fingerprint in session
+          fingerprint: fingerprint, // Store fingerprint in session
+          start_ip: ip // Store start IP
         });
 
         if (error) {
@@ -488,191 +513,11 @@ async function startServer() {
   });
 
   app.post("/api/tasks/verify-session-pro", async (req, res) => {
-    const { sessionId, uuid } = req.body || {};
-    
-    const { data: session, error } = await supabaseAdmin
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    
-    if (error || !session || session.expires < Date.now()) {
-      return res.status(400).json({ error: "Phiên không hợp lệ hoặc đã hết hạn" });
-    }
-
-    if (session.user_uuid !== uuid) {
-        return res.status(403).json({ error: "Phiên không thuộc về người dùng này" });
-    }
-
-    if (session.completed) {
-        return res.status(400).json({ error: "Phiên này đã được xác nhận" });
-    }
-
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    
-    // Simulate VPN check
-    const isVPN = ip.includes('127.0.0.1') || ip.includes('localhost'); 
-
-    if (isVPN) {
-        // Notify admin via Supabase
-        await supabaseAdmin.from('site_notifications').insert({
-           id: `VPN_ALERT_${Date.now()}`,
-           title: "CẢNH BÁO VPN/PROXY",
-           content: `Phát hiện người dùng ${uuid.slice(0, 8)}... sử dụng VPN tại phiên ${sessionId}. IP: ${ip}`,
-           type: 'warning',
-           target: 'admin',
-           timestamp: Date.now()
-        });
-
-        await supabaseAdmin.from('sessions').delete().eq('id', sessionId);
-        return res.status(403).json({ error: "Hệ thống phát hiện sử dụng Proxy/VPN/Bot! Hủy phiên nhiệm vụ VIP." });
-    }
-
-    res.json({ status: "valid" });
-  });
-
-  app.post("/api/tasks/start-vip", async (req, res) => {
-    const { type, uuid, destinationUrl } = req.body || {};
-    // API_URL_GOC base
-    const API_URL_GOC = `https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=${encodeURIComponent(destinationUrl)}`;
-
-    try {
-      console.log(`Calling provider VIP API: ${API_URL_GOC}`);
-      const response = await fetch(API_URL_GOC);
-      const text = await response.text();
-      console.log(`Provider VIP response: ${text}`);
-      
-      let linkPath = "";
-      // 1. Check for window.location.href in the response
-      if (text.includes("window.location.href")) {
-        const match = text.match(/window\.location\.href\s*=\s*["']([^"']+)["']/);
-        linkPath = match ? match[1] : "";
-      } else {
-        linkPath = text.trim();
-      }
-
-      if (!linkPath) {
-        return res.status(500).json({ error: "Không phản hồi link từ nhà cung cấp" });
-      }
-
-      // Cleanup link from possible double quotes or extra text if it was trimmed
-      linkPath = linkPath.split(/[ "']/)[0];
-
-      if (!linkPath.includes('.rv')) {
-         // If it doesn't have .rv, we can't safely replace it, but we'll try to use it as is
-         // or throw error if strictly required. For now, let's log it.
-         console.warn("Link does not contain .rv extension:", linkPath);
-      }
-
-      // 2. Change extension based on task type
-      let finalLink = linkPath;
-      if (type === "trip") {
-        finalLink = linkPath.replace(".rv", ".tr");
-      } else if (type === "app") {
-        finalLink = linkPath.replace(".rv", ".ap");
-      }
-      // If type is "map", keep .rv
-
-      // 3. Resolve absolute URL
-      if (finalLink.startsWith("/")) {
-        finalLink = "https://linktot.net" + finalLink;
-      }
-
-      res.json({ success: true, url: finalLink });
-    } catch (error) {
-      console.error("Task VIP System Error:", error);
-      res.status(500).json({ error: "Lỗi kết nối đến nhà cung cấp API VIP." });
-    }
+    res.status(410).json({ error: "Endpoint deprecated" });
   });
 
   app.post("/api/admin/submit-pro-task", async (req, res) => {
-    const { sessionId, uuid, type, reviewUrl } = req.body || {};
-    
-    const { data: session } = await supabaseAdmin
-      .from('sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-    
-    if (!session || session.expires < Date.now() || session.completed || session.user_uuid !== uuid) {
-      return res.status(400).json({ error: "Phiên không hợp lệ" });
-    }
-
-    await supabaseAdmin
-      .from('sessions')
-      .update({ completed: true })
-      .eq('id', sessionId);
-
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
-    
-    const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
-    const isTooFast = timeTaken < 60000; // less than 1 minute
-    const finalStatus = isTooFast ? 'Từ chối' : 'Chờ duyệt';
-    
-    // Calculation of bonus reward
-    let baseReward = session.reward;
-    let finalReward = baseReward;
-    
-    try {
-      const bonusPercent = await getActiveBonusPercent(uuid);
-      if (bonusPercent > 0) {
-         finalReward = Math.floor(baseReward * (1 + bonusPercent / 100));
-      }
-    } catch (e) {
-      console.error("Error calculating bonus reward:", e);
-    }
-
-    await supabaseAdmin.from('tasks_history').insert({
-        id: sessionId,
-        user_uuid: uuid,
-        task_id: session.task_id,
-        task_name: session.task_name,
-        timestamp: Date.now(),
-        reward: finalReward,
-        status: finalStatus,
-        status_v1: isTooFast ? 'Từ chối' : 'Đang duyệt',
-        status_v2: isTooFast ? 'Từ chối' : 'Đang duyệt',
-        url: reviewUrl,
-        ip: ip
-    });
-
-    // Increment turns
-    await updateUserStats(uuid, 0, true);
-
-    if (isTooFast) {
-       return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
-    }
-
-    // Fetch user profile for masking
-    const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
-    const maskedName = maskInfo(profile?.user_name || 'Member VIP');
-    const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
-    const displayUserInfo = `${maskedName}${maskedEmail}`;
-
-    await supabaseAdmin.from('community_messages').insert({
-      id: `task_review_${Date.now()}`,
-      type: 'task_review',
-      user_uuid: uuid,
-      user_name: displayUserInfo,
-      user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
-      content: `[XÁC MINH VIP]\nUser: ${displayUserInfo}\nLoại: ${type === 'map' ? 'Review Map' : 'Review Trip'}\nURL Review: ${reviewUrl}\nLink gốc: ${session.short_url || 'N/A'}\nThưởng: ${session.reward} VuiCoin\nDuyệt Lần 1: 24H\nDuyệt Lần 2: 10 Ngày`,
-      timestamp: Date.now()
-    });
-
-    // Notify Telegram
-    const info = await getDisplayUserInfo(uuid);
-    await sendTelegramNotification(`
-<b>🔔 NHIỆM VỤ VIP MỚI</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> <code>${info}</code>
-📝 <b>Tên:</b> ${session.task_name}
-💰 <b>Thưởng:</b> ${finalReward} VuiCoin
-🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-📊 <b>Trạng thái:</b> ${finalStatus}
-🔗 <b>URL:</b> ${reviewUrl}
-`.trim());
-
-    res.json({ success: true });
+    res.status(410).json({ error: "Endpoint deprecated" });
   });
 
   app.post("/api/admin/submit-pre-task", async (req, res) => {
@@ -722,7 +567,8 @@ async function startServer() {
         status_v1: 'Đang duyệt',
         status_v2: 'Đang duyệt',
         url: note ? `${email}|||${note}` : email,
-        ip: ip
+        ip: ip,
+        start_ip: session.start_ip
     });
 
     // Increment turns
@@ -781,7 +627,7 @@ async function startServer() {
         .eq('id', sessionId);
       
       const h = req.headers['x-forwarded-for'];
-      const ip = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '192.168.1.1';
+      const currentIp = (Array.isArray(h) ? h[0] : h)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
       
       const timeTaken = Date.now() - (session.expires - 15 * 60 * 1000);
       const isTooFast = timeTaken < 60000;
@@ -817,7 +663,8 @@ async function startServer() {
           status: finalStatus,
           status_v1: statusV1,
           status_v2: statusV1,
-          ip: ip,
+          ip: currentIp,
+          start_ip: session.start_ip,
           fingerprint: session.fingerprint, // Include fingerprint from session
           timestamp: Date.now()
       };
@@ -958,7 +805,9 @@ async function startServer() {
        return { ...m, reactions: reactionsMap };
     });
 
-    res.json({ messages: transformed.reverse() });
+    const combined = [...transformed, ...fakeMessages].sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+
+    res.json({ messages: combined.reverse() });
   });
 
   app.post("/api/community/withdraw", async (req, res) => {
@@ -2370,30 +2219,69 @@ async function startServer() {
   // Gift Code API
   // Leaderboard API
   app.get("/api/user/leaderboard", async (req, res) => {
-     try {
-       const period = req.query.period as string || 'month';
-       let sortCol = 'monthly_balance';
-       if (period === 'day') sortCol = 'today_balance';
-       else if (period === 'week') sortCol = 'weekly_balance';
-       
-       let { data: profiles, error } = await supabaseAdmin
-         .from('profiles')
-         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
-         .order(sortCol, { ascending: false })
-         .gt(sortCol, 0)
-         .limit(20);
+    try {
+      const period = req.query.period as string || 'day';
+      
+      // Attempt to fetch real users. We fetch more to ensure we have enough real candidates after sorting.
+      // We use a more minimal select to avoid breaking on missing columns.
+      let { data: profiles, error } = await supabaseAdmin
+        .from('profiles')
+        .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
+        .limit(300);
 
-       if (profiles && !error) {
-           profiles = profiles.map((p: any) => ({
-               ...p,
-               avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
-           }));
-       }
-       
-       res.json({ leaderboard: profiles || [] });
-     } catch (err) {
-       res.json({ leaderboard: [] });
-     }
+      if (error) {
+          console.error("Leaderboard query error:", error);
+      }
+
+      const realUsers = (profiles || []).map((p: any) => ({
+          ...p,
+          id: p.user_uuid || p.id,
+          username: p.user_name || p.user_email?.split('@')[0] || 'Member',
+          avatar: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`,
+          // Ensure all required numeric fields exist
+          today_turns: Number(p.today_turns || 0),
+          total_tasks: Number(p.total_tasks || 0),
+          today_balance: Number(p.today_balance || 0),
+          weekly_balance: Number(p.weekly_balance || 0),
+          monthly_balance: Number(p.monthly_balance || 0),
+          // Estimated turns for week/month if not explicitly tracked
+          weekly_turns: Math.floor(Number(p.weekly_balance || 0) / 400),
+          monthly_turns: Math.floor(Number(p.monthly_balance || 0) / 400)
+      }));
+      
+      // Map fake users to similar structure if needed, but they already have the fields
+      const processedFake = fakeUsers.map(u => ({
+          ...u,
+          username: u.user_name,
+          avatar: u.avatar_url,
+          score: period === 'day' ? u.today_balance : (period === 'week' ? u.weekly_balance : u.monthly_balance),
+          turns: period === 'day' ? u.today_turns : (period === 'week' ? (u.weekly_turns || u.total_tasks) : (u.monthly_turns || u.total_tasks))
+      }));
+
+      const processedReal = realUsers.map(u => ({
+          ...u,
+          score: period === 'day' ? u.today_balance : (period === 'week' ? u.weekly_balance : u.monthly_balance),
+          turns: period === 'day' ? u.today_turns : (period === 'week' ? (u.weekly_turns || u.total_tasks) : (u.monthly_turns || u.total_tasks))
+      }));
+
+      let combined = [...processedReal, ...processedFake];
+      
+      // Sorting: highest turns or score first
+      combined.sort((a: any, b: any) => {
+          const valB = Number(b.turns || 0);
+          const valA = Number(a.turns || 0);
+          if (valB !== valA) return valB - valA;
+          return Number(b.score || 0) - Number(a.score || 0);
+      });
+      
+      // Filter out those with 0 activity in the period
+      const filtered = combined.filter((u: any) => Number(u.turns || 0) > 0 || Number(u.score || 0) > 0);
+      
+      res.json({ leaderboard: filtered.slice(0, 1000) });
+    } catch (err) {
+      console.error("Leaderboard fatal error:", err);
+      res.json({ leaderboard: [] });
+    }
   });
 
   // User IPs API
@@ -2919,8 +2807,11 @@ async function startServer() {
     });
   }
 
-  // Khởi chạy Telegram Bot thứ 2
-  setupTelegramBot();
+  // Khởi chạy Telegram Bot thứ 2 (delay 2s để tránh conflict khi restart)
+  setTimeout(() => {
+    setupTelegramBot();
+  }, 2000);
+  initFakeData();
 
   return app;
 }

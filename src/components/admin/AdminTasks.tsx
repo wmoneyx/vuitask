@@ -154,6 +154,13 @@ export function AdminTasks() {
          if (sec < 0) return 'N/A';
          return `${Math.floor(sec/60)} phút ${sec%60} giây`;
       };
+
+      const ipInfo = (
+        <div className="mt-1 flex flex-col gap-0.5 border-t border-gray-100 pt-1">
+           <div className="flex items-center gap-1"><span className="text-[10px] bg-blue-50 text-blue-600 px-1 rounded font-bold">START IP</span> <code className="text-gray-400 font-mono italic">{task.start_ip || 'N/A'}</code></div>
+           <div className="flex items-center gap-1"><span className="text-[10px] bg-green-50 text-green-600 px-1 rounded font-bold">VERIFY IP</span> <code className="text-gray-400 font-mono italic">{task.ip || 'N/A'}</code></div>
+        </div>
+      );
       
       if (cat === 'standard') {
           return (
@@ -163,6 +170,7 @@ export function AdminTasks() {
                 <div><span className="text-gray-500 font-medium">Tạo: </span> {createdAt ? createdAt.toLocaleTimeString('vi-VN') : 'N/A'}</div>
                 <div><span className="text-gray-500 font-medium">Xác minh: </span> {verifiedAt.toLocaleTimeString('vi-VN')}</div>
                 <div><span className="text-gray-500 font-medium">Tổng làm: </span> <span className="text-purple-600 font-bold">{formatTime(totalTime)}</span></div>
+                {ipInfo}
              </div>
           );
       }
@@ -174,6 +182,7 @@ export function AdminTasks() {
                 <div><span className="text-gray-500 font-medium">Tạo: </span> {createdAt ? createdAt.toLocaleTimeString('vi-VN') : 'N/A'}</div>
                 <div><span className="text-gray-500 font-medium">Hoàn thành: </span> {verifiedAt.toLocaleTimeString('vi-VN')}</div>
                 <div><span className="text-gray-500 font-medium">Tổng t.gian: </span> <span className="text-purple-600 font-bold">{formatTime(totalTime)}</span></div>
+                {ipInfo}
              </div>
           );
       }
@@ -193,6 +202,7 @@ export function AdminTasks() {
                 <div><span className="text-gray-500 font-medium">Tạo: </span> {createdAt ? createdAt.toLocaleTimeString('vi-VN') : 'N/A'}</div>
                 <div><span className="text-gray-500 font-medium">Hoàn thành: </span> {verifiedAt.toLocaleTimeString('vi-VN')}</div>
                 <div><span className="text-gray-500 font-medium">Tổng t.gian: </span> <span className="text-purple-600 font-bold">{formatTime(totalTime)}</span></div>
+                {ipInfo}
              </div>
           );
       }

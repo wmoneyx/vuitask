@@ -75,6 +75,7 @@ export function AdminDataHistory() {
                          <th className="p-4 rounded-tl-xl">Thời gian</th>
                          <th className="p-4">UID</th>
                          <th className="p-4">Nhiệm vụ</th>
+                         <th className="p-4">Địa chỉ IP</th>
                          <th className="p-4">Thưởng</th>
                          <th className="p-4 rounded-tr-xl">Trạng thái</th>
                        </>
@@ -108,6 +109,12 @@ export function AdminDataHistory() {
                      {activeTab === 'tasks' ? (
                         <>
                            <td className="p-4 font-bold text-slate-700">{log.task_name || log.task_id}</td>
+                           <td className="p-4">
+                              <div className="text-[10px] flex flex-col gap-0.5">
+                                 <span className="text-gray-400 font-mono">BĐ: {log.start_ip || 'N/A'}</span>
+                                 <span className="text-gray-400 font-mono">XN: {log.ip || 'N/A'}</span>
+                              </div>
+                           </td>
                            <td className="p-4 font-black text-emerald-600">+{log.reward}</td>
                            <td className="p-4 text-xs font-bold uppercase">
                                <span className={log.status === 'Hoàn thành' ? 'text-emerald-500' : 'text-slate-500'}>{log.status}</span>

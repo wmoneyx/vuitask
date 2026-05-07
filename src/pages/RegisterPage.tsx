@@ -20,6 +20,7 @@ export function RegisterPage() {
     return params.get('ref') || '';
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -31,6 +32,8 @@ export function RegisterPage() {
     }
 
     setLoading(true);
+    setError('');
+    setSuccess('');
     
     if (!email.endsWith('@gmail.com')) {
       setError('Chỉ chấp nhận email định dạng @gmail.com');
@@ -68,6 +71,7 @@ export function RegisterPage() {
 
       if (data.user) {
         localStorage.setItem('userUUID', data.user.id);
+        setSuccess('Đăng ký tài khoản thành công! Đang chuyển hướng...');
         
         // Sync profile immediately
         try {
@@ -91,12 +95,14 @@ export function RegisterPage() {
           console.error("Immediate Sync Error:", err);
         }
         
-        navigate('/app');
+        setTimeout(() => {
+          navigate('/app');
+        }, 1500);
       }
     } catch (e) {
       setError('Đã xảy ra lỗi hệ thống');
     } finally {
-      setLoading(false);
+      if (!success) setLoading(false);
     }
   };
 
@@ -130,6 +136,11 @@ export function RegisterPage() {
               {error && (
                 <div className="bg-red-50 text-red-500 p-3 rounded-xl text-sm font-medium border border-red-100">
                   {error}
+                </div>
+              )}
+              {success && (
+                <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-sm font-medium border border-emerald-100">
+                  {success}
                 </div>
               )}
               

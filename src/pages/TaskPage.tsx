@@ -10,16 +10,14 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs';
 const fpPromise = FingerprintJS.load();
 
 const TASKS = [
-  { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
-  { id: 'utl4', name: 'UTL 3 STEP', maxViews: 999, reward: 453, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=' },
-  { id: 'utl3', name: 'UTL 2 STEP', maxViews: 999, reward: 385, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=' },
-  { id: 'utl2', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=' },
-  { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
   { id: 'layma', name: 'LAYMA', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://api.layma.net/api/admin/shortlink/quicklink?tokenUser=de2c099a8fd17d1cc6c7068209e5fa5d&format=json&url=' },
-  { id: 'vip_map', name: 'VIP MAP', maxViews: 999, reward: 1200, auto: false, apiUrl: 'https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
-  { id: 'vip_trip', name: 'VIP TRIP', maxViews: 999, reward: 2900, auto: false, apiUrl: 'https://linktot.net/api_rv.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
+  { id: 'linktot', name: 'LINKTOT', maxViews: 4, reward: 400, auto: true, apiUrl: 'https://linktot.net/JSON_QL_API.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
+  { id: 'bbmkts', name: 'BBMKTS', maxViews: 1, reward: 300, auto: false, apiUrl: 'https://bbmkts.com/dapi?token=d285ce6c761cc5961316783a&longurl=' },
+  { id: 'utl2', name: 'UTL 1 STEP', maxViews: 999, reward: 349, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=2&url=' },
+  { id: 'utl3', name: 'UTL 2 STEP', maxViews: 999, reward: 385, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=3&url=' },
+  { id: 'utl4', name: 'UTL 3 STEP', maxViews: 999, reward: 453, auto: true, apiUrl: 'https://uptolink.one/api?api=94eeedcdf3928b7bb78a89c19bad78274a69b830&type=4&url=' },
+  { id: 'link4m', name: 'LINK4M', maxViews: 2, reward: 300, auto: true, apiUrl: 'https://link4m.co/api-shorten/v2?api=68208afab6b8fc60542289b6&url=' },
+  { id: 'timmap', name: 'TIMMAP', maxViews: 2, reward: 200, auto: true, apiUrl: 'https://linktot.net/api_timmap_pt.php?token=d121d1761f207cb9bfde19c8be5111cb8d623d83e1e05053ec914728c9ea869c&url=' },
 ];
 
 import { useUser } from '@/UserContext';
@@ -111,10 +109,10 @@ export function TaskPage() {
     }
 
     // Check global daily turn limit
-    if ((profile?.today_turns || 0) >= 2207) { 
+    if ((profile?.today_turns || 0) >= 100) { 
       showNotification({ 
         title: 'Giới hạn hằng ngày', 
-        message: 'Bạn đã đạt giới hạn 2207 lượt làm nhiệm vụ mỗi ngày. Hãy quay lại vào ngày mai!', 
+        message: 'Bạn đã đạt giới hạn 100 lượt làm nhiệm vụ mỗi ngày. Hãy quay lại vào ngày mai!', 
         type: 'warning' 
       });
       return;
@@ -273,19 +271,19 @@ export function TaskPage() {
           <div className="text-xs font-bold uppercase tracking-[0.2em] mb-2 opacity-80">Tiến độ hằng ngày</div>
           <div className="flex items-end gap-2 mb-4">
             <span className="text-4xl font-black">{todayTaskCount}</span>
-            <span className="text-xl font-bold opacity-60 mb-1">/ 2207 nhiệm vụ</span>
+            <span className="text-xl font-bold opacity-60 mb-1">/ 100 nhiệm vụ</span>
           </div>
           <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
             <motion.div 
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min((todayTaskCount / 2207) * 100, 100)}%` }}
+              animate={{ width: `${Math.min((todayTaskCount / 100) * 100, 100)}%` }}
               className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
             />
           </div>
           <p className="mt-4 text-[10px] font-bold uppercase tracking-wider opacity-70">
-            { todayTaskCount >= 2207 
+            { todayTaskCount >= 100 
                 ? "Bạn đã hoàn thành mục tiêu ngày hôm nay. Hãy quay lại vào ngày mai!" 
-                : `Còn ${2207 - todayTaskCount} nhiệm vụ nữa để hoàn thành mục tiêu ngày.`
+                : `Còn ${100 - todayTaskCount} nhiệm vụ nữa để hoàn thành mục tiêu ngày.`
             }
           </p>
         </div>

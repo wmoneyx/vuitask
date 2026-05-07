@@ -44,10 +44,32 @@ function getMenuKeyboard(isAdmin = false) {
     };
 }
 
-export function setupTelegramBot() {
-    if (!token) return;
+let isInitializing = false;
 
-    bot = new TelegramBot(token, { polling: true });
+export async function setupTelegramBot() {
+    if (!token) return;
+    if (bot || isInitializing) {
+        console.log("Telegram Bot is already initialized or initializing...");
+        return;
+    }
+
+    isInitializing = true;
+    console.log("Starting Telegram Bot...");
+
+    try {
+        bot = new TelegramBot(token, { polling: true });
+
+        // Handle polling errors to avoid the 409 conflict crashing or spamming
+        bot.on('polling_error', (error) => {
+            if (error.message.includes('409 Conflict')) {
+                console.warn("Telegram Bot Poll Conflict: Another instance is running. This instance will wait.");
+                // Optionally stop polling for this instance if we detect a conflict, 
+                // but usually the library handles retries. 
+                // In dev, we just want to avoid the noisy log if possible.
+            } else {
+                console.error("Telegram Bot Polling Error:", error.message);
+            }
+        });
 
     bot.onText(/\/start(.*)/, (msg, match) => {
         const chatId = msg.chat.id;
@@ -842,5 +864,12 @@ export function setupTelegramBot() {
         }
     });
 
+    } catch (err) {
+        console.error("Failed to initialize Telegram Bot:", err);
+        isInitializing = false;
+        bot = null;
+    } finally {
+        isInitializing = false;
+    }
 }
 
