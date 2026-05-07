@@ -82,7 +82,7 @@ export function TaskPrePage() {
           userId: uuid,
           taskId: 'GMAIL_PRE',
           taskName: 'Nhiệm vụ Tạo Gmail',
-          reward: 3000,
+          reward: 5000,
           auto: false,
           fingerprint: fingerprint
         })
@@ -127,7 +127,7 @@ export function TaskPrePage() {
                   <Timer size={16} className="text-blue-500" /> 2h - 5 ngày
                 </span>
                 <span className="bg-emerald-50 text-emerald-600 font-black px-3 py-1 rounded-lg">
-                  +3,000 VuiCoin / lượt
+                  +5,000 VuiCoin / lượt
                 </span>
               </div>
             </div>
