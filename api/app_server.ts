@@ -9,24 +9,43 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function maskInfo(str: string | undefined | null) {
     if (!str) return '***';
-    const len = Math.ceil(str.length / 3);
-    return str.substring(0, len) + '***';
+    if (str.includes('@')) {
+        const [local, domain] = str.split('@');
+        const showLocal = Math.max(1, Math.floor(local.length / 3));
+        const [domainName, domainExt] = (domain || "").split('.');
+        const showDomain = Math.max(1, Math.floor((domainName || "").length / 3));
+        return local.substring(0, showLocal) + '***@' + (domainName || "").substring(0, showDomain) + '***' + (domainExt ? '.' + domainExt : '');
+    }
+    const show = Math.max(1, Math.floor(str.length / 3));
+    return str.substring(0, show) + '***';
 }
 
 const onlineNotificationCache = new Map<string, number>();
 
+const getDisplayUserInfo = async (uuid: string) => {
+    try {
+        const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
+        const maskedName = maskInfo(profile?.user_name || 'Thành viên');
+        const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
+        return `${maskedName}${maskedEmail}`;
+    } catch (e) {
+        return `User ${maskInfo(uuid)}`;
+    }
+};
+
 setInterval(async () => {
     try {
         const { data: topUsers } = await supabaseAdmin.from('profiles')
-            .select('user_name, user_uuid, vui_coin_balance')
+            .select('user_name, user_uuid, user_email, vui_coin_balance')
             .order('vui_coin_balance', { ascending: false })
             .limit(3);
             
         if (topUsers && topUsers.length > 0) {
             let msg = `<b>🏆 TOP 3 BẢNG XẾP HẠNG</b>\n━━━━━━━━━━━━━━━━━━\n`;
             topUsers.forEach((u, i) => {
-                const name = u.user_name || maskInfo(u.user_uuid);
-                msg += `<b>#${i+1}</b> ${name} - ${u.vui_coin_balance.toLocaleString()} VuiCoin\n`;
+                const name = maskInfo(u.user_name || 'Thành viên');
+                const email = u.user_email ? ` (${maskInfo(u.user_email)})` : '';
+                msg += `<b>#${i+1}</b> ${name}${email} - ${u.vui_coin_balance.toLocaleString()} VuiCoin\n`;
             });
             await sendTelegramNotification(msg);
         }
@@ -48,7 +67,7 @@ setInterval(async () => {
         const currentSlot = `${todayStr}-${currentHour}`;
         
         // Daily Reset Notification at 00:00
-        if (currentHour === 0 && currentMinute === 0 && lastResetNotificationDay !== todayStr) {
+        if (currentHour === 0 && lastResetNotificationDay !== todayStr) {
             lastResetNotificationDay = todayStr;
 
             // Calculate yesterday's stats
@@ -79,7 +98,7 @@ setInterval(async () => {
             
             const totalWithdrawnYesterday = (yesterdayWithdrawals || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
-            await sendTelegramNotification(`
+            const resetMsg = `
 <b>🔄 THÔNG BÁO RESET HỆ THỐNG</b>
 ━━━━━━━━━━━━━━━━━━
 HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NGƯỜI KIẾM THẬT NHIỀU VUICOIN NGÀY MỚI ! 
@@ -89,20 +108,43 @@ HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NG
       <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
 💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
       <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
-`.trim());
+`.trim();
+
+            await sendTelegramNotification(resetMsg);
+            
+            // Send to chat
+            await supabaseAdmin.from('community_messages').insert({
+                id: `SYS_RESET_${todayStr}`,
+                type: 'message',
+                user_name: 'Vui TASK ( BOT )',
+                is_admin: true,
+                content: `🔄 [HỆ THỐNG RESET] Chào ngày mới ${todayStr}! Chúc mọi người kiếm thật nhiều VuiCoin.`,
+                timestamp: Date.now()
+            });
         }
 
         // Scheduled reminders: 6h sáng, 12h trưa, 14h (2h chiều), 18h (6h chiều), 20h (8h tối), 22h (10h tối)
         const reminderHours = [6, 12, 14, 18, 20, 22];
-        if (reminderHours.includes(currentHour) && currentMinute === 0 && lastReminderSentSlot !== currentSlot) {
+        if (reminderHours.includes(currentHour) && lastReminderSentSlot !== currentSlot) {
             lastReminderSentSlot = currentSlot;
-            await sendTelegramNotification(`
+            const reminderTxt = `
 <b>📢 THÔNG BÁO TỪ HỆ THỐNG</b>
 ━━━━━━━━━━━━━━━━━━
 MÃ HÔM NAY CÒN RẤT NHIỀU MỌI NGƯỜI TRANH THỦ VÀO BÀO NHÉE !
 🚀 <b>Website:</b> www.vuitask.online
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
+`.trim();
+            await sendTelegramNotification(reminderTxt);
+
+            // Send to chat
+            await supabaseAdmin.from('community_messages').insert({
+                id: `SYS_REMINDER_${currentSlot}`,
+                type: 'message',
+                user_name: 'Vui TASK ( BOT )',
+                is_admin: true,
+                content: `📢 THÔNG BÁO: Mã hôm nay còn rất nhiều, mọi người tranh thủ vào làm nhiệm vụ nhé! 🚀`,
+                timestamp: Date.now()
+            });
         }
     } catch(e) {
         console.error("Error sending daily reset", e);
@@ -598,21 +640,28 @@ async function startServer() {
        return res.status(400).json({ error: "Bạn đã vượt qua link quá nhanh (dưới 1 phút). Nhiệm vụ đã tự động bị từ chối duyệt." });
     }
 
+    // Fetch user profile for masking
+    const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
+    const maskedName = maskInfo(profile?.user_name || 'Member VIP');
+    const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
+    const displayUserInfo = `${maskedName}${maskedEmail}`;
+
     await supabaseAdmin.from('community_messages').insert({
       id: `task_review_${Date.now()}`,
       type: 'task_review',
       user_uuid: uuid,
-      user_name: 'Member VIP',
+      user_name: displayUserInfo,
       user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
-      content: `[XÁC MINH VIP]\nUser: ${uuid.slice(0, 8)}...\nLoại: ${type === 'map' ? 'Review Map' : 'Review Trip'}\nURL Review: ${reviewUrl}\nLink gốc: ${session.short_url || 'N/A'}\nThưởng: ${session.reward} VuiCoin\nDuyệt Lần 1: 24H\nDuyệt Lần 2: 10 Ngày`,
+      content: `[XÁC MINH VIP]\nUser: ${displayUserInfo}\nLoại: ${type === 'map' ? 'Review Map' : 'Review Trip'}\nURL Review: ${reviewUrl}\nLink gốc: ${session.short_url || 'N/A'}\nThưởng: ${session.reward} VuiCoin\nDuyệt Lần 1: 24H\nDuyệt Lần 2: 10 Ngày`,
       timestamp: Date.now()
     });
 
     // Notify Telegram
+    const info = await getDisplayUserInfo(uuid);
     await sendTelegramNotification(`
 <b>🔔 NHIỆM VỤ VIP MỚI</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 📝 <b>Tên:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -676,13 +725,16 @@ async function startServer() {
     // Increment turns
     await updateUserStats(uuid, 0, true);
 
+    // Fetch user profile for masking
+    const displayUserInfo = await getDisplayUserInfo(uuid);
+
     await supabaseAdmin.from('community_messages').insert({
       id: `task_pre_${Date.now()}`,
       type: 'task_review',
       user_uuid: uuid,
-      user_name: 'Member Pre',
+      user_name: displayUserInfo,
       user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
-      content: `[GMAIL PRE]\nUser: ${uuid.slice(0, 8)}...\nEmail: ${email}\nNote: ${note || 'Không có'}\nThưởng: ${session.reward} VuiCoin`,
+      content: `[GMAIL PRE]\nUser: ${displayUserInfo}\nEmail: ${displayUserInfo}\nNote: ${note || 'Không có'}\nThưởng: ${session.reward} VuiCoin`,
       timestamp: Date.now()
     });
 
@@ -690,12 +742,12 @@ async function startServer() {
     await sendTelegramNotification(`
 <b>🔔 NHIỆM VỤ GMAIL MỚI</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${displayUserInfo}</code>
 📝 <b>Tên:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 📊 <b>Trạng thái:</b> ${finalStatus}
-📧 <b>Gmail:</b> ${email}
+📧 <b>Gmail:</b> ${displayUserInfo}
 `.trim());
 
     res.json({ success: true });
@@ -772,11 +824,30 @@ async function startServer() {
           console.error("Failed to insert into tasks_history:", insertError);
       }
 
+      // Fetch user profile for masking and chat notification
+      const { data: profile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
+      const maskedName = maskInfo(profile?.user_name || 'Thành viên');
+      const maskedEmail = profile?.user_email ? ` (${maskInfo(profile.user_email)})` : '';
+      const displayUserInfo = `${maskedName}${maskedEmail}`;
+
+      // Notify Chat for standard task
+      if (!isTooFast && session.auto) {
+          await supabaseAdmin.from('community_messages').insert({
+              id: `TASK_AUTO_${sessionId}`,
+              type: 'message',
+              user_uuid: uuid,
+              user_name: displayUserInfo,
+              user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
+              content: `✅ ${displayUserInfo} vừa hoàn thành nhiệm vụ "${session.task_name}" và nhận được ${finalReward} VuiCoin! 🚀`,
+              timestamp: Date.now()
+          });
+      }
+
       // Notify Telegram
       await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ HOÀN THÀNH</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${displayUserInfo}</code>
 📝 <b>Tên:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -903,12 +974,18 @@ async function startServer() {
     // Deduct balance
     await supabaseAdmin.rpc('decrement_vui_coin', { user_id: uuid, amount: totalDeduction });
 
+    // Fetch user profile for masking
+    const { data: userProfile } = await supabaseAdmin.from('profiles').select('user_name, user_email').eq('user_uuid', uuid).maybeSingle();
+    const maskedName = maskInfo(userProfile?.user_name || username || 'User');
+    const maskedEmail = userProfile?.user_email ? ` (${maskInfo(userProfile.user_email)})` : '';
+    const displayUserInfo = `${maskedName}${maskedEmail}`;
+
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newMsg = {
        id: msgId,
        type: 'withdrawal',
        user_uuid: uuid,
-       user_name: username || 'User',
+       user_name: displayUserInfo,
        user_avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uuid}`,
        amount: netAmount, // Store net amount
        content: `Method: ${method || 'bank'}\nAmount: ${netAmount}\nRequested: ${amount}`,
@@ -923,8 +1000,7 @@ async function startServer() {
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-📱 <b>Username:</b> ${username}
+👤 <b>User:</b> <code>${displayUserInfo}</code>
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 💵 <b>Thực nhận (95%):</b> ${netAmount.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -961,12 +1037,13 @@ async function startServer() {
             admin_note: 'Approved'
         });
 
-        // Notify Telegram
-        await sendTelegramNotification(`
+       // Notify Telegram
+       const info = await getDisplayUserInfo(wRecord.user_uuid);
+       await sendTelegramNotification(`
 <b>✅ ĐƠN RÚT TIỀN ĐÃ ĐƯỢC DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${withdrawalId}</code>
-👤 <b>UUID:</b> <code>${maskInfo(wRecord.user_uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 💰 <b>Số tiền:</b> ${(wRecord.amount || 0).toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1262,10 +1339,11 @@ async function startServer() {
          description: `${logMsg} ${id}`
       });
 
+      const info = await getDisplayUserInfo(id);
       await sendTelegramNotification(`
 <b>🚨 THAY ĐỔI TRẠNG THÁI TÀI KHOẢN</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${id}</code>
+👤 <b>User:</b> <code>${info}</code>
 🛠️ <b>Hành động:</b> ${is_banned ? '⛔ CẤM TÀI KHOẢN' : '✅ BỎ CẤM TÀI KHOẢN'}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1369,10 +1447,11 @@ async function startServer() {
       if (error) return res.status(500).json({ error: error.message });
 
       if (type === 'warning') {
+          const displayTarget = (target === 'all' || !target) ? 'Tất cả' : await getDisplayUserInfo(target);
           await sendTelegramNotification(`
 <b>⚠️ CẢNH BÁO NGƯỜI DÙNG (ADMIN)</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Target:</b> <code>${target}</code>
+👤 <b>Target:</b> <code>${displayTarget}</code>
 📝 <b>Tiêu đề:</b> ${title}
 💬 <b>Nội dung:</b> ${content}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -1406,12 +1485,17 @@ async function startServer() {
   });
 
   app.get("/api/system/settings", async (req, res) => {
-      const { key } = req.query;
-      if (!key || (key !== 'ads_config' && key !== 'maintenance_mode')) {
-          return res.status(403).json({ error: "Access denied" });
+      try {
+          const { key } = req.query;
+          if (!key || (key !== 'ads_config' && key !== 'maintenance_mode')) {
+              return res.status(403).json({ error: "Access denied" });
+          }
+          const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', key).maybeSingle();
+          res.json({ value: setting?.value || null });
+      } catch (err) {
+          console.error("Error fetching system settings:", err);
+          res.status(500).json({ error: "Internal Server Error" });
       }
-      const { data: setting } = await supabaseAdmin.from('system_settings').select('value').eq('key', key).maybeSingle();
-      res.json({ value: setting?.value || null });
   });
 
   app.post("/api/admin/members/delete", checkAdmin, async (req, res) => {
@@ -1634,10 +1718,11 @@ async function startServer() {
           // Award 2% bonus to referrer
           await awardReferralBonus(task.user_uuid, task.reward);
 
+          const info = await getDisplayUserInfo(task.user_uuid);
           await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ MANUAL ĐÃ DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(task.user_uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 📝 <b>Nhiệm vụ:</b> ${task.task_name || task.task_id}
 💰 <b>Thưởng:</b> ${task.reward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -1658,10 +1743,11 @@ async function startServer() {
             admin_note: 'Rejected'
           });
 
+          const info_rej = await getDisplayUserInfo(task.user_uuid);
           await sendTelegramNotification(`
 <b>❌ NHIỆM VỤ MANUAL BỊ TỪ CHỐI</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(task.user_uuid)}</code>
+👤 <b>User:</b> <code>${info_rej}</code>
 📝 <b>Nhiệm vụ:</b> ${task.task_name || task.task_id}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1694,12 +1780,13 @@ async function startServer() {
       .update({ status: 'Từ chối' })
       .eq('id', withdrawalId);
 
-    // Notify Telegram
+   // Notify Telegram
+    const info = await getDisplayUserInfo(wRecord.user_uuid);
     await sendTelegramNotification(`
 <b>❌ ĐƠN RÚT TIỀN BỊ TỪ CHỐI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${withdrawalId}</code>
-👤 <b>UUID:</b> <code>${maskInfo(wRecord.user_uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
@@ -1734,7 +1821,7 @@ async function startServer() {
   });
   // ===================================
 
-    // Record IP
+    // Record IP and Check Duplicate
     const recordUserIp = async (uuid: string, ip: string, pkCol: string) => {
       if (ip === 'unknown') return;
       
@@ -1748,13 +1835,16 @@ async function startServer() {
           const uniqueUuids = [...new Set(duplicateIps.map(d => d.user_uuid))];
           if (uniqueUuids.length > 1 && !onlineNotificationCache.has(`IP_DUP_${ip}`)) {
               onlineNotificationCache.set(`IP_DUP_${ip}`, Date.now()); 
+              
+              const userInfos = await Promise.all(uniqueUuids.map(uid => getDisplayUserInfo(uid)));
+              
               await sendTelegramNotification(`
 <b>🚩 CẢNH BÁO IP TRÙNG LẶP</b>
 ━━━━━━━━━━━━━━━━━━
 🌐 <b>IP:</b> <code>${ip}</code>
 👥 <b>Số tài khoản dùng chung:</b> ${uniqueUuids.length}
-🆔 <b>Danh sách UUID:</b>
-${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
+👤 <b>Danh sách User:</b>
+${userInfos.map(info => `• <code>${info}</code>`).join('\n')}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
           }
@@ -1785,12 +1875,14 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       // Handle online status notification
       if (!onlineNotificationCache.has(uuid) || Date.now() - (onlineNotificationCache.get(uuid) || 0) > 3600000) { // Every 1 hour
           onlineNotificationCache.set(uuid, Date.now());
-          sendTelegramNotification(`
+          getDisplayUserInfo(uuid).then(info => {
+              sendTelegramNotification(`
 <b>🌐 CÓ NGƯỜI DÙNG ONLINE</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim()).catch(console.error);
+          });
       }
 
       const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
@@ -2006,11 +2098,13 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
                       }).eq('user_uuid', referrer.user_uuid);
                       
                       // Notify Telegram
+                      const info = await getDisplayUserInfo(referrer.user_uuid);
+                      const referredInfo = await getDisplayUserInfo(uuid);
                       await sendTelegramNotification(`
 <b>🤝 GIỚI THIỆU (REF) THÀNH CÔNG</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Người mời:</b> <code>${maskInfo(referrer.user_uuid)}</code>
-🆕 <b>Người được mời:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>Người mời:</b> <code>${info}</code>
+🆕 <b>Người được mời:</b> <code>${referredInfo}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
                   } catch (e) {
@@ -2023,12 +2117,11 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       // Record IP
       await recordUserIp(uuid, ip, 'user_uuid');
       
+      const info = await getDisplayUserInfo(uuid);
       await sendTelegramNotification(`
 <b>✨ NGƯỜI DÙNG MỚI ĐĂNG KÝ</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-📧 <b>Email:</b> ${maskInfo(email)}
-🏷️ <b>Tên:</b> ${userName || 'Ẩn danh'}
+👤 <b>User:</b> <code>${info}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim());
 
@@ -2106,14 +2199,14 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
     } catch(e) {}
     
     if (isLogin) {
-        await sendTelegramNotification(`
+        getDisplayUserInfo(uuid).then(info => {
+            sendTelegramNotification(`
 <b>🔑 NGƯỜI DÙNG ĐĂNG NHẬP</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-📧 <b>Email:</b> ${maskInfo(profile.user_email)}
-🏷️ <b>Tên:</b> ${profile.user_name || 'Ẩn danh'}
+👤 <b>User:</b> <code>${info}</code>
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 `.trim()).catch(() => {});
+        });
     }
     
     res.json({ profile: { ...normalize(profile), is_suspected } });
@@ -2208,11 +2301,12 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
        }).eq(pkCol, uuid);
        
        // Notify Telegram
+       const info = await getDisplayUserInfo(uuid);
        const dayNum = Number(day) || 1;
        await sendTelegramNotification(`
 <b>📅 ĐIỂM DANH HÀNG NGÀY</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 ☀️ <b>Ngày:</b> Thứ ${dayNum}
 🎁 <b>Thưởng:</b> ${reward} CoinTask
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2454,13 +2548,16 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
 
     await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - totalDeduction }).eq('user_uuid', uuid);
     
+    // Fetch info for masking
+    const displayUserInfo = await getDisplayUserInfo(uuid);
+
     // Instead of wallet_transactions, insert into community_messages
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const { error } = await supabaseAdmin.from('community_messages').insert({
       id: msgId,
       type: 'withdrawal',
       user_uuid: uuid,
-      user_name: profile.user_name || 'User',
+      user_name: displayUserInfo,
       user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
       content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
       amount: amount,
@@ -2474,8 +2571,7 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>UUID:</b> <code>${uuid}</code>
-🏷️ <b>Tên:</b> ${profile.user_name || 'User'}
+👤 <b>User:</b> <code>${displayUserInfo}</code>
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 🏦 <b>Phương thức:</b> ${method}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2717,10 +2813,11 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
        }
 
        // Notify Telegram
+       const info_mod = await getDisplayUserInfo(uuid);
        await sendTelegramNotification(`
 <b>🛍️ MUA MOD THÀNH CÔNG</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${info_mod}</code>
 🎮 <b>Tên Mod:</b> ${mod.name}
 💰 <b>Giá:</b> ${price.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -2757,10 +2854,11 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
          await supabaseAdmin.from('profiles').update({ coin_task_balance: Number(profile.coin_task_balance) - cost, vui_coin_balance: Number(profile.vui_coin_balance) + rewardAmount }).eq('user_uuid', uuid);
       }
 
+      const info = await getDisplayUserInfo(uuid);
       await sendTelegramNotification(`
 <b>🎁 ĐỔI QUÀ ĐIỂM DANH (MỞ HÒM)</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>User:</b> <code>${info}</code>
 📦 <b>Hòm:</b> Hòm Bí Ẩn ${chestType}
 💎 <b>Phí:</b> -${cost.toLocaleString()} ${isVuiCoinCost ? 'VuiCoin' : 'CoinTask'}
 🎁 <b>Nhận được:</b> +${rewardAmount.toLocaleString()} VuiCoin

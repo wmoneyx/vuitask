@@ -5,7 +5,9 @@ import { AnimatedDiv } from "@/components/ui/AnimatedText";
 import confetti from 'canvas-confetti';
 import { useNotification } from '../context/NotificationContext';
 import { AdBanner } from '@/components/ui/AdBanner';
+import { PopUnderAd } from '@/components/ui/PopUnderAd';
 import { useAds } from '@/context/AdsContext';
+import { safeFetch } from '@/lib/utils';
 
 export function VerifyTaskPrePage() {
   const [searchParams] = useSearchParams();
@@ -27,6 +29,12 @@ export function VerifyTaskPrePage() {
       setErrorMSG('Truy cập bị từ chối. Vui lòng bắt đầu từ trang nhiệm vụ chính.');
       return;
     }
+
+    // Inject Pop-under script
+    const adScript = document.createElement('script');
+    adScript.src = 'https://socialconventcontext.com/e4/f7/75/e4f7759d92f684ee31c3179f8525d4b2.js';
+    adScript.async = true;
+    document.body.appendChild(adScript);
 
     // Fast Security Check (< 5s)
     const timeout = setTimeout(() => {
@@ -52,7 +60,12 @@ export function VerifyTaskPrePage() {
       });
     }, 2000);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      if (document.body.contains(adScript)) {
+        document.body.removeChild(adScript);
+      }
+    };
   }, [sessionId, uuid, showNotification]);
 
   const handleSubmit = () => {
@@ -63,14 +76,13 @@ export function VerifyTaskPrePage() {
     if (!emailInput.trim()) return showNotification({ title: 'Cảnh báo', message: 'Vui lòng nhập Email!', type: 'warning' });
     if (!emailInput.includes('@gmail.com')) return showNotification({ title: 'Sai định dạng', message: 'Vui lòng nhập định dạng @gmail.com', type: 'error' });
 
-    fetch('/api/admin/submit-pre-task', {
+     safeFetch('/api/admin/submit-pre-task', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, uuid, email: emailInput, note: noteInput })
     })
-    .then(res => res.json())
     .then(data => {
-      if (data.success) {
+      if (data && data.success) {
         setStatus('confirmed');
         confetti({
           particleCount: 150,
@@ -91,6 +103,7 @@ export function VerifyTaskPrePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <PopUnderAd />
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-600 font-extrabold text-xl tracking-tighter">
@@ -107,7 +120,8 @@ export function VerifyTaskPrePage() {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
         <div className="space-y-6">
-          <AdBanner id="a3930c4058f6ea7a4ff07710093bebcc" width={468} height={60} type="banner" />
+          <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
+          <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
           <div className="bg-white rounded-[40px] p-6 md:p-12 border border-gray-100 shadow-xl shadow-slate-200/50">
             
             <AnimatedDiv className="mb-10">
@@ -225,6 +239,7 @@ export function VerifyTaskPrePage() {
                
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm leading-relaxed font-bold text-slate-600">
                   <div className="space-y-4">
+                     <AdBanner id="f05795e79791208ff016c75a393a66ce" width={320} height={50} type="mobile-banner" />
                      <p className="bg-slate-50 p-6 rounded-3xl border border-slate-200"><span className="text-indigo-600 font-extrabold uppercase block mb-1 text-xs">Cách 1</span> Sử dụng điện thoại Android/IPhone: Có thể dùng 4G hoặc WiFi. Sử dụng trình duyệt Chrome, Cốc Cốc hoặc ứng dụng G-mail, Drive, CH-Play đều hiệu quả.</p>
                      <p className="bg-slate-50 p-6 rounded-3xl border border-slate-200"><span className="text-indigo-600 font-extrabold uppercase block mb-1 text-xs">Cách 2</span> Tạo tài khoản liên tục: Nếu thiết bị chưa tạo lâu ngày, thường tạo được 4-5 tài khoản một lúc mà không bị hỏi SĐT.</p>
                   </div>

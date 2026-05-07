@@ -48,7 +48,7 @@ export function AdBanner({ id, height, width, type }: AdBannerProps) {
       };
     `;
     
-    script.src = `https://www.highperformanceformat.com/${id}/invoke.js`;
+    script.src = `https://socialconventcontext.com/${id}/invoke.js`;
     script.async = true;
 
     containerRef.current.appendChild(configScript);
