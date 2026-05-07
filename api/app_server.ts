@@ -3,14 +3,16 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { supabaseAdmin } from "../server_lib/supabase.js";
-import { sendTelegramNotification } from "../server_lib/telegram.js";
+import { sendTelegramNotification, maskIdentity } from "../server_lib/telegram.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function maskInfo(str: string | undefined | null) {
     if (!str) return '***';
-    const len = Math.ceil(str.length / 3);
-    return str.substring(0, len) + '***';
+    const len = str.length;
+    // User wants only 1/4 of chars to be revealed for security
+    const revealLen = Math.max(1, Math.floor(len / 4));
+    return str.substring(0, revealLen) + '*'.repeat(len - revealLen);
 }
 
 const onlineNotificationCache = new Map<string, number>();
@@ -28,7 +30,7 @@ setInterval(async () => {
                 const name = u.user_name || maskInfo(u.user_uuid);
                 msg += `<b>#${i+1}</b> ${name} - ${u.vui_coin_balance.toLocaleString()} VuiCoin\n`;
             });
-            await sendTelegramNotification(msg);
+            // await sendTelegramNotification(msg);
         }
     } catch(e) {
         console.error("Error sending top 3 to telegram", e);
@@ -79,30 +81,30 @@ setInterval(async () => {
             
             const totalWithdrawnYesterday = (yesterdayWithdrawals || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
-            await sendTelegramNotification(`
-<b>🔄 THÔNG BÁO RESET HỆ THỐNG</b>
-━━━━━━━━━━━━━━━━━━
-HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NGƯỜI KIẾM THẬT NHIỀU VUICOIN NGÀY MỚI ! 
-
-📊 <b>BÁO CÁO NGÀY HÔM QUA:</b>
-💰 <b>Số dư hệ thống:</b> ${totalEarnedYesterday.toLocaleString()} VuiCoin
-      <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
-💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
-      <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
-`.trim());
+            // await sendTelegramNotification(`
+            // <b>🔄 THÔNG BÁO RESET HỆ THỐNG</b>
+            // ━━━━━━━━━━━━━━━━━━
+            // HỆ THỐNG WEBSITE www.vuitask.online ĐÃ RESET HỆ THỐNG ! CHÚC MỌI NGƯỜI KIẾM THẬT NHIỀU VUICOIN NGÀY MỚI ! 
+            // 
+            // 📊 <b>BÁO CÁO NGÀY HÔM QUA:</b>
+            // 💰 <b>Số dư hệ thống:</b> ${totalEarnedYesterday.toLocaleString()} VuiCoin
+            //       <i>(Tổng tiền người dùng kiếm được khi làm nhiệm vụ hôm qua)</i>
+            // 💸 <b>Số tiền đã rút:</b> ${totalWithdrawnYesterday.toLocaleString()} VuiCoin
+            //       <i>(Tổng tiền đã duyệt thanh toán thành công hôm qua)</i>
+            // `.trim());
         }
 
         // Scheduled reminders: 6h sáng, 12h trưa, 14h (2h chiều), 18h (6h chiều), 20h (8h tối), 22h (10h tối)
         const reminderHours = [6, 12, 14, 18, 20, 22];
         if (reminderHours.includes(currentHour) && currentMinute === 0 && lastReminderSentSlot !== currentSlot) {
             lastReminderSentSlot = currentSlot;
-            await sendTelegramNotification(`
-<b>📢 THÔNG BÁO TỪ HỆ THỐNG</b>
-━━━━━━━━━━━━━━━━━━
-MÃ HÔM NAY CÒN RẤT NHIỀU MỌI NGƯỜI TRANH THỦ VÀO BÀO NHÉE !
-🚀 <b>Website:</b> www.vuitask.online
-🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
+            // await sendTelegramNotification(`
+            // <b>📢 THÔNG BÁO TỪ HỆ THỐNG</b>
+            // ━━━━━━━━━━━━━━━━━━
+            // MÃ HÔM NAY CÒN RẤT NHIỀU MỌI NGƯỜI TRANH THỦ VÀO BÀO NHÉE !
+            // 🚀 <b>Website:</b> www.vuitask.online
+            // 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+            // `.trim());
         }
     } catch(e) {
         console.error("Error sending daily reset", e);
@@ -384,7 +386,8 @@ async function startServer() {
           expires: Date.now() + 15 * 60 * 1000,
           completed: false,
           short_url: '',
-          fingerprint: fingerprint // Store fingerprint in session
+          fingerprint: fingerprint,
+          start_ip: ip
         });
 
         if (error) {
@@ -772,6 +775,8 @@ async function startServer() {
           status: finalStatus,
           status_v1: statusV1,
           status_v2: statusV1,
+          start_ip: session.start_ip,
+          verify_ip: ip,
           ip: ip,
           fingerprint: session.fingerprint, // Include fingerprint from session
           timestamp: Date.now()
@@ -783,15 +788,18 @@ async function startServer() {
       }
 
       // Notify Telegram
+      const { data: userData } = await supabaseAdmin.from('profiles').select('user_email, user_name').eq('user_uuid', uuid).single();
       await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ HOÀN THÀNH</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-📝 <b>Tên:</b> ${session.task_name}
+👤 <b>UUID:</b> <code>${maskIdentity(uuid)}</code>
+📧 <b>Email:</b> ${maskIdentity(userData?.user_email)}
+🏷️ <b>Tên:</b> ${maskIdentity(userData?.user_name || 'Ẩn danh')}
+📝 <b>Nhiệm vụ:</b> ${session.task_name}
 💰 <b>Thưởng:</b> ${finalReward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 📊 <b>Trạng thái:</b> ${finalStatus}
-`.trim());
+`.trim(), 'task_completed');
 
       if (isTooFast) {
           // Increment turns but 0 reward
@@ -899,6 +907,7 @@ async function startServer() {
 
   app.post("/api/community/withdraw", async (req, res) => {
     const { uuid, amount, username, avatar, method } = req.body || {};
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     
     // Check balance first
     const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance').eq('user_uuid', uuid).single();
@@ -933,14 +942,14 @@ async function startServer() {
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
+👤 <b>UUID:</b> <code>${maskIdentity(uuid)}</code>
 📱 <b>Username:</b> ${username}
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 💵 <b>Thực nhận (95%):</b> ${netAmount.toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 🏦 <b>Phương thức:</b> ${method}
 📊 <b>Trạng thái:</b> Đang chờ duyệt
-`.trim());
+`.trim(), 'withdrawal_created');
 
     res.json({ success: true, message: { ...newMsg, reactions: {} }, newBalance: profile.vui_coin_balance - totalDeduction });
   });
@@ -976,10 +985,10 @@ async function startServer() {
 <b>✅ ĐƠN RÚT TIỀN ĐÃ ĐƯỢC DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${withdrawalId}</code>
-👤 <b>UUID:</b> <code>${maskInfo(wRecord.user_uuid)}</code>
+👤 <b>UUID:</b> <code>${maskIdentity(wRecord.user_uuid)}</code>
 💰 <b>Số tiền:</b> ${(wRecord.amount || 0).toLocaleString()} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
+`.trim(), 'withdrawal_approved');
     }
 
     const replyMsg = {
@@ -1586,8 +1595,7 @@ async function startServer() {
       .select('*')
       .neq('status', 'Chờ duyệt')
       .gt('timestamp', clearTime)
-      .order('timestamp', { ascending: false })
-      .limit(100);
+      .order('timestamp', { ascending: false });
 
     if (history && history.length > 0) {
       const sessionIds = history.map(p => p.id);
@@ -1665,14 +1673,17 @@ async function startServer() {
           // Award 2% bonus to referrer
           await awardReferralBonus(task.user_uuid, task.reward);
 
+          const { data: userData } = await supabaseAdmin.from('profiles').select('user_email, user_name').eq('user_uuid', task.user_uuid).single();
           await sendTelegramNotification(`
 <b>✅ NHIỆM VỤ MANUAL ĐÃ DUYỆT</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(task.user_uuid)}</code>
+👤 <b>UUID:</b> <code>${maskIdentity(task.user_uuid)}</code>
+📧 <b>Email:</b> ${maskIdentity(userData?.user_email)}
+🏷️ <b>Tên:</b> ${maskIdentity(userData?.user_name || 'User')}
 📝 <b>Nhiệm vụ:</b> ${task.task_name || task.task_id}
 💰 <b>Thưởng:</b> ${task.reward} VuiCoin
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
+`.trim(), 'task_approved');
        } else {
           await supabaseAdmin
             .from('tasks_history')
@@ -1814,15 +1825,7 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       }
   
       // Handle online status notification
-      if (!onlineNotificationCache.has(uuid) || Date.now() - (onlineNotificationCache.get(uuid) || 0) > 3600000) { // Every 1 hour
-          onlineNotificationCache.set(uuid, Date.now());
-          sendTelegramNotification(`
-<b>🌐 CÓ NGƯỜI DÙNG ONLINE</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim()).catch(console.error);
-      }
+      // Removed per user request
 
       const todayVN = new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0];
       const thisMonthVN = todayVN.substring(0, 7) + "-01";
@@ -2057,11 +2060,11 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       await sendTelegramNotification(`
 <b>✨ NGƯỜI DÙNG MỚI ĐĂNG KÝ</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>UUID:</b> <code>${maskInfo(uuid)}</code>
-📧 <b>Email:</b> ${maskInfo(email)}
-🏷️ <b>Tên:</b> ${userName || 'Ẩn danh'}
+👤 <b>UUID:</b> <code>${maskIdentity(uuid)}</code>
+📧 <b>Email:</b> ${maskIdentity(email)}
+🏷️ <b>Tên:</b> ${maskIdentity(userName || 'Ẩn danh')}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
-`.trim());
+`.trim(), 'user_registered');
 
       return res.json({ profile: normalize(newProfile) });
     }
@@ -2501,17 +2504,19 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
 
     if (error) return res.status(500).json({ error: error.message });
 
+    const { data: userData } = await supabaseAdmin.from('profiles').select('user_email').eq('user_uuid', uuid).single();
     await sendTelegramNotification(`
 <b>💸 ĐƠN RÚT TIỀN MỚI</b>
 ━━━━━━━━━━━━━━━━━━
 🆔 <b>ID Đơn:</b> <code>${msgId}</code>
-👤 <b>UUID:</b> <code>${uuid}</code>
-🏷️ <b>Tên:</b> ${profile.user_name || 'User'}
+👤 <b>UUID:</b> <code>${maskIdentity(uuid)}</code>
+📧 <b>Email:</b> ${maskIdentity(userData?.user_email)}
+🏷️ <b>Tên:</b> ${maskIdentity(profile.user_name || 'User')}
 💰 <b>Số tiền:</b> ${amount.toLocaleString()} VuiCoin
 🏦 <b>Phương thức:</b> ${method}
 🕒 <b>Thời gian:</b> ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 📊 <b>Trạng thái:</b> Đang chờ duyệt
-`.trim());
+`.trim(), 'withdrawal_created');
 
     res.json({ success: true });
   });

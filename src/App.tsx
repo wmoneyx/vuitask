@@ -28,6 +28,7 @@ import { TaskVipPage } from "./pages/TaskVipPage";
 import { TaskPrePage } from "./pages/TaskPrePage";
 import { VerifyTaskPrePage } from "./pages/VerifyTaskPrePage";
 import { TermsPage } from "./pages/TermsPage";
+import { AdminHistoryPage } from "./pages/AdminHistoryPage";
 
 import { CommunityPage } from "./pages/CommunityPage";
 import { UserProvider } from "./UserContext";
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="/app" element={<Layout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="admin" element={<AdminPage />} />
+                <Route path="admin-history" element={<AdminHistoryPage />} />
                 <Route path="community" element={<CommunityPage />} />
                 <Route path="games" element={<ModGamePage />} />
                 <Route path="task" element={<TaskPage />} />
