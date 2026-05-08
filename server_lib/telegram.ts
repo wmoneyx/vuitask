@@ -11,7 +11,7 @@ export type NotificationType = 'task_completed' | 'task_approved' | 'withdrawal_
 
 export async function sendTelegramNotification(message: string, type?: NotificationType) {
     const allowedTypes = ['task_completed', 'task_approved', 'withdrawal_created', 'withdrawal_approved', 'user_registered'];
-    if (type && !allowedTypes.includes(type)) {
+    if (!type || !allowedTypes.includes(type)) {
         return;
     }
     const token = process.env.TELEGRAM_BOT_TOKEN || '8679875744:AAE9Cf1ZcZBCRWpKvIGQVG7jBYn6o8XqbNU';

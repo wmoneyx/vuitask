@@ -15,7 +15,6 @@ import {
   MessageSquare,
   LifeBuoy,
   Mail,
-  History,
   LogOut
 } from "lucide-react";
 
@@ -56,9 +55,11 @@ export const SIDEBAR_MENUS = [
 ];
 
 export const SUPPORT_MENUS = {
-  title: "LỊCH SỬ HỆ THỐNG",
+  title: "HỖ TRỢ",
   items: [
-    { name: "Tra cứu lịch sử", path: "/app/admin-history", icon: History, isExternal: false },
+    { name: "Nhóm Chat Tele", path: "https://t.me/VuiTask_chat", icon: MessageSquare, isExternal: true },
+    { name: "Support Vui Tele", path: "https://t.me/VuiTask_admin", icon: LifeBuoy, isExternal: true },
+    { name: "Nhóm Nois & Pay", path: "https://t.me/NoiPay_Vuitask", icon: MessageSquare, isExternal: true },
   ]
 };
 
