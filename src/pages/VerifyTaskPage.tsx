@@ -65,7 +65,7 @@ export function VerifyTaskPage() {
     })
     .then(res => res.json())
     .then(data => {
-      if(data.status === 'success') {
+      if(data.status === 'success' || data.success) {
         setStatus('confirmed');
         
         // Fireworks!

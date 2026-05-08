@@ -253,13 +253,11 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
              updates.weekly_balance = (updates.weekly_balance !== undefined ? updates.weekly_balance : currentWeeklyBalance) + Number(amount);
         }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
+    }
         
-        if (isTask) {
-            if (incrementTurn) {
-                updates.today_turns = currentTodayTurns + 1;
-                updates.total_tasks = Number(profile.total_tasks || 0) + 1;
-            }
-        }
+    if (isTask && incrementTurn) {
+        updates.today_turns = currentTodayTurns + 1;
+        updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
     // Final check to remove columns that definitely don't exist based on the profile we fetched
@@ -360,9 +358,7 @@ async function startServer() {
         const { data: taskConfig } = await supabaseAdmin.from('tasks').select('max_views').eq('id', taskId).maybeSingle();
         if (taskConfig) {
             maxViews = taskConfig.max_views;
-        } else if (taskId === 'yeumoney') {
-            maxViews = 3;
-        } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap' || taskId === 'xxxlink') {
+        } else if (taskId === 'layma' || taskId === 'link4m' || taskId === 'timmap') {
             maxViews = 2;
         } else if (taskId === 'linktot') {
             maxViews = 4;
