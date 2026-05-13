@@ -37,7 +37,7 @@ setInterval(async () => {
     }
 }, 2 * 60 * 60 * 1000); // Every 2 hours
 
-const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, avatar_url, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_tasks, total_refs';
+const SAFE_PROFILE_COLS = 'user_uuid, user_email, user_name, vui_coin_balance, coin_task_balance, today_balance, today_turns, task_bonus_percent, task_bonus_expires_at, monthly_balance, is_admin, is_banned, last_reset_day, last_reset_month, created_at, total_refs';
 
 let lastResetNotificationDay = '';
 let lastReminderSentSlot = '';
@@ -169,7 +169,7 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     // Retry logic for DB connection
     let profile: any = null;
     let pkCol = 'user_uuid';
-    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, weekly_balance, monthly_balance, last_reset_day, last_reset_week, last_reset_month, total_tasks';
+    const cols = 'user_uuid, vui_coin_balance, today_balance, today_turns, monthly_balance, last_reset_day, last_reset_month, coin_task_balance';
     
     let retryCount = 0;
     while (retryCount < 3) {
@@ -209,7 +209,6 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
 
     let currentTodayBalance = Number(profile.today_balance || 0);
     let currentTodayTurns = Number(profile.today_turns || 0);
-    let currentWeeklyBalance = Number(profile.weekly_balance || 0);
     let currentMonthlyBalance = Number(profile.monthly_balance || 0);
 
     const updates: any = {
@@ -224,22 +223,6 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
         updates.today_turns = 0;   
     }
 
-    // Weekly reset: simplified (Sunday to Monday)
-    const todayDate = new Date();
-    const dayOfWeek = todayDate.getDay(); // 0 is Sunday
-    const weekStart = new Date(todayDate);
-    weekStart.setDate(todayDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-
-    // Only update weekly if column exists
-    if ('weekly_balance' in profile || 'last_reset_week' in profile) {
-        if (profile.last_reset_week !== weekStartStr) {
-            currentWeeklyBalance = 0;
-            updates.last_reset_week = weekStartStr;
-            updates.weekly_balance = 0;
-        }
-    }
-
     if (profile.last_reset_month !== thisMonthVN) {
         currentMonthlyBalance = 0;
         updates.last_reset_month = thisMonthVN;
@@ -249,15 +232,11 @@ async function updateUserStats(userId: string, amount: number, isTask: boolean =
     // Always update today/monthly balance if amount > 0, to reflect in earnings dashboard
     if (Number(amount) > 0) {
         updates.today_balance = currentTodayBalance + Number(amount);
-        if ('weekly_balance' in profile || updates.weekly_balance !== undefined) {
-             updates.weekly_balance = (updates.weekly_balance !== undefined ? updates.weekly_balance : currentWeeklyBalance) + Number(amount);
-        }
         updates.monthly_balance = currentMonthlyBalance + Number(amount);
     }
         
     if (isTask && incrementTurn) {
         updates.today_turns = currentTodayTurns + 1;
-        updates.total_tasks = Number(profile.total_tasks || 0) + 1;
     }
     
     // Final check to remove columns that definitely don't exist based on the profile we fetched
@@ -834,16 +813,13 @@ async function startServer() {
   app.get("/api/tasks/history", async (req, res) => {
     const uuid = req.query.uuid as string;
     
-    const msVN = Date.now() + 7 * 3600 * 1000;
-    const vnDateStr = new Date(msVN).toISOString().split('T')[0]; 
-    const midnightVN = new Date(`${vnDateStr}T00:00:00.000Z`).getTime() - 7 * 3600 * 1000;
-
+    // Return last 200 history entries instead of just today
     const { data: history, error } = await supabaseAdmin
       .from('tasks_history')
       .select('*')
       .eq('user_uuid', uuid || '00000000-0000-0000-0000-000000000000')
-      .gte('timestamp', midnightVN)
-      .order('timestamp', { ascending: false });
+      .order('timestamp', { ascending: false })
+      .limit(200);
     
     if (error) {
        console.error("Fetch History Error:", error);
@@ -1874,7 +1850,6 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
         return {
           ...p,
           user_uuid: p.user_uuid || p.id || uuid,
-          avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id || uuid}`,
           is_admin: p.is_admin === true || p.isAdmin === true || p.is_admin === 'true' || p.is_admin === 1
         };
       };
@@ -1917,7 +1892,6 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
         user_uuid: uuid, 
         user_email: email || null,
         user_name: userName || null,
-        avatar_url: avatarUrl || null,
         vui_coin_balance: 0, 
         coin_task_balance: 0,
         today_balance: 0,
@@ -1993,7 +1967,7 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
           const profileId = newProfile.user_uuid || newProfile.id;
           const profileIdCol = newProfile.user_uuid ? 'user_uuid' : 'id';
           
-          const optionalFields = ['user_email', 'user_name', 'avatar_url', 'vui_coin_balance', 'coin_task_balance', 'today_balance', 'today_turns', 'monthly_balance', 'last_reset_day', 'last_reset_month', 'is_admin'];
+          const optionalFields = ['user_email', 'user_name', 'vui_coin_balance', 'coin_task_balance', 'today_balance', 'today_turns', 'monthly_balance', 'last_reset_day', 'last_reset_month', 'is_admin'];
           
           const updateData: any = {};
           optionalFields.forEach(f => { if (insertData[f] !== undefined) updateData[f] = insertData[f]; });
@@ -2076,7 +2050,6 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
     const updates: any = {};
     if (reqEmail !== undefined && profile.user_email !== reqEmail) updates.user_email = reqEmail;
     if (reqUserName !== undefined && profile.user_name !== reqUserName) updates.user_name = reqUserName;
-    if (reqAvatarUrl !== undefined && profile.avatar_url !== reqAvatarUrl) updates.avatar_url = reqAvatarUrl;
     
     // Auto-grant admin for specific email if not already admin
     if (profile.user_email === 'anhvuzzz09@gmail.com' && !profile.is_admin) {
@@ -2107,10 +2080,9 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
            Object.assign(profile, updates);
          }
          
-         // Update community messages if avatar or name changed
-         if (updates.avatar_url !== undefined || updates.user_name !== undefined) {
+         // Update community messages if name changed
+         if (updates.user_name !== undefined) {
              const commUpdates: any = {};
-             if (updates.avatar_url !== undefined) commUpdates.user_avatar = updates.avatar_url;
              if (updates.user_name !== undefined) commUpdates.user_name = updates.user_name;
              
              // Run asynchronously so it doesn't block
@@ -2236,11 +2208,16 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
            }
        }
 
-       const newBalance = Number(currentBalance) + Number(reward);
+       const newCoinTaskBalance = Number(currentBalance) + Number(reward);
+       // Also award a bit of VuiCoin (10% of CoinTask) to make it visible on dashboard
+       const vuiCoinBonus = Math.floor(Number(reward) * 0.1) || 1;
+
        await supabaseAdmin.from('profiles').update({ 
            last_attendance: today,
-           coin_task_balance: newBalance
+           coin_task_balance: newCoinTaskBalance
        }).eq(pkCol, uuid);
+       
+       await updateUserStats(uuid, vuiCoinBonus, false, false);
        
        // Notify Telegram
        const dayNum = Number(day) || 1;
@@ -2316,11 +2293,11 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
        const period = req.query.period as string || 'month';
        let sortCol = 'monthly_balance';
        if (period === 'day') sortCol = 'today_balance';
-       else if (period === 'week') sortCol = 'weekly_balance';
+       else if (period === 'week') sortCol = 'monthly_balance';
        
        let { data: profiles, error } = await supabaseAdmin
          .from('profiles')
-         .select(`user_uuid, user_name, avatar_url, today_balance, weekly_balance, monthly_balance, today_turns, total_tasks`)
+         .select(`user_uuid, user_name, today_balance, monthly_balance, today_turns`)
          .order(sortCol, { ascending: false })
          .gt(sortCol, 0)
          .limit(20);
@@ -2328,7 +2305,7 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
        if (profiles && !error) {
            profiles = profiles.map((p: any) => ({
                ...p,
-               avatar_url: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
+               avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.user_uuid || p.id}`
            }));
        }
        
@@ -2477,17 +2454,22 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       return res.status(400).json({ error: `BẠN CÓ ĐƠN RÚT [${pendingWds[0].id}] CHƯA THANH TOÁN.` });
     }
 
-    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name, avatar_url').eq('user_uuid', uuid).single();
+    // Fetch profile without avatar_url to prevent crashes if column doesn't exist
+    const { data: profile } = await supabaseAdmin.from('profiles').select('vui_coin_balance, user_name').eq('user_uuid', uuid).single();
     
     // Fee 5%
-    const fee = amount * 0.05;
-    const totalDeduction = amount + fee;
+    const numAmount = Number(amount);
+    const fee = numAmount * 0.05;
+    const totalDeduction = numAmount + fee;
+
+    console.log(`[WITHDRAW] uuid: ${uuid}, profile.vui_coin_balance: ${profile?.vui_coin_balance}, numAmount: ${numAmount}, totalDeduction: ${totalDeduction}`);
     
-    if (!profile || profile.vui_coin_balance < totalDeduction) {
+    if (!profile || Number(profile.vui_coin_balance) < totalDeduction) {
+      console.log(`[WITHDRAW_FAIL] Is Profile null? ${!profile}. Balance: ${profile?.vui_coin_balance} < ${totalDeduction} is ${Number(profile?.vui_coin_balance) < totalDeduction}`);
       return res.status(400).json({ error: "Số dư không đủ (đã bao gồm phí 5%)" });
     }
 
-    await supabaseAdmin.from('profiles').update({ vui_coin_balance: profile.vui_coin_balance - totalDeduction }).eq('user_uuid', uuid);
+    await supabaseAdmin.from('profiles').update({ vui_coin_balance: Number(profile.vui_coin_balance) - totalDeduction }).eq('user_uuid', uuid);
     
     // Instead of wallet_transactions, insert into community_messages
     const msgId = `WD_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -2495,8 +2477,8 @@ ${uniqueUuids.map(uid => `• <code>${uid}</code>`).join('\n')}
       id: msgId,
       type: 'withdrawal',
       user_uuid: uuid,
-      user_name: profile.user_name || 'User',
-      user_avatar: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
+      user_name: profile?.user_name || 'User',
+      user_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + uuid,
       content: `Yêu cầu rút tiền qua ${method.toUpperCase()}. Chi tiết: ${details}`,
       amount: amount,
       status: 'Đang chờ duyệt',
