@@ -65,7 +65,7 @@ export function Dashboard() {
             <div className="text-sm text-gray-500 font-medium mb-1">Số Dư Hôm Nay</div>
             <div className="text-2xl font-bold text-purple-600 flex items-center gap-1.5">
               <VuiCoin size={24} strokeWidth={2.5} /> 
-              {(stats?.todayBalance || 0).toLocaleString()}
+              {(profile?.today_balance ?? stats?.todayBalance ?? 0).toLocaleString()}
             </div>
           </div>
         </AnimatedDiv>
@@ -79,7 +79,7 @@ export function Dashboard() {
             <div className="text-sm text-gray-500 font-medium mb-1">Số Dư Ví</div>
             <div className="text-2xl font-bold text-amber-500 flex items-center gap-1.5">
               <VuiCoin size={24} strokeWidth={2.5} /> 
-              {(stats?.totalBalance || 0).toLocaleString()}
+              {(profile?.vui_coin_balance ?? stats?.totalBalance ?? 0).toLocaleString()}
             </div>
           </div>
         </AnimatedDiv>
