@@ -157,9 +157,9 @@ export function AdminMembers() {
   };
 
   const filteredMembers = members.filter(m => 
-     m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     m.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     m.id.toLowerCase().includes(searchTerm.toLowerCase())
+     (m.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+     (m.email || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+     (m.id || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
   return (
